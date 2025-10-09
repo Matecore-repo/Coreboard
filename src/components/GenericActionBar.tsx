@@ -1,5 +1,5 @@
 import { useState, memo, useCallback, useEffect } from "react";
-import { Edit2, Trash2, Eye, X, MoreVertical } from "lucide-react";
+import { Edit2, Trash2, Eye, X, MoreVertical, Calendar as CalendarIcon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -9,6 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "./ui/dropdown-menu";
 
 interface ActionButton {
@@ -36,6 +39,7 @@ interface GenericActionBarProps {
   onDelete?: () => void;
   customActions?: ActionButton[];
   detailFields?: DetailField[];
+  onReschedule?: (payload: { date?: string; time?: string; openPicker?: "date" | "time" }) => void;
 }
 
 export const GenericActionBar = memo(function GenericActionBar({
@@ -48,6 +52,7 @@ export const GenericActionBar = memo(function GenericActionBar({
   onDelete,
   customActions,
   detailFields,
+  onReschedule,
 }: GenericActionBarProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -131,17 +136,18 @@ export const GenericActionBar = memo(function GenericActionBar({
                         </Button>
                       )}
                       
+                      {/* Nuevo: Menú 'Acciones' que despliega hacia arriba */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-20 px-2"
                           >
-                            <MoreVertical className="h-4 w-4" />
+                            Acciones
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuContent align="end" side="top" className="w-48">
                           {onEdit && (
                             <DropdownMenuItem onClick={onEdit}>
                               <Edit2 className="h-4 w-4 mr-2" />
@@ -178,39 +184,69 @@ export const GenericActionBar = memo(function GenericActionBar({
                     </>
                   ) : (
                     <>
-                      {/* Desktop: Show all buttons */}
-                      {onEdit && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={onEdit}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {onDelete && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={onDelete}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {customActions?.map((action, index) => (
-                        <Button
-                          key={index}
-                          variant={action.variant || "ghost"}
-                          size="sm"
-                          onClick={action.onClick}
-                          className="h-8 px-3"
-                        >
-                          {action.icon}
-                          <span className="ml-1.5">{action.label}</span>
-                        </Button>
-                      ))}
+                      {/* Desktop: Reemplazamos los botones por un solo menú 'Acciones' */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-24 px-2"
+                          >
+                            Acciones
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" side="top" className="w-56">
+                          {onEdit && (
+                            <DropdownMenuItem onClick={onEdit}>
+                              <Edit2 className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                          )}
+
+                          {customActions?.map((action, index) => (
+                            <DropdownMenuItem key={index} onClick={action.onClick}>
+                              {action.icon && <span className="mr-2">{action.icon}</span>}
+                              {action.label}
+                            </DropdownMenuItem>
+                          ))}
+
+                          {/* Subgrupo Reprogramar (movido al final y estilo igual a los demás) */}
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <CalendarIcon className="h-4 w-4 mr-2" />
+                              Reprogramar
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent sideOffset={8} className="w-56">
+                              <DropdownMenuItem onClick={() => { if (onReschedule) onReschedule({ date: new Date().toISOString().slice(0,10) }); }}>
+                                Hoy
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { if (onReschedule) { const d = new Date(); d.setDate(d.getDate()+1); onReschedule({ date: d.toISOString().slice(0,10) }); } }}>
+                                Mañana
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { if (onReschedule) onReschedule({ openPicker: 'date' }); }}>
+                                Elegir fecha...
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => { if (onReschedule) onReschedule({ openPicker: 'time' }); }}>
+                                Elegir hora...
+                              </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+
+                          {(onEdit || customActions) && onDelete && <DropdownMenuSeparator />}
+                          {onDelete && (
+                            <DropdownMenuItem 
+                              onClick={onDelete}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      {/* Mostrar botón de detalles y cerrar aparte */}
                       {detailFields && detailFields.length > 0 && (
                         <Button
                           variant="ghost"

@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, Book, Clock } from "lucide-react";
 import { Appointment } from "./AppointmentCard";
 import { GenericActionBar } from "./GenericActionBar";
 
@@ -9,6 +9,9 @@ interface AppointmentActionBarProps {
   onComplete: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onReschedule?: (payload: { date?: string; time?: string }) => void;
+  onRestore?: (id: string) => void;
+  onSetStatus?: (status: Appointment['status']) => void;
 }
 
 export function AppointmentActionBar({ 
@@ -17,7 +20,10 @@ export function AppointmentActionBar({
   onEdit, 
   onComplete, 
   onCancel,
-  onDelete 
+  onDelete,
+  onReschedule,
+  onRestore,
+  onSetStatus,
 }: AppointmentActionBarProps) {
   if (!appointment) return null;
 
@@ -55,6 +61,55 @@ export function AppointmentActionBar({
     });
   }
 
+  // Aseguramos que se muestren todas las acciones pero deshabilitadas si no aplican
+  const completeDisabled = appointment.status === "completed";
+  const cancelDisabled = appointment.status === "cancelled";
+
+  const fullCustomActions = [
+    {
+      label: "Completar",
+      onClick: () => { if (!completeDisabled) onComplete(); },
+      variant: "ghost" as const,
+      icon: <CheckCircle className="h-3.5 w-3.5" />,
+      disabled: completeDisabled,
+    },
+    {
+      label: "Cancelar",
+      onClick: () => { if (!cancelDisabled) onCancel(); },
+      variant: "ghost" as const,
+      icon: <XCircle className="h-3.5 w-3.5" />,
+      disabled: cancelDisabled,
+    },
+  ];
+
+  // Añadir 'Restaurar' siempre
+  fullCustomActions.push({
+    label: "Restaurar",
+    onClick: () => { if (onRestore) onRestore(appointment.id); },
+    variant: "ghost" as const,
+    icon: <RefreshCw className="h-3.5 w-3.5" />,
+  });
+
+  // Añadir acciones de estado explícitas
+  const confirmedDisabled = appointment.status === 'confirmed';
+  const pendingDisabled = appointment.status === 'pending';
+
+  fullCustomActions.push({
+    label: 'Confirmado',
+    onClick: () => { if (onSetStatus) onSetStatus('confirmed'); },
+    variant: 'ghost' as const,
+    icon: <Book className="h-3.5 w-3.5" />,
+    disabled: confirmedDisabled,
+  });
+
+  fullCustomActions.push({
+    label: 'Pendiente',
+    onClick: () => { if (onSetStatus) onSetStatus('pending'); },
+    variant: 'ghost' as const,
+    icon: <Clock className="h-3.5 w-3.5" />,
+    disabled: pendingDisabled,
+  });
+
   return (
     <GenericActionBar
       title={appointment.clientName}
@@ -67,7 +122,8 @@ export function AppointmentActionBar({
       onClose={onClose}
       onEdit={onEdit}
       onDelete={onDelete}
-      customActions={customActions}
+      customActions={fullCustomActions}
+      onReschedule={onReschedule}
       detailFields={[
         { label: "Servicio", value: appointment.service },
         { label: "Fecha", value: appointment.date },

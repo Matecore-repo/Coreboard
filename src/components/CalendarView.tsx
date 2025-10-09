@@ -6,12 +6,24 @@ import { Appointment } from "./AppointmentCard";
 
 interface CalendarViewProps {
   appointments: Appointment[];
-  selectedSalon: string;
+  selectedSalon: string | null;
+  focusDate?: string | null;
   onAppointmentClick?: (appointment: Appointment) => void;
 }
 
-export function CalendarView({ appointments, selectedSalon, onAppointmentClick }: CalendarViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+export function CalendarView({ appointments, selectedSalon, focusDate, onAppointmentClick }: CalendarViewProps) {
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (focusDate) return new Date(focusDate);
+    return new Date();
+  });
+
+  // When focusDate changes, update currentDate to that month
+  if (focusDate) {
+    const f = new Date(focusDate);
+    if (f.getMonth() !== currentDate.getMonth() || f.getFullYear() !== currentDate.getFullYear()) {
+      setCurrentDate(f);
+    }
+  }
 
   const daysInMonth = new Date(
     currentDate.getFullYear(),

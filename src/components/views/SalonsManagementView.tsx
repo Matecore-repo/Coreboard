@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, lazy } from "react";
 import { Plus, Users, MapPin, Upload, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -8,6 +8,7 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { GenericActionBar } from "../GenericActionBar";
+const ServicesPanel = lazy(() => import("../ServicesPanel").then(m => ({ default: m.ServicesPanel })));
 import { toast } from "sonner@2.0.3";
 
 interface Salon {
@@ -220,6 +221,16 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
           </div>
         ))}
       </div>
+
+      {/* Servicios por Peluquería */}
+      {selectedSalon && (
+        <div className="mt-6">
+          <h3 className="mb-3">Servicios de {selectedSalon.name}</h3>
+          <React.Suspense fallback={<div>Cargando servicios...</div>}>
+            <ServicesPanel services={[]} onChange={(s) => { /* conectar con estado en App */ }} />
+          </React.Suspense>
+        </div>
+      )}
 
       {/* Generic Action Bar */}
       <GenericActionBar

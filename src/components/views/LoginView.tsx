@@ -1,10 +1,12 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Lock, Mail } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-// Imagen representativa de peluquería (Usamos Unsplash dinámico para mejor resultado en mobile y android)
-const salonImageUrl = "https://source.unsplash.com/featured/?hair-salon,barber";
+// Imagen representativa de peluquería: preferimos `public/login-fallback.jpg` si existe,
+// si no, usamos la imagen incluida en `src/assets` (ej. `imagenlogin.jpg`).
+const salonImagePublic = "/login-fallback.jpg";
+const salonImageAsset = new URL("../../assets/imagenlogin.jpg", import.meta.url).href;
 
 interface LoginViewProps {
   onLogin: () => void;
@@ -13,6 +15,23 @@ interface LoginViewProps {
 export function LoginView({ onLogin }: LoginViewProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Empezamos con la imagen embebida en `src/assets` (evita mostrar placeholder roto)
+  const [currentImage, setCurrentImage] = useState<string>(salonImageAsset);
+
+  // Intentamos cargar la versión pública en /login-fallback.jpg y solo si carga correctamente
+  // sustituyimos; de lo contrario nos quedamos con la asset interna.
+  React.useEffect(() => {
+    let mounted = true;
+    const img = new Image();
+    img.src = salonImagePublic;
+    img.onload = () => {
+      if (mounted) setCurrentImage(salonImagePublic);
+    };
+    // en error no hacemos nada
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,11 +48,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
       <div className="w-full lg:w-1/2 flex flex-col">
         {/* Mobile Image Header */}
         <div className="lg:hidden w-full h-[45vh] relative overflow-hidden">
-          <img
-            src={salonImageUrl}
-            alt="Hair Salon"
-            className="w-full h-full object-cover"
-          />
+          <img src={currentImage} alt="Hair Salon" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-background" />
         </div>
 
@@ -128,11 +143,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
 
       {/* Right Side - Image (50% on desktop, hidden on mobile) */}
       <div className="hidden lg:block lg:w-1/2 relative overflow-hidden bg-muted">
-        <img
-          src={salonImageUrl}
-          alt="Modern Hair Salon"
-          className="w-full h-full object-cover"
-        />
+        <img src={currentImage} alt="Modern Hair Salon" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/20 to-transparent" />
         
         {/* Overlay Text */}

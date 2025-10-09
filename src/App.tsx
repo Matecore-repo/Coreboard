@@ -583,6 +583,14 @@ export default function App() {
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
   const [salons, setSalons] = useState<Salon[]>(initialSalons);
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+  const [services, setServices] = useState(() => {
+    // ejemplo inicial
+    return [
+      { id: 's1', name: 'Corte', price: 1200, durationMinutes: 30 },
+      { id: 's2', name: 'Coloración', price: 3000, durationMinutes: 90 },
+    ];
+  });
+  const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
@@ -1097,7 +1105,7 @@ export default function App() {
       />
 
       {/* Appointment Action Bar */}
-      <AppointmentActionBar
+        <AppointmentActionBar
         appointment={selectedAppointment}
         onClose={() => setSelectedAppointment(null)}
         onEdit={() => {
@@ -1117,6 +1125,44 @@ export default function App() {
           }
         }}
         onDelete={handleDeleteSelectedAppointment}
+        onReschedule={({ date, time, openPicker }) => {
+          if (!selectedAppointment) return;
+          // Si se pidió abrir picker, reutilizamos AppointmentDialog
+          if (openPicker) {
+            setEditingAppointment({ ...selectedAppointment, date: date || selectedAppointment.date, time: time || selectedAppointment.time });
+            setDialogOpen(true);
+            return;
+          }
+          // Reprogramación simple por fecha/hora
+          setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, date: date || apt.date, time: time || apt.time } : apt));
+
+          // Ajustar filtro de fecha para que el turno recién reprogramado sea visible
+          if (date) {
+            const todayStr = new Date().toISOString().slice(0,10);
+            const t = new Date();
+            t.setDate(t.getDate() + 1);
+            const tomorrowStr = t.toISOString().slice(0,10);
+            if (date === tomorrowStr) setDateFilter('tomorrow');
+            else if (date === todayStr) setDateFilter('today');
+            else setDateFilter('all');
+            // también enfocamos el calendario en la fecha reprogramada
+            setCalendarFocusDate(date);
+          }
+
+          toast.success('Turno reprogramado');
+          setSelectedAppointment(null);
+        }}
+        onRestore={(id: string) => {
+          setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: 'confirmed' as const } : apt));
+          toast.success('Turno restaurado');
+          setSelectedAppointment(null);
+        }}
+        onSetStatus={(status) => {
+          if (!selectedAppointment) return;
+          setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, status } : apt));
+          toast.success('Estado actualizado');
+          setSelectedAppointment(null);
+        }}
       />
     </div>
     </>

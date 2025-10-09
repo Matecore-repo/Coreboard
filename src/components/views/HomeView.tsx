@@ -3,6 +3,11 @@ import { Appointment } from "../AppointmentCard";
 import { CalendarView } from "../CalendarView";
 import { SalonCarousel } from "../SalonCarousel";
 import { Button } from "../ui/button";
+import React, { lazy, Suspense } from "react";
+
+const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
+const ClientsPanel = lazy(() => import("../ClientsPanel").then(m => ({ default: m.ClientsPanel })));
+// ServicesPanel moved to Salons Management view
 
 interface Salon {
   id: string;
@@ -84,57 +89,33 @@ export function HomeView({ appointments, selectedSalon, salons, onSelectSalon, o
             </div>
             <div className="min-w-0">
               <p className="text-muted-foreground truncate">Peluquería</p>
-              <p className="font-medium truncate">{salonNames[selectedSalon]}</p>
+              <p className="font-medium truncate">{salonNames[selectedSalon ?? 'all']}</p>
             </div>
           </div>
         </div>
 
-        {/* Comisiones del día */}
-        <div className="bg-card border border-border rounded-2xl p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
-              <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-muted-foreground truncate">Comisiones Hoy</p>
-              <p className="font-medium">${totalCommissions}</p>
-            </div>
+        <Suspense fallback={<div className="col-span-1 md:col-span-2">Cargando...</div>}>
+          <div className="col-span-1 md:col-span-1">
+            <TurnosPanel appointments={appointments} selectedSalon={selectedSalon} variant="commissions" />
           </div>
-        </div>
 
-        {/* Clientes atendidos */}
-        <div className="bg-card border border-border rounded-2xl p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-              <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-muted-foreground truncate">Clientes Atendidos</p>
-              <p className="font-medium">{todayAppointments.length}</p>
-            </div>
+          <div className="col-span-1 md:col-span-1">
+            <ClientsPanel appointments={appointments} selectedSalon={selectedSalon} />
           </div>
-        </div>
 
-        {/* Próximo turno - hora */}
-        <div className="bg-card border border-border rounded-2xl p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0">
-              <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-muted-foreground truncate">Próximo Turno</p>
-              <p className="font-medium truncate">
-                {nextAppointment ? nextAppointment.time : "Sin turnos"}
-              </p>
-            </div>
+          <div className="col-span-1 md:col-span-2">
+            <TurnosPanel appointments={appointments} selectedSalon={selectedSalon} variant="next" />
           </div>
-        </div>
+
+          {/* Servicios: movidos al módulo de Peluquerías */}
+        </Suspense>
       </div>
 
         {/* Calendario */}
         <CalendarView 
           appointments={appointments} 
           selectedSalon={selectedSalon}
+          focusDate={null}
           onAppointmentClick={onAppointmentClick}
         />
       </div>
