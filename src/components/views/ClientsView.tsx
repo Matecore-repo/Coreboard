@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface ClientsViewProps {
   appointments: Appointment[];

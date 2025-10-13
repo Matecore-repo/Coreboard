@@ -24,7 +24,7 @@ const BarChartComponent = lazy(() => import("./FinancesCharts").then((m) => ({ d
 const AreaChartComponent = lazy(() => import("./FinancesCharts").then((m) => ({ default: m.AreaChartComponent })));
 const PieChartComponent = lazy(() => import("./FinancesCharts").then((m) => ({ default: m.PieChartComponent })));
 import { Appointment } from "../AppointmentCard";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface FinancesViewProps {
   appointments: Appointment[];

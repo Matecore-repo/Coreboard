@@ -29,8 +29,9 @@ import { ScrollArea } from "./components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "./components/ui/avatar";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./components/ui/sheet";
 import { useIsMobile } from "./components/ui/use-mobile";
-import { toast } from "sonner@2.0.3";
-import { Toaster as Sonner } from "sonner@2.0.3";
+import { toast } from "sonner";
+import { Toaster as Sonner } from "sonner";
+import { useAuth } from "./contexts/AuthContext";
 
 interface Salon {
   id: string;
@@ -578,7 +579,8 @@ const initialAppointments: Appointment[] = [
 ];
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, signOut, signInAsDemo } = useAuth();
+  const isAuthenticated = !!user;
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
   const [salons, setSalons] = useState<Salon[]>(initialSalons);
@@ -641,13 +643,8 @@ export default function App() {
     setTheme(theme === "light" ? "dark" : "light");
   };
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    toast.success("¡Bienvenido a tu CRM de Peluquerías!");
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
+    await signOut();
     setActiveNavItem("home");
     setSelectedSalon(null);
     setSelectedAppointment(null);
@@ -813,31 +810,41 @@ export default function App() {
     }
   }, [selectedSalon]);
 
-  const navItems = [
-    { id: "home", label: "Inicio", icon: Home },
-    { id: "appointments", label: "Turnos", icon: Calendar },
-    { id: "finances", label: "Finanzas", icon: DollarSign },
-    { id: "clients", label: "Clientes", icon: Users },
-    { id: "salons", label: "Peluquerías", icon: Building2 },
-    { id: "settings", label: "Configuración", icon: Settings },
+  // useAuth consumed at function top; avoid redeclaration
+
+  const allNavItems = [
+    { id: "home", label: "Inicio", icon: Home, allowed: ['admin','owner','employee','demo'] },
+    { id: "appointments", label: "Turnos", icon: Calendar, allowed: ['admin','owner','employee'] },
+    { id: "finances", label: "Finanzas", icon: DollarSign, allowed: ['admin','owner'] },
+    { id: "clients", label: "Clientes", icon: Users, allowed: ['admin','owner','employee'] },
+    { id: "salons", label: "Peluquerías", icon: Building2, allowed: ['admin','owner'] },
+    { id: "settings", label: "Configuración", icon: Settings, allowed: ['admin'] },
     { 
       id: "theme", 
       label: theme === "light" ? "Modo Oscuro" : "Modo Claro", 
-      icon: theme === "light" ? Moon : Sun 
+      icon: theme === "light" ? Moon : Sun,
+      allowed: ['admin','owner','employee','demo']
     },
   ];
+
+  const navItems = useMemo(() => {
+    const role = user?.role ?? 'demo';
+    // If demo user, show all sections for exploration
+    if (role === 'demo') return allNavItems;
+    return allNavItems.filter(item => !item.allowed || item.allowed.includes(role));
+  }, [user, theme]);
 
   const SidebarContent = () => (
     <div className="w-full bg-sidebar border-r border-sidebar-border flex flex-col h-full">
       <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
         <Avatar className="h-12 w-12 border-2 border-border">
           <AvatarFallback className="bg-primary text-primary-foreground">
-            M
+            {user?.role === 'demo' ? 'D' : 'M'}
           </AvatarFallback>
         </Avatar>
         <div className="flex flex-col">
           <span className="text-muted-foreground text-xs">Bienvenido</span>
-          <span className="text-sidebar-foreground font-medium">María García</span>
+          <span className="text-sidebar-foreground font-medium">{user?.role === 'demo' ? 'Modo demostración' : (user?.email || 'María García')}</span>
         </div>
       </div>
 
@@ -1021,7 +1028,7 @@ export default function App() {
       <>
         <Sonner theme={theme} position="top-right" />
         <Suspense fallback={<div className="p-8 text-center">Cargando...</div>}>
-          <LoginView onLogin={handleLogin} />
+          <LoginView onLogin={() => { if (signInAsDemo) signInAsDemo(); else toast.error('Demo no disponible'); }} />
         </Suspense>
       </>
     );
@@ -1030,7 +1037,7 @@ export default function App() {
   return (
     <>
       <Sonner theme={theme} position="top-right" />
-      <div className="flex h-screen bg-background overflow-hidden">
+      <div className={`flex h-screen bg-background overflow-hidden`}>
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64">
           <SidebarContent />

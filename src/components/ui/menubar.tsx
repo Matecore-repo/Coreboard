@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
-import * as MenubarPrimitive from "@radix-ui/react-menubar@1.1.6";
-import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react@0.487.0";
+import { useEffect, useState } from 'react'
+import { getStoredTheme, applyTheme, toggleTheme } from '../../lib/theme'
+import { Sun, Moon } from 'lucide-react'
+import * as MenubarPrimitive from "@radix-ui/react-menubar";
+import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
@@ -10,6 +13,17 @@ function Menubar({
   className,
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Root>) {
+  const [theme, setTheme] = useState<'light'|'dark'>(() => getStoredTheme() ?? (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'))
+
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
+
+  const handleToggle = () => {
+    const next = toggleTheme()
+    setTheme(next)
+  }
+
   return (
     <MenubarPrimitive.Root
       data-slot="menubar"
@@ -86,6 +100,15 @@ function MenubarContent({
       />
     </MenubarPortal>
   );
+}
+
+// Small ThemeSwitch component for Menubar
+function ThemeSwitch({ theme, onToggle }: { theme: 'light'|'dark'; onToggle: () => void }) {
+  return (
+    <button onClick={onToggle} className="ml-auto mr-2 p-1 rounded-full flex items-center justify-center w-9 h-9">
+      {theme === 'dark' ? <Moon className="text-violet-500" /> : <Sun className="text-yellow-400" />}
+    </button>
+  )
 }
 
 function MenubarItem({
@@ -273,4 +296,5 @@ export {
   MenubarSub,
   MenubarSubTrigger,
   MenubarSubContent,
+  ThemeSwitch,
 };

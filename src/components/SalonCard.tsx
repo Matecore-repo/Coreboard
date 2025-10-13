@@ -27,6 +27,7 @@ export const SalonCard = memo(function SalonCard({ name, address, image, onClick
         src={image}
         alt={name}
         className="w-full h-full object-cover transition-all duration-200"
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
       />
       
       {/* Overlay con efecto de iluminación suave en hover */}

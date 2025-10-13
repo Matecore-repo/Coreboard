@@ -9,7 +9,7 @@ import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { GenericActionBar } from "../GenericActionBar";
 const ServicesPanel = lazy(() => import("../ServicesPanel").then(m => ({ default: m.ServicesPanel })));
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface Salon {
   id: string;
@@ -180,7 +180,7 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
                 : "border-border hover:shadow-md hover:border-primary/50"
             }`}
           >
-            <div className="h-32 overflow-hidden">
+            <div className="h-32 overflow-hidden relative">
               <img 
                 src={salon.image} 
                 alt={salon.name} 
@@ -397,11 +397,11 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
                   Formato: JPG, PNG. Tamaño máximo: 5MB
                 </p>
                 {imagePreview && (
-                  <div className="mt-2 rounded-lg overflow-hidden border">
+                  <div className="mt-2 rounded-lg overflow-hidden border relative h-40">
                     <img 
                       src={imagePreview} 
                       alt="Vista previa" 
-                      className="w-full h-40 object-cover"
+                      className="w-full h-full object-cover"
                     />
                   </div>
                 )}

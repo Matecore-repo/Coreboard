@@ -1,18 +1,26 @@
 import React, { useState } from "react";
-import { Lock, Mail } from "lucide-react";
+import { Lock, Mail, Sun, Moon } from "lucide-react";
 import { Button } from "../ui/button";
+import LoginCTA from '../LoginCTA';
+import { getStoredTheme, toggleTheme } from '../../lib/theme';
+import { toast } from 'sonner';
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-// Imagen representativa de peluquería: preferimos `public/login-fallback.jpg` si existe,
-// si no, usamos la imagen incluida en `src/assets` (ej. `imagenlogin.jpg`).
-const salonImagePublic = "/login-fallback.jpg";
-const salonImageAsset = new URL("../../assets/imagenlogin.jpg", import.meta.url).href;
+import NextImage from 'next/image';
+import { useAuth } from '../../contexts/AuthContext';
+
+// Imagen representativa de peluquería: preferimos la imagen pública en `public/`.
+// Usamos `imagenlogin.jpg` que ya existe en `public/` para evitar 404.
+const salonImagePublic = "/imagenlogin.jpg";
+const salonImageAsset = "/imagenlogin.jpg";
 
 interface LoginViewProps {
   onLogin: () => void;
 }
 
 export function LoginView({ onLogin }: LoginViewProps) {
+  const { signInAsDemo } = useAuth();
+  const [localTheme, setLocalTheme] = useState<'light'|'dark'>(() => getStoredTheme() ?? (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // Empezamos con la imagen embebida en `src/assets` (evita mostrar placeholder roto)
@@ -22,7 +30,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
   // sustituyimos; de lo contrario nos quedamos con la asset interna.
   React.useEffect(() => {
     let mounted = true;
-    const img = new Image();
+    const img = new (globalThis as any).Image();
     img.src = salonImagePublic;
     img.onload = () => {
       if (mounted) setCurrentImage(salonImagePublic);
@@ -39,7 +47,19 @@ export function LoginView({ onLogin }: LoginViewProps) {
   };
 
   const handleForceLogin = () => {
+    if (typeof signInAsDemo === 'function') {
+      signInAsDemo();
+      return;
+    }
     onLogin();
+  };
+
+  const handleThemeToggle = () => {
+    const next = toggleTheme();
+    setLocalTheme(next);
+    // announce to user
+    if (next === 'dark') toast.success('Modo oscuro activado');
+    else toast.success('Modo claro activado');
   };
 
   return (
@@ -48,21 +68,35 @@ export function LoginView({ onLogin }: LoginViewProps) {
       <div className="w-full lg:w-1/2 flex flex-col">
         {/* Mobile Image Header */}
         <div className="lg:hidden w-full h-[45vh] relative overflow-hidden">
-          <img src={currentImage} alt="Hair Salon" className="w-full h-full object-cover" />
+          <NextImage src={currentImage} alt="Hair Salon" fill className="object-cover" sizes="100vw" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-background" />
         </div>
 
         {/* Form Container */}
-        <div className="flex-1 flex items-center justify-center px-6 sm:px-8 lg:px-12 py-8 lg:py-12">
-          <div className="w-full max-w-md space-y-6">
-            {/* Header */}
-            <div className="space-y-2 text-center lg:text-left">
-              <h1 className="text-3xl sm:text-4xl tracking-tight">
-                Bienvenido de nuevo
-              </h1>
-              <p className="text-muted-foreground">
-                Ingresa tus credenciales para acceder al sistema
-              </p>
+        <div className="flex-1 flex items-center justify-center px-6 sm:px-8 lg:px-12 py-8 lg:py-12 relative">
+          <div className="w-full max-w-md space-y-6 relative pt-8">
+            {/* Header: title + theme toggle aligned (single toggle inside header) */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-2 text-center sm:text-left">
+                <h1 className="text-3xl sm:text-4xl tracking-tight">Bienvenido de nuevo</h1>
+                <p className="text-muted-foreground">Ingresa tus credenciales para acceder al sistema</p>
+              </div>
+              <div className="ml-4">
+                <button
+                  onClick={handleThemeToggle}
+                  aria-pressed={localTheme === 'dark'}
+                  aria-label="Toggle theme"
+                  className={`theme-toggle ${localTheme === 'dark' ? 'bg-violet-600' : 'bg-green-400'}`}
+                >
+                <span className="absolute left-3 top-1 pointer-events-none">{
+                  <Sun className={`h-3 w-3 ${localTheme === 'light' ? 'text-white' : 'text-black'}`}/>
+                }</span>
+                <span className="absolute right-3 top-1 pointer-events-none">{
+                  <Moon className={`h-3 w-3 ${localTheme === 'dark' ? 'text-white' : 'text-black'}`}/>
+                }</span>
+                <span className={`knob ${localTheme === 'dark' ? 'bg-white' : 'bg-black'}`} style={{ transform: localTheme === 'dark' ? 'translateX(24px)' : 'translateX(0)' }} />
+                </button>
+              </div>
             </div>
 
             {/* Login Form */}
@@ -119,15 +153,11 @@ export function LoginView({ onLogin }: LoginViewProps) {
                 Iniciar Sesión
               </Button>
 
-              {/* Force Login Button (Testing) */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11"
-                onClick={handleForceLogin}
-              >
-                Ingreso forzoso
-              </Button>
+              {/* Demo CTA: moderno, pastel, respeta light/dark, con brillo sutil */}
+              {/* Isolated CTA component */}
+              <div className="group">
+                <LoginCTA onClick={handleForceLogin}>Explorar la app</LoginCTA>
+              </div>
             </form>
 
             {/* Footer */}
@@ -142,8 +172,8 @@ export function LoginView({ onLogin }: LoginViewProps) {
       </div>
 
       {/* Right Side - Image (50% on desktop, hidden on mobile) */}
-      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden bg-muted">
-        <img src={currentImage} alt="Modern Hair Salon" className="w-full h-full object-cover" />
+      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden bg-muted min-h-[60vh] lg:h-screen">
+        <NextImage src={currentImage} alt="Modern Hair Salon" fill className="object-cover" sizes="50vw" priority />
         <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/20 to-transparent" />
         
         {/* Overlay Text */}

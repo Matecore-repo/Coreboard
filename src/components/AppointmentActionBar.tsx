@@ -9,7 +9,7 @@ interface AppointmentActionBarProps {
   onComplete: () => void;
   onCancel: () => void;
   onDelete: () => void;
-  onReschedule?: (payload: { date?: string; time?: string }) => void;
+  onReschedule?: (payload: { date?: string; time?: string; openPicker?: "date" | "time" }) => void;
   onRestore?: (id: string) => void;
   onSetStatus?: (status: Appointment['status']) => void;
 }
@@ -88,6 +88,7 @@ export function AppointmentActionBar({
     onClick: () => { if (onRestore) onRestore(appointment.id); },
     variant: "ghost" as const,
     icon: <RefreshCw className="h-3.5 w-3.5" />,
+    disabled: false,
   });
 
   // Añadir acciones de estado explícitas

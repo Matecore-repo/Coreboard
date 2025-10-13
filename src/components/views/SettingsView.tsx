@@ -2,7 +2,7 @@ import { Bell, Lock, Palette, Globe, Save } from "lucide-react";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function SettingsView() {
   const handleSaveSettings = () => {

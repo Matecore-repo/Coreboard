@@ -193,6 +193,67 @@
     text-decoration: inherit;
   }
 
+  /* Mostrar la "manito" para todos los enlaces y botones globalmente */
+  a, button, [role="button"], input[type="button"], input[type="submit"] {
+    cursor: pointer;
+  }
+
+  /* Elementos deshabilitados deben mostrar not-allowed */
+  button:disabled, input:disabled, [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* Tema demo: fondo y elementos con paleta pastel arcoíris */
+  /* demo theme is only applied on the login view via a wrapper class there */
+  /* Styles specific to the login CTA to avoid leaking to other buttons */
+  .login-cta { position: relative; overflow: hidden; }
+  .login-cta .cta-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+  .login-cta .cta-shine { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+  .login-cta .cta-label { position: relative; z-index: 20; }
+
+  /* Toggle pill animations and responsive placement */
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    width: 56px;
+    height: 32px;
+    border-radius: 9999px;
+    padding: 4px;
+    transition: background-color .25s ease;
+  }
+
+  .theme-toggle .knob {
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    background: white;
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+
+  /* support standalone knob class used in markup */
+  .knob {
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    background: white;
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+
+  /* colors for knob in light/dark (fallback) */
+  .theme-toggle .knob.bg-white { background: #fff; }
+  .theme-toggle .knob.bg-black { background: #000; }
+
+  @media (max-width: 640px) {
+    .theme-toggle { width: 48px; height: 28px; }
+    .theme-toggle .knob { width: 20px; height: 20px; }
+  }
+
   b, strong {
     font-weight: bolder;
   }
