@@ -29,15 +29,16 @@ function mapDBToUI(s: DBSalon): UISalon {
   };
 }
 
-export function useSalons(orgId?: string) {
+export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
   const [salons, setSalons] = useState<UISalon[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
+  const enabled = options?.enabled ?? true;
 
   useEffect(() => {
     let active = true;
     const fetchSalons = async () => {
-      if (!orgId) {
+      if (!enabled || !orgId) {
         setSalons([]);
         return;
       }
@@ -63,7 +64,7 @@ export function useSalons(orgId?: string) {
     return () => {
       active = false;
     };
-  }, [orgId]);
+  }, [orgId, enabled]);
 
   return { salons, isLoading: loading, error };
 }

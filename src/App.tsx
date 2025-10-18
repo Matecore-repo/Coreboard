@@ -33,6 +33,7 @@ import { useAuth } from "./contexts/AuthContext";
 import ThemeBubble from "./components/ThemeBubble";
 import { useAppointments as useDbAppointments } from "./hooks/useAppointments";
 import { useSalons as useDbSalons } from "./hooks/useSalons";
+import { OnboardingModal } from "./components/OnboardingModal";
 
 interface Salon {
   id: string;
@@ -582,17 +583,47 @@ const initialAppointments: Appointment[] = [
 export default function App() {
   const { user, session, signOut, signInAsDemo, currentRole, currentOrgId } = useAuth() as any;
   const isAuthenticated = !!user;
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  
+  // Log inicial del componente
+  console.log('🚀 APP: Componente App iniciado');
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
   // Demo/local state
   const [salons, setSalons] = useState<Salon[]>(initialSalons);
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
 
-  // Remote data via Supabase (when authenticated)
-  const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment } = useDbAppointments(selectedSalon ?? undefined);
-  const { salons: remoteSalons } = useDbSalons(currentOrgId ?? undefined);
+  // Remote data via Supabase (only after login)
+  const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment } = useDbAppointments(
+    selectedSalon ?? undefined,
+    { enabled: !!session && !!selectedSalon }
+  );
+  const { salons: remoteSalons } = useDbSalons(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId });
 
-  const isDemo = !session || user?.email === 'demo@coreboard.local';
+  const isDemo = user?.email === 'demo@coreboard.local';
+  
+  // Debug logs detallados
+  console.log('🎭 APP STATE:', {
+    userEmail: user?.email,
+    userId: user?.id,
+    hasSession: !!session,
+    sessionEmail: session?.user?.email,
+    isDemo: isDemo,
+    currentRole: currentRole,
+    currentOrgId: currentOrgId,
+    isNewUser: user?.isNewUser,
+    membershipsCount: user?.memberships?.length || 0
+  });
+  
+  // Log específico del tipo de usuario
+  if (isDemo) {
+    console.log('🎭 MODO DEMO ACTIVO - Usando datos mock');
+  } else if (user?.email) {
+    console.log('👤 USUARIO REAL ACTIVO - Usando datos de Supabase para:', user.email);
+  } else {
+    console.log('❓ ESTADO DESCONOCIDO - Sin usuario definido');
+  }
+  
   const effectiveAppointments: Appointment[] = isDemo ? appointments : (remoteAppointments as any);
   const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
 
@@ -859,23 +890,31 @@ export default function App() {
   ];
 
   const navItems = useMemo(() => {
-    const role = currentRole ?? 'demo';
-    // If demo user, show all sections for exploration
+    const role = isDemo ? 'demo' : (currentRole ?? 'viewer');
     if (role === 'demo') return allNavItems;
     return allNavItems.filter(item => !item.allowed || item.allowed.includes(role));
-  }, [currentRole]);
+  }, [currentRole, isDemo]);
+
+  const getInitials = (email?: string | null) => {
+    if (!email) return 'U';
+    const name = email.split('@')[0];
+    const parts = name.replace(/[^a-zA-Z0-9]+/g, ' ').trim().split(' ');
+    const a = (parts[0] || '').charAt(0);
+    const b = (parts[1] || '').charAt(0);
+    return (a + (b || '')).toUpperCase();
+  };
 
   const SidebarContent = () => (
     <div className="w-full bg-sidebar border-r border-sidebar-border flex flex-col h-full">
       <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
         <Avatar className="h-12 w-12 border-2 border-border">
           <AvatarFallback className="bg-primary text-primary-foreground">
-            {currentRole === 'demo' ? 'D' : 'M'}
+            {isDemo ? 'D' : getInitials(user?.email)}
           </AvatarFallback>
         </Avatar>
         <div className="flex flex-col">
           <span className="text-muted-foreground text-xs">Bienvenido</span>
-          <span className="text-sidebar-foreground font-medium">{currentRole === 'demo' ? 'Modo demostración' : (user?.email || 'María García')}</span>
+          <span className="text-sidebar-foreground font-medium">{isDemo ? 'Modo demostración' : (user?.email || 'Usuario')}</span>
         </div>
       </div>
 
@@ -945,6 +984,8 @@ export default function App() {
               setEditingAppointment(null);
               setDialogOpen(true);
             }}
+            orgName={user?.memberships?.[0]?.org_id ? 'tu peluquería' : undefined}
+            isNewUser={user?.isNewUser}
           />
         </Suspense>
       );
@@ -1047,17 +1088,31 @@ export default function App() {
     );
   };
 
+  // Show onboarding modal for new users
+  useEffect(() => {
+    if (user?.isNewUser && !showOnboarding) {
+      setShowOnboarding(true);
+    }
+  }, [user?.isNewUser, showOnboarding]);
+
   // Show login if not authenticated
   if (!isAuthenticated) {
+    console.log('🔒 APP: Mostrando vista de LOGIN - usuario no autenticado');
     return (
       <>
         <Sonner theme={theme} position="top-right" />
         <Suspense fallback={<div className="p-8 text-center">Cargando...</div>}>
-          <LoginView onLogin={() => { if (signInAsDemo) signInAsDemo(); else toast.error('Demo no disponible'); }} />
+          <LoginView onLogin={() => { 
+            console.log('🎭 APP: 🖱️ BOTÓN "EXPLORAR DEMO" PRESIONADO desde LoginView');
+            if (signInAsDemo) signInAsDemo(); 
+            else toast.error('Demo no disponible'); 
+          }} />
         </Suspense>
       </>
     );
   }
+  
+  console.log('🏠 APP: Mostrando vista PRINCIPAL - usuario autenticado');
 
   return (
     <>
@@ -1139,7 +1194,8 @@ export default function App() {
         salons={effectiveSalons}
       />
 
-      {/* Appointment Action Bar */}
+      {/* Appointment Action Bar (only in appointments view) */}
+      {activeNavItem === "appointments" && (
         <AppointmentActionBar
         appointment={selectedAppointment}
         onClose={() => setSelectedAppointment(null)}
@@ -1210,6 +1266,13 @@ export default function App() {
             (async () => { try { await (updateAppointment as any)(selectedAppointment.id, { status }); toast.success('Estado actualizado'); } catch { toast.error('No se pudo actualizar'); } finally { setSelectedAppointment(null); } })();
           }
         }}
+      />
+      )}
+
+      {/* Onboarding Modal */}
+      <OnboardingModal 
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
       />
     </div>
     </>

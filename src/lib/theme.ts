@@ -21,8 +21,7 @@ export function applyTheme(theme: Theme) {
       localStorage.setItem('theme', theme);
     }
   } catch (e) {
-    // localStorage access denied or not available
-    console.warn('Could not save theme to localStorage:', e);
+    // localStorage access denied or not available; fail silently
   }
 }
 

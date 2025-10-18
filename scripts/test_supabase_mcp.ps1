@@ -1,14 +1,21 @@
 $ErrorActionPreference = 'Stop'
 
-$envPath = (Join-Path (Get-Location) '.env')
-if (-not (Test-Path -LiteralPath $envPath)) { throw '.env not found' }
+$token = $env:SUPABASE_MCP_TOKEN
+if (-not $token) {
+  $envPath = (Join-Path (Get-Location) '.env')
+  if (Test-Path -LiteralPath $envPath) {
+    $lines = Get-Content -LiteralPath $envPath
+    $line = $lines | Where-Object { $_ -match '^SUPABASE_SERVICE_ROLE' } | Select-Object -First 1
+    if ($line) { $token = ($line -split '=',2)[1].Trim().Trim('"') }
+    if (-not $token) {
+      $line2 = $lines | Where-Object { $_ -match '^SUPABASE_MCP_TOKEN' } | Select-Object -First 1
+      if ($line2) { $token = ($line2 -split '=',2)[1].Trim().Trim('"') }
+    }
+  }
+}
+if (-not $token) { throw 'No token: set SUPABASE_MCP_TOKEN or add SUPABASE_SERVICE_ROLE/SUPABASE_MCP_TOKEN to .env' }
 
-$line = Get-Content -LiteralPath $envPath | Where-Object { $_ -match '^NEXT_PUBLIC_SUPABASE_ANON_KEY' } | Select-Object -First 1
-if (-not $line) { throw 'anon key not found' }
-$parts = $line -split '=',2
-$anon = $parts[1].Trim().Trim('"')
-
-$headers = @{ Authorization = ('Bearer ' + $anon); apikey = $anon }
+$headers = @{ Authorization = ('Bearer ' + $token); apikey = $token }
 try {
   $r = Invoke-WebRequest -Uri 'https://mcp.supabase.com/mcp?project_ref=hawpywnmkatwlcbtffrg' -Method Head -TimeoutSec 20 -Headers $headers
   Write-Output ("status:" + $r.StatusCode)
@@ -19,4 +26,3 @@ try {
     Write-Output ("status:error " + $_.Exception.Message)
   }
 }
-

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import supabase from '../lib/supabase';
 
 export type Appointment = {
@@ -37,37 +37,48 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
   };
 }
 
-export function useAppointments(salonId?: string) {
+export function useAppointments(salonId?: string, options?: { enabled?: boolean }) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
+  const enabled = options?.enabled ?? true;
+  const subscribed = useRef(false);
 
   const fetchAppointments = useCallback(async () => {
+    if (!enabled) return;
     setLoading(true);
-    const base = supabase.from('appointments').select('id, client_name, service, date, time, status, stylist, stylist_id, salon_id');
-    const { data, error } = salonId ? await base.eq('salon_id', salonId) : await base;
-    if (error) {
-      console.error('Error fetching appointments', error);
-      setAppointments([]);
-    } else {
-      const mapped = ((data as any[]) || []).map(mapRowToAppointment);
-      setAppointments(mapped);
+    try {
+      const base = supabase
+        .from('appointments')
+        .select('id, client_name, service, date, time, status, stylist, stylist_id, salon_id');
+      const { data, error } = salonId ? await base.eq('salon_id', salonId) : await base;
+      if (error) {
+        console.error('Error fetching appointments', error);
+        setAppointments([]);
+      } else {
+        const mapped = ((data as any[]) || []).map(mapRowToAppointment);
+        setAppointments(mapped);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [salonId]);
+  }, [salonId, enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     fetchAppointments();
+    if (subscribed.current) return;
     const subscription = supabase
       .channel('app:appointments')
       .on('postgres_changes', { event: '*', schema: 'app', table: 'appointments' }, () => {
         fetchAppointments();
       })
       .subscribe();
-
+    subscribed.current = true;
     return () => {
-      subscription.unsubscribe();
+      try { subscription.unsubscribe(); } catch {}
+      subscribed.current = false;
     };
-  }, [fetchAppointments]);
+  }, [fetchAppointments, enabled]);
 
   const createAppointment = async (payload: Partial<Appointment>) => {
     const toInsert = mapAppointmentToRow(payload);
@@ -93,5 +104,4 @@ export function useAppointments(salonId?: string) {
 
   return { appointments, loading, fetchAppointments, createAppointment, updateAppointment, deleteAppointment };
 }
-
 

@@ -1,0 +1,807 @@
+-- =========================
+-- 0) Enums y esquema base
+-- =========================
+
+create schema if not exists app;
+
+-- Enums
+create type app.membership_role as enum ('admin','owner','employee','viewer');
+create type app.appointment_status as enum ('pending','confirmed','completed','cancelled','no_show');
+create type app.payment_method as enum ('cash','card','transfer','mp'); -- mp = Mercado Pago
+create type app.expense_category as enum ('rent','salaries','supplies','utilities','marketing','taxes','other');
+
+-- Helper timestamps
+create or replace function app.tg__set_timestamps()
+returns trigger language plpgsql as $$
+begin
+  if TG_OP = 'INSERT' then
+    new.created_at := coalesce(new.created_at, now());
+    new.updated_at := coalesce(new.updated_at, now());
+  else
+    new.updated_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+-- Convenience: usuario actual
+create or replace function app.current_user_id()
+returns uuid stable language sql as $$
+  select auth.uid();
+$$;
+
+-- Seguridad: verificar pertenencia a organización
+create or replace function app.user_is_member_of(org uuid)
+returns boolean stable language sql as $$
+  select exists (
+    select 1 from app.memberships m
+    where m.org_id = org and m.user_id = auth.uid()
+  );
+$$;
+
+-- Para porcentajes válidos 0..100
+create or replace function app.ensure_pct_range(p numeric)
+returns numeric immutable language plpgsql as $$
+begin
+  if p is null then return null; end if;
+  if p < 0 or p > 100 then
+    raise exception 'percentage % out of [0..100]', p;
+  end if;
+  return p;
+end;
+$$;
+
+
+-- =========================
+-- 1) Multi-tenant core
+-- =========================
+
+-- Organizaciones (cada dueño/empresa)
+create table if not exists app.orgs (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  tax_id text,                -- CUIT opcional
+  settings jsonb default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted_at timestamptz
+);
+create trigger _ts before insert or update on app.orgs
+for each row execute function app.tg__set_timestamps();
+
+-- Membresías usuario<->org con rol
+create table if not exists app.memberships (
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role app.membership_role not null default 'employee',
+  is_primary boolean not null default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  primary key (org_id, user_id)
+);
+create trigger _ts before insert or update on app.memberships
+for each row execute function app.tg__set_timestamps();
+
+-- Sucursales (salons)
+create table if not exists app.salons (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  name text not null,
+  address text,
+  phone text,
+  timezone text default 'America/Argentina/Buenos_Aires',
+  active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted_at timestamptz
+);
+create index on app.salons (org_id);
+create trigger _ts before insert or update on app.salons
+for each row execute function app.tg__set_timestamps();
+
+-- Empleados (barberos/estilistas; opcionalmente linkeados a auth.users)
+create table if not exists app.employees (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  full_name text not null,
+  phone text,
+  email text,
+  active boolean not null default true,
+  default_commission_pct numeric(5,2) check (default_commission_pct between 0 and 100),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted_at timestamptz
+);
+create index on app.employees (org_id);
+create index on app.employees (user_id);
+create trigger _ts before insert or update on app.employees
+for each row execute function app.tg__set_timestamps();
+
+-- Clientes (por organización, compartidos entre sucursales)
+create table if not exists app.clients (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  full_name text not null,
+  phone text,
+  email text,
+  notes text,
+  marketing_opt_in boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted_at timestamptz
+);
+create index on app.clients (org_id);
+create index on app.clients (full_name);
+create trigger _ts before insert or update on app.clients
+for each row execute function app.tg__set_timestamps();
+
+-- Catálogo de servicios (por organización)
+create table if not exists app.services (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  name text not null,
+  duration_minutes int not null check (duration_minutes > 0),
+  base_price numeric(12,2) not null check (base_price >= 0),
+  active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted_at timestamptz
+);
+create index on app.services (org_id);
+create index on app.services (active);
+create trigger _ts before insert or update on app.services
+for each row execute function app.tg__set_timestamps();
+
+-- Precios por sucursal (override del base_price)
+create table if not exists app.salon_service_prices (
+  id uuid primary key default gen_random_uuid(),
+  salon_id uuid not null references app.salons(id) on delete cascade,
+  service_id uuid not null references app.services(id) on delete cascade,
+  price numeric(12,2) not null check (price >= 0),
+  active boolean not null default true,
+  unique (salon_id, service_id)
+);
+create index on app.salon_service_prices (salon_id, active);
+create index on app.salon_service_prices (service_id);
+
+-- =========================
+-- 2) Turnos + pagos + gastos
+-- =========================
+
+-- Turnos
+create table if not exists app.appointments (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  salon_id uuid not null references app.salons(id) on delete restrict,
+  client_id uuid not null references app.clients(id) on delete restrict,
+  employee_id uuid references app.employees(id) on delete set null,
+  status app.appointment_status not null default 'pending',
+  starts_at timestamptz not null,
+  ends_at   timestamptz not null,
+  notes text,
+  discount_amount numeric(12,2) not null default 0 check (discount_amount >= 0),
+  total_amount numeric(12,2) not null default 0 check (total_amount >= 0), -- se recalcula
+  source text, -- e.g., 'web', 'phone', 'walk-in'
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  cancelled_reason text,
+  deleted_at timestamptz,
+  constraint ends_after_starts check (ends_at > starts_at)
+);
+create index on app.appointments (org_id);
+create index on app.appointments (salon_id, starts_at);
+create index on app.appointments (employee_id, starts_at);
+create index on app.appointments (client_id);
+create index on app.appointments (status, starts_at);
+create trigger _ts before insert or update on app.appointments
+for each row execute function app.tg__set_timestamps();
+
+-- Ítems de turno (varios servicios por turno)
+create table if not exists app.appointment_items (
+  id uuid primary key default gen_random_uuid(),
+  appointment_id uuid not null references app.appointments(id) on delete cascade,
+  service_id uuid not null references app.services(id) on delete restrict,
+  quantity int not null default 1 check (quantity > 0),
+  unit_price numeric(12,2) not null check (unit_price >= 0),
+  commission_pct numeric(5,2) check (commission_pct between 0 and 100),
+  subtotal numeric(12,2) not null default 0
+);
+create index on app.appointment_items (appointment_id);
+create index on app.appointment_items (service_id);
+
+-- Pagos (pueden asociarse a turno, o ser generales)
+create table if not exists app.payments (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  salon_id uuid references app.salons(id) on delete set null,
+  appointment_id uuid references app.appointments(id) on delete set null,
+  method app.payment_method not null,
+  amount numeric(12,2) not null check (amount >= 0),
+  received_at timestamptz not null default now(),
+  reference text,
+  created_at timestamptz default now()
+);
+create index on app.payments (org_id, received_at);
+create index on app.payments (salon_id, received_at);
+create index on app.payments (appointment_id);
+
+-- Gastos
+create table if not exists app.expenses (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  salon_id uuid references app.salons(id) on delete set null,
+  category app.expense_category not null default 'other',
+  amount numeric(12,2) not null check (amount >= 0),
+  incurred_at date not null default current_date,
+  description text,
+  vendor text,
+  created_at timestamptz default now()
+);
+create index on app.expenses (org_id, incurred_at);
+create index on app.expenses (salon_id, incurred_at);
+create index on app.expenses (category, incurred_at);
+
+
+-- =========================
+-- 3) Reglas y liquidación de comisiones
+-- =========================
+
+-- Reglas de comisión (prioridad por especificidad)
+-- precedence: employee+service > service > employee > global
+create table if not exists app.commission_rules (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  scope text not null check (scope in ('global','employee','service','employee_service')),
+  employee_id uuid references app.employees(id) on delete cascade,
+  service_id uuid references app.services(id) on delete cascade,
+  pct numeric(5,2) check (pct between 0 and 100),
+  amount numeric(12,2) check (amount >= 0),
+  start_date date not null default current_date,
+  end_date date, -- null = sin fin
+  active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  constraint pct_or_amount check ((pct is not null) or (amount is not null))
+);
+create index on app.commission_rules (org_id, active, start_date, end_date);
+
+-- Resultado de comisiones por ítem (se genera al completar el turno)
+create table if not exists app.commissions (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  appointment_item_id uuid not null references app.appointment_items(id) on delete cascade,
+  employee_id uuid not null references app.employees(id) on delete restrict,
+  pct numeric(5,2),
+  amount numeric(12,2) not null check (amount >= 0),
+  calculated_at timestamptz not null default now(),
+  locked boolean not null default false
+);
+create index on app.commissions (employee_id, calculated_at);
+create index on app.commissions (org_id, calculated_at);
+
+-- Busca precio por sucursal o base del servicio
+create or replace function app.price_for_service(p_salon uuid, p_service uuid)
+returns numeric language sql stable as $$
+  select coalesce(
+    (select price from app.salon_service_prices ssp
+      where ssp.salon_id = p_salon and ssp.service_id = p_service and ssp.active),
+    (select base_price from app.services sv where sv.id = p_service)
+  );
+$$;
+
+-- Elige la mejor regla aplicable para un item
+create or replace function app.best_rule_for_item(p_org uuid, p_employee uuid, p_service uuid, p_on date)
+returns table (pct numeric, amount numeric) language sql stable as $$
+  with rules as (
+    select scope, employee_id, service_id, pct, amount,
+           coalesce(end_date, '9999-12-31'::date) as end_date
+    from app.commission_rules
+    where org_id = p_org and active
+      and start_date <= p_on and (end_date is null or end_date >= p_on)
+  )
+  (
+    -- employee_service
+    select pct, amount from rules
+     where scope='employee_service' and employee_id=p_employee and service_id=p_service
+     limit 1
+  )
+  union all
+  (
+    select pct, amount from rules
+     where scope='service' and service_id=p_service
+     limit 1
+  )
+  union all
+  (
+    select pct, amount from rules
+     where scope='employee' and employee_id=p_employee
+     limit 1
+  )
+  union all
+  (
+    select pct, amount from rules
+     where scope='global'
+     limit 1
+  )
+  limit 1;
+$$;
+
+-- BEFORE INSERT/UPDATE: appointment_items: auto precio, subtotal, validar comisión
+create or replace function app.tg__items_defaults()
+returns trigger language plpgsql as $$
+declare v_price numeric; begin
+  if new.unit_price is null or new.unit_price < 0 then
+    select app.price_for_service(a.salon_id, new.service_id)
+      into v_price
+    from app.appointments a
+    where a.id = new.appointment_id;
+    new.unit_price := coalesce(v_price, 0);
+  end if;
+
+  new.commission_pct := app.ensure_pct_range(new.commission_pct);
+  new.subtotal := round(new.unit_price * new.quantity, 2);
+  return new;
+end; $$;
+
+create trigger _defaults before insert or update
+on app.appointment_items
+for each row execute function app.tg__items_defaults();
+
+-- AFTER INSERT/UPDATE/DELETE de items: recalcular total del turno
+create or replace function app.tg__appointment_recalc_total()
+returns trigger language plpgsql as $$
+begin
+  update app.appointments a
+    set total_amount = greatest(0, (
+      select coalesce(sum(subtotal),0) from app.appointment_items ai
+      where ai.appointment_id = a.id
+    ) - a.discount_amount)
+  where a.id = coalesce(new.appointment_id, old.appointment_id);
+  return null;
+end; $$;
+
+create trigger _recalc_total_ai after insert or update or delete
+on app.appointment_items
+for each row execute function app.tg__appointment_recalc_total();
+
+-- WHEN turno pasa a COMPLETED -> generar comisiones (si no existen)
+create or replace function app.tg__on_appointment_completed()
+returns trigger language plpgsql as $$
+declare
+  rec record;
+  v_pct numeric;
+  v_amt numeric;
+  v_emp uuid;
+  v_org uuid;
+begin
+  if (TG_OP='UPDATE' and new.status='completed' and old.status is distinct from 'completed')
+     or (TG_OP='INSERT' and new.status='completed') then
+
+    v_org := new.org_id;
+
+    for rec in
+      select ai.id as item_id, a.employee_id, a.salon_id, a.starts_at::date as dte,
+             ai.subtotal, a.org_id, ai.service_id
+      from app.appointment_items ai
+      join app.appointments a on a.id = ai.appointment_id
+      where ai.appointment_id = new.id
+    loop
+      v_emp := rec.employee_id;
+      select pct, amount into v_pct, v_amt
+      from app.best_rule_for_item(v_org, v_emp, rec.service_id, rec.dte);
+
+      if v_amt is null then
+        -- fallback: pct de la regla o del empleado
+        if v_pct is null then
+          select default_commission_pct into v_pct
+          from app.employees where id = v_emp;
+        end if;
+        v_amt := round(coalesce(v_pct,0) * rec.subtotal / 100.0, 2);
+      end if;
+
+      -- crear solo si no existe
+      insert into app.commissions (org_id, appointment_item_id, employee_id, pct, amount)
+      select v_org, rec.item_id, v_emp, v_pct, v_amt
+      where not exists (
+        select 1 from app.commissions c where c.appointment_item_id = rec.item_id
+      );
+    end loop;
+  end if;
+  return new;
+end; $$;
+
+create trigger _complete_commissions
+after insert or update on app.appointments
+for each row execute function app.tg__on_appointment_completed();
+
+-- =========================
+-- 4) Seguridad RLS
+-- =========================
+
+-- Habilitar RLS
+alter table app.orgs enable row level security;
+alter table app.memberships enable row level security;
+alter table app.salons enable row level security;
+alter table app.employees enable row level security;
+alter table app.clients enable row level security;
+alter table app.services enable row level security;
+alter table app.salon_service_prices enable row level security;
+alter table app.appointments enable row level security;
+alter table app.appointment_items enable row level security;
+alter table app.payments enable row level security;
+alter table app.expenses enable row level security;
+alter table app.commission_rules enable row level security;
+alter table app.commissions enable row level security;
+
+-- Permisos base (Supabase roles)
+grant usage on schema app to authenticated, anon;
+grant select, insert, update, delete on all tables in schema app to authenticated;
+grant select on all tables in schema app to anon; -- opcional: solo para login demo
+alter default privileges in schema app grant select, insert, update, delete on tables to authenticated;
+
+-- Políticas por organización: miembros ven/operan SOLO sus orgs
+-- orgs: solo miembros pueden ver; admins/owners pueden update
+create policy sel_orgs on app.orgs
+for select using (app.user_is_member_of(id));
+create policy upd_orgs on app.orgs
+for update using (exists (
+  select 1 from app.memberships m where m.org_id=id and m.user_id=auth.uid()
+  and m.role in ('admin','owner')
+));
+create policy ins_orgs on app.orgs
+for insert with check (true); -- permitir crear (o controlar por service_role)
+
+-- memberships: cada usuario ve sus membresías; admins/owners de esa org pueden gestionar
+create policy sel_m on app.memberships
+for select using (user_id = auth.uid() or exists (
+  select 1 from app.memberships m2 where m2.org_id = org_id and m2.user_id = auth.uid()
+  and m2.role in ('admin','owner')
+));
+create policy ins_m on app.memberships
+for insert with check (exists (
+  select 1 from app.memberships m2 where m2.org_id = org_id and m2.user_id = auth.uid()
+  and m2.role in ('admin','owner')
+));
+create policy upd_m on app.memberships
+for update using (exists (
+  select 1 from app.memberships m2 where m2.org_id = org_id and m2.user_id = auth.uid()
+  and m2.role in ('admin','owner')
+));
+create policy del_m on app.memberships
+for delete using (exists (
+  select 1 from app.memberships m2 where m2.org_id = org_id and m2.user_id = auth.uid()
+  and m2.role in ('admin','owner')
+));
+
+-- Plantilla genérica por tablas con org_id
+do $$
+declare tbl text;
+begin
+  for tbl in
+    select 'app.'||t.relname
+    from pg_class t join pg_namespace n on n.oid=t.relnamespace
+    where n.nspname='app' and relkind='r'
+      and exists (select 1 from information_schema.columns c
+                  where c.table_schema='app' and c.table_name=t.relname and c.column_name='org_id')
+  loop
+    execute format($f$
+      create policy sel_%1$s on %2$s for select using (app.user_is_member_of(org_id));
+      create policy ins_%1$s on %2$s for insert with check (app.user_is_member_of(org_id));
+      create policy upd_%1$s on %2$s for update using (app.user_is_member_of(org_id)) with check (app.user_is_member_of(org_id));
+      create policy del_%1$s on %2$s for delete using (app.user_is_member_of(org_id));
+    $f$, split_part(tbl,'.',2), tbl);
+  end loop;
+end $$;
+
+-- =========================
+-- 5) Vistas de analítica
+-- =========================
+
+-- a) KPIs por día y sucursal (ingresos vs gastos)
+create or replace view app.v_financials_by_day as
+select
+  a.org_id,
+  a.salon_id,
+  date_trunc('day', p.received_at) as day,
+  sum(p.amount) as revenue
+from app.payments p
+left join app.appointments a on a.id = p.appointment_id
+group by 1,2,3;
+
+create or replace view app.v_expenses_by_day as
+select
+  org_id,
+  salon_id,
+  incurred_at::date as day,
+  sum(amount) as expenses
+from app.expenses
+group by 1,2,3;
+
+create or replace view app.v_daily_balance as
+select
+  coalesce(r.org_id, e.org_id) as org_id,
+  coalesce(r.salon_id, e.salon_id) as salon_id,
+  coalesce(r.day, e.day) as day,
+  coalesce(r.revenue,0) as revenue,
+  coalesce(e.expenses,0) as expenses,
+  coalesce(r.revenue,0) - coalesce(e.expenses,0) as net
+from app.v_financials_by_day r
+full join app.v_expenses_by_day e using (org_id, salon_id, day);
+
+-- b) Rendimiento empleados (turnos atendidos, cancelaciones, no-show)
+create or replace view app.v_employee_performance as
+select
+  a.org_id,
+  a.salon_id,
+  a.employee_id,
+  date_trunc('week', a.starts_at)::date as week_start,
+  count(*) filter (where a.status in ('confirmed','completed')) as total_booked,
+  count(*) filter (where a.status='completed') as completed,
+  count(*) filter (where a.status='cancelled') as cancelled,
+  count(*) filter (where a.status='no_show') as no_show,
+  sum(a.total_amount) filter (where a.status='completed') as gross_sales
+from app.appointments a
+group by 1,2,3,4;
+
+-- c) Comisiones por empleado y semana
+create or replace view app.v_weekly_commissions as
+select
+  c.org_id,
+  ai_id.employee_id,
+  date_trunc('week', a.starts_at)::date as week_start,
+  sum(c.amount) as commissions_total
+from app.commissions c
+join app.appointment_items ai on ai.id = c.appointment_item_id
+join app.appointments a on a.id = ai.appointment_id
+join lateral (select a.employee_id) ai_id on true
+group by 1,2,3;
+
+-- d) Resumen semanal integral (cortes, ingresos, gastos, comisiones)
+create or replace view app.v_weekly_summary as
+with ap as (
+  select
+    a.org_id, a.salon_id,
+    date_trunc('week', a.starts_at)::date as week_start,
+    count(*) as total_appointments,
+    count(*) filter (where a.status='completed') as completed,
+    count(*) filter (where a.status='cancelled') as cancelled,
+    count(*) filter (where a.status='no_show') as no_show,
+    sum(a.total_amount) filter (where a.status='completed') as revenue
+  from app.appointments a
+  group by 1,2,3
+),
+ex as (
+  select org_id, salon_id,
+         date_trunc('week', incurred_at::timestamp)::date as week_start,
+         sum(amount) as expenses
+  from app.expenses
+  group by 1,2,3
+),
+co as (
+  select c.org_id, a.salon_id,
+         date_trunc('week', a.starts_at)::date as week_start,
+         sum(c.amount) as commissions
+  from app.commissions c
+  join app.appointment_items ai on ai.id = c.appointment_item_id
+  join app.appointments a on a.id = ai.appointment_id
+  group by 1,2,3
+)
+select
+  coalesce(ap.org_id, ex.org_id, co.org_id) as org_id,
+  coalesce(ap.salon_id, ex.salon_id, co.salon_id) as salon_id,
+  coalesce(ap.week_start, ex.week_start, co.week_start) as week_start,
+  coalesce(ap.total_appointments,0) as total_appointments,
+  coalesce(ap.completed,0) as completed,
+  coalesce(ap.cancelled,0) as cancelled,
+  coalesce(ap.no_show,0) as no_show,
+  coalesce(ap.revenue,0)::numeric(12,2) as revenue,
+  coalesce(ex.expenses,0)::numeric(12,2) as expenses,
+  (coalesce(ap.revenue,0) - coalesce(ex.expenses,0))::numeric(12,2) as gross_margin,
+  coalesce(co.commissions,0)::numeric(12,2) as commissions,
+  (coalesce(ap.revenue,0) - coalesce(ex.expenses,0) - coalesce(co.commissions,0))::numeric(12,2) as net_profit
+from ap
+full join ex using (org_id, salon_id, week_start)
+full join co using (org_id, salon_id, week_start);
+
+-- e) Métricas de clientes (para tu ClientsView)
+create or replace view app.v_clients_metrics as
+select
+  c.org_id,
+  c.id as client_id,
+  c.full_name,
+  count(*) as total_appointments,
+  count(*) filter (where a.status='completed') as completed_appointments,
+  max(a.starts_at)::date as last_visit,
+  min(a.starts_at)::date as first_visit
+from app.clients c
+left join app.appointments a on a.client_id = c.id
+group by 1,2,3;
+
+-- =========================
+-- 6) RPCs para el frontend
+-- =========================
+
+-- Weekly summary por rango y filtros opcionales
+create or replace function app.weekly_summary(p_org uuid, p_salon uuid default null, p_from date default null, p_to date default null)
+returns table (
+  org_id uuid,
+  salon_id uuid,
+  week_start date,
+  total_appointments int,
+  completed int,
+  cancelled int,
+  no_show int,
+  revenue numeric,
+  expenses numeric,
+  gross_margin numeric,
+  commissions numeric,
+  net_profit numeric
+) language sql stable as $$
+  select * from app.v_weekly_summary v
+  where v.org_id = p_org
+    and (p_salon is null or v.salon_id = p_salon)
+    and (p_from is null or v.week_start >= date_trunc('week', p_from))
+    and (p_to   is null or v.week_start <= date_trunc('week', p_to));
+$$;
+
+-- Comisiones por empleado (semanales) con filtros
+create or replace function app.weekly_commissions(p_org uuid, p_employee uuid default null, p_from date default null, p_to date default null)
+returns table (
+  org_id uuid,
+  employee_id uuid,
+  week_start date,
+  commissions_total numeric
+) language sql stable as $$
+  select * from app.v_weekly_commissions v
+  where v.org_id = p_org
+    and (p_employee is null or v.employee_id = p_employee)
+    and (p_from is null or v.week_start >= date_trunc('week', p_from))
+    and (p_to   is null or v.week_start <= date_trunc('week', p_to));
+$$;
+
+-- Export básico de clientes con métricas
+create or replace function app.clients_export(p_org uuid)
+returns table (
+  client_id uuid,
+  full_name text,
+  total_appointments int,
+  completed_appointments int,
+  last_visit date,
+  first_visit date
+) language sql stable as $$
+  select client_id, full_name, total_appointments, completed_appointments, last_visit, first_visit
+  from app.v_clients_metrics where org_id = p_org;
+$$;
+
+-- =========================
+-- 7) Integridad y consistencia
+-- =========================
+
+-- Asegurar que todo lo que cuelga de una org tenga el mismo org_id
+-- (opcional: triggers de seguridad si querés ser más estricto)
+create or replace function app.tg__inherit_org_from_parent()
+returns trigger language plpgsql as $$
+declare v_org uuid; begin
+  if TG_TABLE_NAME = 'appointments' then
+    select org_id into v_org from app.salons where id = new.salon_id;
+    if v_org is null or v_org <> new.org_id then
+      raise exception 'org mismatch in appointments';
+    end if;
+  end if;
+
+  if TG_TABLE_NAME = 'appointment_items' then
+    select org_id into v_org
+    from app.appointments a where a.id = new.appointment_id;
+    -- no org_id en items; se valida indirecto
+  end if;
+
+  if TG_TABLE_NAME = 'salon_service_prices' then
+    perform 1 from app.services s
+      join app.salons sa on sa.org_id = s.org_id
+    where s.id = new.service_id and sa.id = new.salon_id;
+    if not found then
+      raise exception 'service and salon must belong to same org';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists _chk on app.appointments;
+create trigger _chk before insert or update on app.appointments
+for each row execute function app.tg__inherit_org_from_parent();
+
+drop trigger if exists _chk_ssp on app.salon_service_prices;
+create trigger _chk_ssp before insert or update on app.salon_service_prices
+for each row execute function app.tg__inherit_org_from_parent();
+
+create table if not exists app.activity_log (
+  id bigserial primary key,
+  org_id uuid not null,
+  user_id uuid references auth.users(id) on delete set null,
+  entity text not null,              -- 'appointment', 'payment', 'expense', etc.
+  entity_id uuid,
+  action text not null,              -- 'insert', 'update', 'delete', 'complete'
+  details jsonb,                     -- opcional: snapshot o diff
+  created_at timestamptz default now()
+);
+
+create index on app.activity_log (org_id, entity, created_at);
+
+-- Ejemplo: trigger genérico
+create or replace function app.log_activity()
+returns trigger language plpgsql as $$
+begin
+  insert into app.activity_log (org_id, user_id, entity, entity_id, action, details)
+  values (
+    coalesce(new.org_id, old.org_id),
+    auth.uid(),
+    TG_TABLE_NAME,
+    coalesce(new.id, old.id),
+    lower(TG_OP),
+    case when TG_OP='DELETE' then to_jsonb(old)
+         when TG_OP='INSERT' then to_jsonb(new)
+         else jsonb_build_object('old', to_jsonb(old), 'new', to_jsonb(new))
+    end
+  );
+  return new;
+end $$;
+
+-- Podés engancharlo en las tablas clave:
+create trigger _log after insert or update or delete on app.appointments
+for each row execute function app.log_activity();
+
+create table if not exists app.notifications (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.orgs(id) on delete cascade,
+  recipient_user_id uuid references auth.users(id) on delete cascade,
+  type text not null,        -- 'appointment_reminder', 'commission_alert', etc.
+  title text not null,
+  message text,
+  entity_id uuid,            -- opcional, apunta a appointment_id o expense_id
+  scheduled_at timestamptz,  -- cuándo mostrarla/enviarla
+  delivered_at timestamptz,
+  read_at timestamptz,
+  created_at timestamptz default now()
+);
+
+create index on app.notifications (org_id, recipient_user_id, scheduled_at);
+
+-- vista rápida para el frontend
+create or replace view app.v_notifications_pending as
+select *
+from app.notifications
+where read_at is null and (scheduled_at is null or scheduled_at <= now());
+
+create or replace view app.v_cashflow as
+select org_id,
+       salon_id,
+       received_at::date as day,
+       'inflow'::text as type,
+       method as category,
+       amount
+from app.payments
+union all
+select org_id,
+       salon_id,
+       incurred_at as day,
+       'outflow'::text as type,
+       category::text as category,
+       amount
+from app.expenses;
+
+-- Y una vista agregada:
+create or replace view app.v_cashflow_summary as
+select
+  org_id,
+  salon_id,
+  day,
+  sum(case when type='inflow' then amount else 0 end) as inflows,
+  sum(case when type='outflow' then amount else 0 end) as outflows,
+  sum(case when type='inflow' then amount else 0 end)
+  - sum(case when type='outflow' then amount else 0 end) as net
+from app.v_cashflow
+group by 1,2,3
+order by day desc;
+

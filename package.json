@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "dev": "node scripts/dev.js",
     "build": "next build",
-    "start": "next start"
+    "start": "node scripts/dev.js",
+    "start:prod": "next start"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.3",

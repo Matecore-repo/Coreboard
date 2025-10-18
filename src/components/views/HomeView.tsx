@@ -3,7 +3,9 @@ import { Appointment } from "../AppointmentCard";
 import { CalendarView } from "../CalendarView";
 import { SalonCarousel } from "../SalonCarousel";
 import { Button } from "../ui/button";
-import React, { lazy, Suspense } from "react";
+import { EmptyStateCTA } from "../EmptyStateCTA";
+import { InviteEmployeeModal } from "../InviteEmployeeModal";
+import React, { lazy, Suspense, useState } from "react";
 
 const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
 const ClientsPanel = lazy(() => import("../ClientsPanel").then(m => ({ default: m.ClientsPanel })));
@@ -24,9 +26,13 @@ interface HomeViewProps {
   onSelectSalon: (id: string, name: string) => void;
   onAppointmentClick?: (appointment: Appointment) => void;
   onAddAppointment?: () => void;
+  orgName?: string;
+  isNewUser?: boolean;
 }
 
-export function HomeView({ appointments, selectedSalon, salons, onSelectSalon, onAppointmentClick, onAddAppointment }: HomeViewProps) {
+export function HomeView({ appointments, selectedSalon, salons, onSelectSalon, onAppointmentClick, onAddAppointment, orgName, isNewUser }: HomeViewProps) {
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  
   // HomeView muestra información del peluquero, no filtra por salón
   const salonAppointments = appointments;
 
@@ -57,6 +63,33 @@ export function HomeView({ appointments, selectedSalon, salons, onSelectSalon, o
     "3": "Beauty Salon Luxe",
     "4": "Hair Studio Pro",
   };
+
+  // Si es usuario nuevo y no tiene datos, mostrar estado vacío
+  if (isNewUser && appointments.length === 0) {
+    return (
+      <div className="pb-20">
+        <div className="p-4 md:p-6">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold mb-2">¡Bienvenido a {orgName || 'tu peluquería'}!</h1>
+            <p className="text-muted-foreground">Empezá a configurar tu negocio con estos pasos:</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <EmptyStateCTA
+              type="appointments"
+              onAction={onAddAppointment || (() => {})}
+              orgName={orgName}
+            />
+            
+            <EmptyStateCTA
+              type="employees"
+              onAction={() => setShowInviteModal(true)}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20">
@@ -117,6 +150,12 @@ export function HomeView({ appointments, selectedSalon, salons, onSelectSalon, o
           selectedSalon={selectedSalon}
           focusDate={null}
           onAppointmentClick={onAppointmentClick}
+        />
+
+        {/* Invite Employee Modal */}
+        <InviteEmployeeModal 
+          isOpen={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
         />
       </div>
     </div>

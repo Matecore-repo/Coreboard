@@ -1,0 +1,30 @@
+Cómo se usa esto desde tu app (resumen práctico)
+
+Crear organización y dueño: insert en app.orgs, luego app.memberships con role='owner' para el auth.users.id del dueño.
+
+Sucursales: una fila en app.salons por local.
+
+Empleados: fila en app.employees (link opcional a auth.users.id si también inician sesión).
+
+Servicios: app.services por org; precios especiales por local en app.salon_service_prices.
+
+Turnos: crear en app.appointments + app.appointment_items. El total se recalcula solo.
+Cuando el turno pasa a status='completed', el trigger liquida comisiones en app.commissions.
+
+Pagos: app.payments (idealmente vinculados al turno).
+
+Gastos: app.expenses (por local o generales).
+
+Reportes:
+
+Resumen semanal: select * from app.weekly_summary(:org_id, :salon_id, :from, :to);
+
+Comisiones por empleado: select * from app.weekly_commissions(:org_id, :employee_id, :from, :to);
+
+Clientes para CSV: select * from app.clients_export(:org_id);
+
+Un sistema de auditoría ligera (por ejemplo, una tabla activity_log para acciones clave).
+
+Una tabla notifications para manejar recordatorios de turnos o avisos al staff.
+
+Y una view tipo cashflow_view que combine payments y expenses para ver resultados diarios/semanales sin cálculos del lado del cliente.

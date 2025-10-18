@@ -1,89 +1,326 @@
--- Políticas RLS genéricas para Supabase (admin / owner / employee)
--- Moved to infra/db/ for versioning
+-- RLS Policies for Multi-tenant Coreboard
+-- Run this after creating the schema
 
--- current_role / current_user_id / current_salon_id based on public.profiles
--- Assumes a table public.profiles with columns: id (auth uid), role text, salon_id text
--- Asegúrate de crear la tabla profiles desde Supabase UI o migrations si prefieres.
--- CREATE TABLE IF NOT EXISTS public.profiles (
---   id uuid PRIMARY KEY,
---   role text,
---   salon_id text
--- );
+-- Organizations: Users can only see orgs they belong to
+CREATE POLICY "Users can view their organizations" ON public.orgs
+  FOR SELECT USING (
+    id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE OR REPLACE FUNCTION public.current_role() RETURNS text
-  LANGUAGE sql STABLE AS $$
-    SELECT role FROM public.profiles WHERE id = auth.uid()
-  $$;
+CREATE POLICY "Users can insert organizations" ON public.orgs
+  FOR INSERT WITH CHECK (true); -- Will be validated in application logic
 
-CREATE OR REPLACE FUNCTION public.current_user_id() RETURNS text
-  LANGUAGE sql STABLE AS $$
-    SELECT auth.uid()::text
-  $$;
+CREATE POLICY "Owners can update their organizations" ON public.orgs
+  FOR UPDATE USING (
+    id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
 
-CREATE OR REPLACE FUNCTION public.current_salon_id() RETURNS text
-  LANGUAGE sql STABLE AS $$
-    SELECT salon_id FROM public.profiles WHERE id = auth.uid()
-  $$;
+-- Memberships: Users can only see their own memberships
+CREATE POLICY "Users can view their memberships" ON public.memberships
+  FOR SELECT USING (user_id = auth.uid());
 
--- appointments
-ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can insert memberships" ON public.memberships
+  FOR INSERT WITH CHECK (true); -- Will be validated in application logic
 
-CREATE POLICY appointments_admin_full ON public.appointments
-  FOR ALL
-  USING (public.current_role() = 'admin');
+CREATE POLICY "Owners can update memberships" ON public.memberships
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
 
-CREATE POLICY appointments_owner_salon ON public.appointments
-  FOR ALL
-  USING (public.current_role() = 'owner' AND public.current_salon_id() IS NOT NULL AND public.current_salon_id()::text = salon_id::text)
-  WITH CHECK (public.current_role() = 'admin' OR (public.current_role() = 'owner' AND public.current_salon_id()::text = salon_id::text));
+-- Salons: Users can only see salons from their organizations
+CREATE POLICY "Users can view their organization salons" ON public.salons
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY appointments_employee_select ON public.appointments
-  FOR SELECT
-  USING (public.current_role() = 'employee' AND public.current_salon_id() IS NOT NULL AND public.current_salon_id()::text = salon_id::text);
+CREATE POLICY "Users can insert salons" ON public.salons
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY appointments_employee_update_own ON public.appointments
-  FOR UPDATE
-  USING (public.current_role() = 'employee' AND public.current_salon_id() IS NOT NULL AND public.current_salon_id()::text = salon_id::text AND stylist_id::text = public.current_user_id()::text)
-  WITH CHECK (stylist_id::text = public.current_user_id()::text AND public.current_salon_id()::text = salon_id::text);
+CREATE POLICY "Users can update their organization salons" ON public.salons
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY appointments_employee_insert ON public.appointments
-  FOR INSERT
-  WITH CHECK (public.current_role() = 'admin' OR (public.current_role() = 'employee' AND public.current_salon_id()::text = salon_id::text));
+CREATE POLICY "Users can delete their organization salons" ON public.salons
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+    )
+  );
 
--- clients
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+-- Services: Organization-wide access
+CREATE POLICY "Users can view their organization services" ON public.services
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY clients_admin_full ON public.clients
-  FOR ALL
-  USING (public.current_role() = 'admin');
+CREATE POLICY "Users can insert services" ON public.services
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY clients_owner_salon ON public.clients
-  FOR ALL
-  USING (public.current_role() = 'owner' AND public.current_salon_id() IS NOT NULL AND public.current_salon_id()::text = salon_id::text)
-  WITH CHECK (public.current_role() = 'admin' OR (public.current_role() = 'owner' AND public.current_salon_id()::text = salon_id::text));
+CREATE POLICY "Users can update their organization services" ON public.services
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY clients_employee_access ON public.clients
-  FOR SELECT
-  USING (public.current_role() = 'employee' AND public.current_salon_id() IS NOT NULL AND public.current_salon_id()::text = salon_id::text);
+CREATE POLICY "Users can delete their organization services" ON public.services
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+    )
+  );
 
-CREATE POLICY clients_employee_insert_update ON public.clients
-  FOR INSERT, UPDATE
-  WITH CHECK (public.current_role() = 'admin' OR (public.current_role() = 'employee' AND public.current_salon_id()::text = salon_id::text));
+-- Salon Service Prices: Based on salon access
+CREATE POLICY "Users can view salon service prices" ON public.salon_service_prices
+  FOR SELECT USING (
+    salon_id IN (
+      SELECT s.id FROM public.salons s
+      JOIN public.memberships m ON s.org_id = m.org_id
+      WHERE m.user_id = auth.uid()
+    )
+  );
 
--- commissions
-ALTER TABLE public.commissions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage salon service prices" ON public.salon_service_prices
+  FOR ALL USING (
+    salon_id IN (
+      SELECT s.id FROM public.salons s
+      JOIN public.memberships m ON s.org_id = m.org_id
+      WHERE m.user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY commissions_admin_full ON public.commissions
-  FOR ALL
-  USING (public.current_role() = 'admin');
+-- Employees: Organization-wide access
+CREATE POLICY "Users can view their organization employees" ON public.employees
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY commissions_owner_salon ON public.commissions
-  FOR ALL
-  USING (public.current_role() = 'owner' AND public.current_salon_id() IS NOT NULL AND public.current_salon_id()::text = salon_id::text)
-  WITH CHECK (public.current_role() = 'admin' OR (public.current_role() = 'owner' AND public.current_salon_id()::text = salon_id::text));
+CREATE POLICY "Users can insert employees" ON public.employees
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
-CREATE POLICY commissions_employee_own ON public.commissions
-  FOR SELECT
-  USING (public.current_role() = 'employee' AND stylist_id::text = public.current_user_id()::text AND public.current_salon_id()::text = salon_id::text);
+CREATE POLICY "Users can update their organization employees" ON public.employees
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
+CREATE POLICY "Users can delete their organization employees" ON public.employees
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+    )
+  );
 
+-- Clients: Organization-wide access
+CREATE POLICY "Users can view their organization clients" ON public.clients
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert clients" ON public.clients
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update their organization clients" ON public.clients
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete their organization clients" ON public.clients
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+    )
+  );
+
+-- Appointments: Based on salon access
+CREATE POLICY "Users can view their organization appointments" ON public.appointments
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert appointments" ON public.appointments
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    ) AND created_by = auth.uid()
+  );
+
+CREATE POLICY "Users can update their organization appointments" ON public.appointments
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete their organization appointments" ON public.appointments
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+-- Appointment Items: Based on appointment access
+CREATE POLICY "Users can view appointment items" ON public.appointment_items
+  FOR SELECT USING (
+    appointment_id IN (
+      SELECT a.id FROM public.appointments a
+      JOIN public.memberships m ON a.org_id = m.org_id
+      WHERE m.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can manage appointment items" ON public.appointment_items
+  FOR ALL USING (
+    appointment_id IN (
+      SELECT a.id FROM public.appointments a
+      JOIN public.memberships m ON a.org_id = m.org_id
+      WHERE m.user_id = auth.uid()
+    )
+  );
+
+-- Commissions: Based on employee access
+CREATE POLICY "Users can view their organization commissions" ON public.commissions
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "System can insert commissions" ON public.commissions
+  FOR INSERT WITH CHECK (true); -- Will be managed by triggers
+
+CREATE POLICY "Users can update their organization commissions" ON public.commissions
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+-- Payments: Based on organization access
+CREATE POLICY "Users can view their organization payments" ON public.payments
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert payments" ON public.payments
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update their organization payments" ON public.payments
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete their organization payments" ON public.payments
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+    )
+  );
+
+-- Expenses: Based on organization access
+CREATE POLICY "Users can view their organization expenses" ON public.expenses
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert expenses" ON public.expenses
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    ) AND created_by = auth.uid()
+  );
+
+CREATE POLICY "Users can update their organization expenses" ON public.expenses
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete their organization expenses" ON public.expenses
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+    )
+  );

@@ -31,26 +31,34 @@ function mapCommissionToRow(payload: Partial<Commission>) {
   };
 }
 
-export function useCommissions() {
+export function useCommissions(options?: { enabled?: boolean }) {
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(false);
+  const enabled = options?.enabled ?? true;
 
   const fetchCommissions = useCallback(async () => {
+    if (!enabled) return;
     setLoading(true);
-    const { data, error } = await supabase.from('commissions').select('id, stylist_id, amount, date, salon_id, source_appointment_id');
-    if (error) {
-      console.error('Error fetching commissions', error);
-      setCommissions([]);
-    } else {
-      const mapped = ((data as any[]) || []).map(mapRowToCommission);
-      setCommissions(mapped);
+    try {
+      const { data, error } = await supabase
+        .from('commissions')
+        .select('id, stylist_id, amount, date, salon_id, source_appointment_id');
+      if (error) {
+        console.error('Error fetching commissions', error);
+        setCommissions([]);
+      } else {
+        const mapped = ((data as any[]) || []).map(mapRowToCommission);
+        setCommissions(mapped);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     fetchCommissions();
-  }, [fetchCommissions]);
+  }, [fetchCommissions, enabled]);
 
   const createCommission = async (payload: Partial<Commission>) => {
     const toInsert = mapCommissionToRow(payload);
@@ -76,5 +84,4 @@ export function useCommissions() {
 
   return { commissions, loading, fetchCommissions, createCommission, updateCommission, deleteCommission };
 }
-
 

@@ -24,7 +24,7 @@ export function SalonCarousel({
   
   return (
     <div className="relative px-4">
-      <Carousel className="w-full">
+      <Carousel className="w-full" opts={{ align: 'start', containScroll: 'trimSnaps', loop: false }}>
         <CarouselContent className="-ml-3">
           {salons.map((salon) => (
             <CarouselItem key={salon.id} className="pl-3 md:basis-1/2 lg:basis-1/3">

@@ -42,40 +42,43 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
+  /* Vercel-like deep dark palette */
+  --background: #0a0a0a; /* near-black */
+  --foreground: #fafafa; /* high contrast text */
+  --card: #0b0b0c; /* slightly lifted surface */
+  --card-foreground: #fafafa;
+  --popover: #0b0b0c;
+  --popover-foreground: #fafafa;
+  /* Keep inverse CTAs: light button on dark bg */
+  --primary: #ffffff;
+  --primary-foreground: #111111; /* dark text on light button */
+  --secondary: #0f0f10; /* subtle surface */
+  --secondary-foreground: #e5e5e5;
+  --muted: #121214;
+  --muted-foreground: #a1a1aa; /* zinc-400 */
+  --accent: #121214;
+  --accent-foreground: #ededed;
+  --destructive: #ef4444; /* red-500 */
+  --destructive-foreground: #0f172a;
+  --border: #1a1a1a; /* subtle border */
+  --input: #0f0f10;
+  --ring: #1f1f22; /* dark ring */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
+  /* charts keep vibrancy for readability on dark */
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --sidebar: #0a0a0a; /* make sidebar as dark as background */
+  --sidebar-foreground: #eaeaea;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #111111;
+  --sidebar-accent: #101012;
+  --sidebar-accent-foreground: #eaeaea;
+  --sidebar-border: #1a1a1a;
+  --sidebar-ring: #1f1f22;
 }
 
 @theme inline {

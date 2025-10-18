@@ -33,7 +33,8 @@ const safeLocalStorage = {
 
 export type Membership = {
   org_id: string;
-  role: 'admin' | 'owner' | 'employee' | 'viewer';
+  role: 'owner' | 'admin' | 'employee' | 'viewer';
+  is_primary?: boolean;
 };
 
 export type User = {
@@ -41,6 +42,7 @@ export type User = {
   email?: string | null;
   memberships: Membership[];
   current_org_id?: string;
+  isNewUser?: boolean; // Flag para detectar usuarios nuevos
 };
 
 type AuthContextValue = {
@@ -53,6 +55,7 @@ type AuthContextValue = {
   switchOrganization: (org_id: string) => void;
   currentOrgId: string | null;
   currentRole: string | null;
+  createOrganization: (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -65,57 +68,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restaurar sesión y cargar membresías
+  // NO restaurar sesión automáticamente - solo cuando el usuario haga login explícito
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        // Intentar restaurar sesión desde localStorage
-        const sessionJson = safeLocalStorage.getItem('sb-session');
-        if (sessionJson) {
-          try {
-            const parsed = JSON.parse(sessionJson);
-            
-            // Demo session
-            if (parsed.user?.id === DEMO_USER_ID) {
-              setUser({
-                id: DEMO_USER_ID,
-                email: 'demo@coreboard.local',
-                memberships: [{ org_id: DEMO_ORG_ID, role: 'owner' }],
-                current_org_id: DEMO_ORG_ID,
-              });
-              setSession(null);
-              setLoading(false);
-              return;
-            }
-
-            // Real session
-            if (parsed.access_token) {
-              await supabase.auth.setSession(parsed);
-              const { data: { session: currentSession } } = await supabase.auth.getSession();
-              if (currentSession?.user) {
-                setSession(currentSession);
-                await fetchUserMemberships(currentSession.user.id);
-              }
-            }
-          } catch (e) {
-            console.warn('Error restoring session:', e);
-          }
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
+    console.log('🚀 AUTH: Iniciando AuthContext - SIN restauración automática');
+    setLoading(false);
+    console.log('✅ AUTH: AuthContext listo - esperando login explícito');
 
     // Escuchar cambios de autenticación
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      console.log('🔄 AUTH: onAuthStateChange - Event:', event, 'Session:', !!newSession);
+      
       setSession(newSession);
       
       if (newSession?.user) {
+        console.log('🔐 AUTH: Nueva sesión detectada para:', newSession.user.email);
         safeLocalStorage.setItem('sb-session', JSON.stringify(newSession));
         await fetchUserMemberships(newSession.user.id);
       } else {
+        console.log('🚪 AUTH: Sesión cerrada - limpiando usuario');
         setUser(null);
         safeLocalStorage.removeItem('sb-session');
       }
@@ -128,11 +98,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserMemberships = async (userId: string) => {
     try {
+      console.log('🔍 Fetching memberships for user:', userId);
+      
       // Obtener todas las membresías del usuario
       const { data: memberships, error } = await supabase
         .from('memberships')
-        .select('org_id, role')
+        .select('org_id, role, is_primary')
         .eq('user_id', userId);
+
+      console.log('📊 Memberships result:', { memberships, error });
 
       if (error) {
         console.error('Error fetching memberships:', error);
@@ -140,29 +114,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const { data: { user: authUser } } = await supabase.auth.getUser();
+      console.log('👤 Auth user:', authUser?.email);
+      
       if (!authUser) return;
 
-      // Si tiene membresías, seleccionar la primera como org actual
-      const primaryOrg = memberships?.[0];
+      // Detectar si es usuario nuevo (sin membresías)
+      const isNewUser = !memberships || memberships.length === 0;
       
-      setUser({
+      // Si tiene membresías, seleccionar la primaria o la primera como org actual
+      const primaryOrg = memberships?.find(m => m.is_primary) || memberships?.[0];
+      
+      const userData = {
         id: userId,
         email: authUser.email,
         memberships: memberships || [],
         current_org_id: primaryOrg?.org_id,
-      });
+        isNewUser,
+      };
+      
+      console.log('✅ Setting user data:', userData);
+      setUser(userData);
     } catch (e) {
       console.error('Error loading user memberships:', e);
     }
   };
 
   const signIn = async (email: string, password: string) => {
+    console.log('🔑 AUTH: 🖱️ BOTÓN "INICIAR SESIÓN" PRESIONADO');
+    console.log('🔑 AUTH: Intentando login con email:', email);
     try {
       setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ AUTH: Error en login:', error.message);
+        throw error;
+      }
+      
       if (data?.session) {
+        console.log('✅ AUTH: Login exitoso para:', data.session.user.email);
         setSession(data.session);
         safeLocalStorage.setItem('sb-session', JSON.stringify(data.session));
         await fetchUserMemberships(data.session.user.id);
@@ -173,6 +163,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInAsDemo = () => {
+    console.log('🎭 AUTH: 🖱️ BOTÓN "EXPLORAR DEMO" PRESIONADO');
+    console.log('🎭 AUTH: Usuario seleccionó MODO DEMO');
     setUser({
       id: DEMO_USER_ID,
       email: 'demo@coreboard.local',
@@ -181,6 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     setSession(null);
     safeLocalStorage.setItem('sb-session', JSON.stringify({ user: { id: DEMO_USER_ID, email: 'demo@coreboard.local' } }));
+    console.log('✅ AUTH: Usuario DEMO configurado correctamente');
   };
 
   const signOut = async () => {
@@ -199,11 +192,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const createOrganization = async (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => {
+    if (!user) throw new Error('Usuario no autenticado');
+
+    try {
+      setLoading(true);
+
+      // Crear organización
+      const { data: org, error: orgError } = await supabase
+        .from('orgs')
+        .insert({ name: orgData.name })
+        .select()
+        .single();
+
+      if (orgError) throw orgError;
+
+      // Crear membresía como owner
+      const { error: membershipError } = await supabase
+        .from('memberships')
+        .insert({
+          org_id: org.id,
+          user_id: user.id,
+          role: 'owner',
+          is_primary: true
+        });
+
+      if (membershipError) throw membershipError;
+
+      // Crear primer salón
+      const { error: salonError } = await supabase
+        .from('salons')
+        .insert({
+          org_id: org.id,
+          name: orgData.salonName,
+          address: orgData.salonAddress,
+          phone: orgData.salonPhone
+        });
+
+      if (salonError) throw salonError;
+
+      // Actualizar el usuario con la nueva organización
+      await fetchUserMemberships(user.id);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const currentOrgId = user?.current_org_id || null;
   const currentRole = user?.memberships?.find(m => m.org_id === currentOrgId)?.role || null;
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole, createOrganization }}>
       {children}
     </AuthContext.Provider>
   );
