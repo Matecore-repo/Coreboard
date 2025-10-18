@@ -1,77 +1,123 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Session } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 
-type User = {
+// Helper functions para manejar localStorage de manera segura
+const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      // localStorage no disponible (modo incógnito, políticas de seguridad, etc.)
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      // localStorage no disponible - continuar sin persistir
+    }
+  },
+  removeItem: (key: string): void => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      // localStorage no disponible - continuar sin limpiar
+    }
+  }
+};
+
+export type Membership = {
+  org_id: string;
+  role: 'admin' | 'owner' | 'employee' | 'viewer';
+};
+
+export type User = {
   id: string;
   email?: string | null;
-  role?: 'admin' | 'owner' | 'employee' | 'demo' | null;
-  salon_id?: string | null;
+  memberships: Membership[];
+  current_org_id?: string;
 };
 
 type AuthContextValue = {
   user: User | null;
+  session: Session | null;
+  loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInAsDemo: () => void;
   signOut: () => Promise<void>;
+  switchOrganization: (org_id: string) => void;
+  currentOrgId: string | null;
+  currentRole: string | null;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const DEMO_ORG_ID = 'demo-org-00000000000000000000';
+const DEMO_USER_ID = 'demo-user-000000000000000000';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // Restaurar sesión y cargar membresías
   useEffect(() => {
-    // Restaurar sesión desde Supabase si hay un session en localStorage
-    const sessionJson = localStorage.getItem('sb-session');
-    if (sessionJson) {
+    const initAuth = async () => {
       try {
-        const session = JSON.parse(sessionJson);
-        if (session?.user) {
-          // Special local demo session (no Supabase requests)
-          if (session.user.id === 'demo') {
-            setUser({ id: 'demo', email: session.user.email || 'demo@demo.local', role: 'demo', salon_id: null });
-          } else {
-            // set session first
-            supabase.auth.setSession(session);
-            // fetch profile (role + salon_id)
-            (async () => {
-              try {
-                const { data: profile } = await supabase.from('profiles').select('role, salon_id').eq('id', session.user.id).single();
-                setUser({ id: session.user.id, email: session.user.email, role: profile?.role || 'demo', salon_id: profile?.salon_id || null });
-              } catch (e) {
-                console.warn('Error fetching profile', e);
-                setUser({ id: session.user.id, email: session.user.email, role: 'demo', salon_id: null });
-              }
-            })();
-          }
-        }
-      } catch (e) {
-        console.warn('Error parsing sb-session', e);
-      }
-    }
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        // Guardar session en localStorage
-        localStorage.setItem('sb-session', JSON.stringify(session));
-        // If demo user skip Supabase lookup
-        if (session.user.id === 'demo') {
-          setUser({ id: 'demo', email: session.user.email || 'demo@demo.local', role: 'demo', salon_id: null });
-          return;
-        }
-        // obtener profile
-        (async () => {
+        // Intentar restaurar sesión desde localStorage
+        const sessionJson = safeLocalStorage.getItem('sb-session');
+        if (sessionJson) {
           try {
-            const { data: profile } = await supabase.from('profiles').select('role, salon_id').eq('id', session.user!.id).single();
-            setUser({ id: session.user!.id, email: session.user!.email, role: profile?.role || 'demo', salon_id: profile?.salon_id || null });
+            const parsed = JSON.parse(sessionJson);
+            
+            // Demo session
+            if (parsed.user?.id === DEMO_USER_ID) {
+              setUser({
+                id: DEMO_USER_ID,
+                email: 'demo@coreboard.local',
+                memberships: [{ org_id: DEMO_ORG_ID, role: 'owner' }],
+                current_org_id: DEMO_ORG_ID,
+              });
+              setSession(null);
+              setLoading(false);
+              return;
+            }
+
+            // Real session
+            if (parsed.access_token) {
+              await supabase.auth.setSession(parsed);
+              const { data: { session: currentSession } } = await supabase.auth.getSession();
+              if (currentSession?.user) {
+                setSession(currentSession);
+                await fetchUserMemberships(currentSession.user.id);
+              }
+            }
           } catch (e) {
-            console.warn('Error fetching profile onAuthStateChange', e);
-            setUser({ id: session.user!.id, email: session.user!.email, role: 'demo', salon_id: null });
+            console.warn('Error restoring session:', e);
           }
-        })();
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    // Escuchar cambios de autenticación
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      setSession(newSession);
+      
+      if (newSession?.user) {
+        safeLocalStorage.setItem('sb-session', JSON.stringify(newSession));
+        await fetchUserMemberships(newSession.user.id);
       } else {
         setUser(null);
-        localStorage.removeItem('sb-session');
+        safeLocalStorage.removeItem('sb-session');
       }
     });
 
@@ -80,41 +126,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    if (data?.session) {
-      localStorage.setItem('sb-session', JSON.stringify(data.session));
-      // fetch profile to populate role + salon_id immediately
-      try {
-        const { data: profile } = await supabase.from('profiles').select('role, salon_id').eq('id', data.session.user.id).single();
-        setUser({ id: data.session.user.id, email: data.session.user.email, role: profile?.role || 'demo', salon_id: profile?.salon_id || null });
-      } catch (e) {
-        console.warn('Error fetching profile on signIn', e);
-        setUser({ id: data.session.user.id, email: data.session.user.email, role: 'demo', salon_id: null });
+  const fetchUserMemberships = async (userId: string) => {
+    try {
+      // Obtener todas las membresías del usuario
+      const { data: memberships, error } = await supabase
+        .from('memberships')
+        .select('org_id, role')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error fetching memberships:', error);
+        return;
       }
+
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      // Si tiene membresías, seleccionar la primera como org actual
+      const primaryOrg = memberships?.[0];
+      
+      setUser({
+        id: userId,
+        email: authUser.email,
+        memberships: memberships || [],
+        current_org_id: primaryOrg?.org_id,
+      });
+    } catch (e) {
+      console.error('Error loading user memberships:', e);
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) throw error;
+      if (data?.session) {
+        setSession(data.session);
+        safeLocalStorage.setItem('sb-session', JSON.stringify(data.session));
+        await fetchUserMemberships(data.session.user.id);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   const signInAsDemo = () => {
-    const demoUser: User = { id: 'demo', email: 'demo@demo.local', role: 'demo', salon_id: null };
-    setUser(demoUser);
-    // store a lightweight session so reload keeps demo mode
-    try {
-      localStorage.setItem('sb-session', JSON.stringify({ user: { id: demoUser.id, email: demoUser.email } }));
-    } catch (e) {
-      // ignore
-    }
+    setUser({
+      id: DEMO_USER_ID,
+      email: 'demo@coreboard.local',
+      memberships: [{ org_id: DEMO_ORG_ID, role: 'owner' }],
+      current_org_id: DEMO_ORG_ID,
+    });
+    setSession(null);
+    safeLocalStorage.setItem('sb-session', JSON.stringify({ user: { id: DEMO_USER_ID, email: 'demo@coreboard.local' } }));
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem('sb-session');
-    setUser(null);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      safeLocalStorage.removeItem('sb-session');
+      setUser(null);
+      setSession(null);
+    }
   };
 
+  const switchOrganization = (org_id: string) => {
+    if (user) {
+      setUser({ ...user, current_org_id: org_id });
+    }
+  };
+
+  const currentOrgId = user?.current_org_id || null;
+  const currentRole = user?.memberships?.find(m => m.org_id === currentOrgId)?.role || null;
+
   return (
-    <AuthContext.Provider value={{ user, signIn, signInAsDemo, signOut }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole }}>
+      {children}
+    </AuthContext.Provider>
   );
 };
 

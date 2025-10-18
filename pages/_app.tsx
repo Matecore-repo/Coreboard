@@ -7,8 +7,11 @@ import { getStoredTheme, applyTheme } from '../src/lib/theme';
 
 export default function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
-    const t = getStoredTheme();
-    if (t) applyTheme(t);
+    // Solo ejecutar en el cliente
+    if (typeof window !== 'undefined') {
+      const t = getStoredTheme();
+      if (t) applyTheme(t);
+    }
   }, []);
 
   return (

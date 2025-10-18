@@ -6,7 +6,30 @@ export type Commission = {
   stylist: string;
   amount: number;
   date: string;
+  salonId?: string;
+  sourceAppointmentId?: string;
 };
+
+function mapRowToCommission(row: any): Commission {
+  return {
+    id: String(row.id),
+    stylist: row.stylist_id ?? row.stylist ?? '',
+    amount: Number(row.amount ?? 0),
+    date: typeof row.date === 'string' ? row.date : String(row.date ?? ''),
+    salonId: row.salon_id ?? undefined,
+    sourceAppointmentId: row.source_appointment_id ?? undefined,
+  };
+}
+
+function mapCommissionToRow(payload: Partial<Commission>) {
+  return {
+    stylist_id: payload.stylist,
+    amount: payload.amount,
+    date: payload.date,
+    salon_id: payload.salonId,
+    source_appointment_id: payload.sourceAppointmentId,
+  };
+}
 
 export function useCommissions() {
   const [commissions, setCommissions] = useState<Commission[]>([]);
@@ -14,12 +37,13 @@ export function useCommissions() {
 
   const fetchCommissions = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('commissions').select('*');
+    const { data, error } = await supabase.from('commissions').select('id, stylist_id, amount, date, salon_id, source_appointment_id');
     if (error) {
       console.error('Error fetching commissions', error);
       setCommissions([]);
     } else {
-      setCommissions((data as any[]) || []);
+      const mapped = ((data as any[]) || []).map(mapRowToCommission);
+      setCommissions(mapped);
     }
     setLoading(false);
   }, []);
@@ -29,14 +53,16 @@ export function useCommissions() {
   }, [fetchCommissions]);
 
   const createCommission = async (payload: Partial<Commission>) => {
-    const { data, error } = await supabase.from('commissions').insert([payload]);
+    const toInsert = mapCommissionToRow(payload);
+    const { data, error } = await supabase.from('commissions').insert([toInsert]).select();
     if (error) throw error;
     await fetchCommissions();
     return data;
   };
 
   const updateCommission = async (id: string, updates: Partial<Commission>) => {
-    const { data, error } = await supabase.from('commissions').update(updates).eq('id', id);
+    const toUpdate = mapCommissionToRow(updates);
+    const { data, error } = await supabase.from('commissions').update(toUpdate).eq('id', id).select();
     if (error) throw error;
     await fetchCommissions();
     return data;

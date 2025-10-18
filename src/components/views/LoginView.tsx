@@ -1,13 +1,13 @@
 import React, { useState } from "react";
-import { Lock, Mail, Sun, Moon } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { Button } from "../ui/button";
 import LoginCTA from '../LoginCTA';
-import { getStoredTheme, toggleTheme } from '../../lib/theme';
 import { toast } from 'sonner';
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import NextImage from 'next/image';
 import { useAuth } from '../../contexts/AuthContext';
+import ThemeBubble from '../../components/ThemeBubble';
 
 // Imagen representativa de peluquería: preferimos la imagen pública en `public/`.
 // Usamos `imagenlogin.jpg` que ya existe en `public/` para evitar 404.
@@ -20,7 +20,6 @@ interface LoginViewProps {
 
 export function LoginView({ onLogin }: LoginViewProps) {
   const { signInAsDemo } = useAuth();
-  const [localTheme, setLocalTheme] = useState<'light'|'dark'>(() => getStoredTheme() ?? (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // Empezamos con la imagen embebida en `src/assets` (evita mostrar placeholder roto)
@@ -54,16 +53,10 @@ export function LoginView({ onLogin }: LoginViewProps) {
     onLogin();
   };
 
-  const handleThemeToggle = () => {
-    const next = toggleTheme();
-    setLocalTheme(next);
-    // announce to user
-    if (next === 'dark') toast.success('Modo oscuro activado');
-    else toast.success('Modo claro activado');
-  };
-
   return (
     <div className="min-h-screen flex">
+      {/* Floating theme bubble */}
+      <ThemeBubble />
       {/* Left Side - Form (50% on desktop, full on mobile) */}
       <div className="w-full lg:w-1/2 flex flex-col">
         {/* Mobile Image Header */}
@@ -75,27 +68,11 @@ export function LoginView({ onLogin }: LoginViewProps) {
         {/* Form Container */}
         <div className="flex-1 flex items-center justify-center px-6 sm:px-8 lg:px-12 py-8 lg:py-12 relative">
           <div className="w-full max-w-md space-y-6 relative pt-8">
-            {/* Header: title + theme toggle aligned (single toggle inside header) */}
+            {/* Header: title */}
             <div className="flex items-center justify-between">
               <div className="space-y-2 text-center sm:text-left">
                 <h1 className="text-3xl sm:text-4xl tracking-tight">Bienvenido de nuevo</h1>
                 <p className="text-muted-foreground">Ingresa tus credenciales para acceder al sistema</p>
-              </div>
-              <div className="ml-4">
-                <button
-                  onClick={handleThemeToggle}
-                  aria-pressed={localTheme === 'dark'}
-                  aria-label="Toggle theme"
-                  className={`theme-toggle ${localTheme === 'dark' ? 'bg-violet-600' : 'bg-green-400'}`}
-                >
-                <span className="absolute left-3 top-1 pointer-events-none">{
-                  <Sun className={`h-3 w-3 ${localTheme === 'light' ? 'text-white' : 'text-black'}`}/>
-                }</span>
-                <span className="absolute right-3 top-1 pointer-events-none">{
-                  <Moon className={`h-3 w-3 ${localTheme === 'dark' ? 'text-white' : 'text-black'}`}/>
-                }</span>
-                <span className={`knob ${localTheme === 'dark' ? 'bg-white' : 'bg-black'}`} style={{ transform: localTheme === 'dark' ? 'translateX(24px)' : 'translateX(0)' }} />
-                </button>
               </div>
             </div>
 

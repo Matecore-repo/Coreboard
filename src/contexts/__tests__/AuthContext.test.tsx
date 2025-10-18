@@ -9,7 +9,13 @@ vi.mock('../../lib/supabase', () => ({
       signInWithPassword: async () => ({ data: { session: { user: { id: 'u1', email: 'a@a.com' } } }, error: null }),
       signOut: async () => ({ error: null }),
       setSession: async () => ({}),
-    }
+    },
+    from: () => ({
+      select: () => ({
+        eq: async () => ({ data: { role: 'demo', salon_id: null }, error: null }),
+        then: (resolve: any) => resolve({ data: { role: 'demo', salon_id: null }, error: null }),
+      }),
+    }),
   }
 }));
 

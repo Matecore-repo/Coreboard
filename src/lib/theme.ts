@@ -2,9 +2,14 @@ export type Theme = 'light' | 'dark';
 
 export function getStoredTheme(): Theme | null {
   if (typeof window === 'undefined') return null;
-  const t = localStorage.getItem('theme');
-  if (t === 'light' || t === 'dark') return t;
-  return null;
+  try {
+    const t = localStorage.getItem('theme');
+    if (t === 'light' || t === 'dark') return t;
+    return null;
+  } catch (e) {
+    // localStorage access denied or not available
+    return null;
+  }
 }
 
 export function applyTheme(theme: Theme) {
@@ -12,9 +17,12 @@ export function applyTheme(theme: Theme) {
   if (theme === 'dark') document.documentElement.classList.add('dark');
   else document.documentElement.classList.remove('dark');
   try {
-    localStorage.setItem('theme', theme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', theme);
+    }
   } catch (e) {
-    // ignore
+    // localStorage access denied or not available
+    console.warn('Could not save theme to localStorage:', e);
   }
 }
 

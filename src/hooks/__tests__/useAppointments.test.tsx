@@ -4,7 +4,12 @@ import { vi } from 'vitest';
 // Mock supabase client (default export)
 vi.mock('../../lib/supabase', () => ({
   default: {
-    from: () => ({ select: async () => ({ data: [], error: null }) }),
+    from: () => ({
+      select: () => ({
+        eq: async () => ({ data: [], error: null }),
+        then: (resolve: any) => resolve({ data: [], error: null }),
+      }),
+    }),
     channel: () => ({ on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }) }),
   }
 }));

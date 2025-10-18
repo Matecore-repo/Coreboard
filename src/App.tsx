@@ -5,8 +5,6 @@ import {
   Users,
   Settings,
   Zap,
-  Moon,
-  Sun,
   DollarSign,
   Building2,
   Menu,
@@ -32,6 +30,9 @@ import { useIsMobile } from "./components/ui/use-mobile";
 import { toast } from "sonner";
 import { Toaster as Sonner } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
+import ThemeBubble from "./components/ThemeBubble";
+import { useAppointments as useDbAppointments } from "./hooks/useAppointments";
+import { useSalons as useDbSalons } from "./hooks/useSalons";
 
 interface Salon {
   id: string;
@@ -579,12 +580,27 @@ const initialAppointments: Appointment[] = [
 ];
 
 export default function App() {
-  const { user, signOut, signInAsDemo } = useAuth();
+  const { user, session, signOut, signInAsDemo, currentRole, currentOrgId } = useAuth() as any;
   const isAuthenticated = !!user;
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
+  // Demo/local state
   const [salons, setSalons] = useState<Salon[]>(initialSalons);
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+
+  // Remote data via Supabase (when authenticated)
+  const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment } = useDbAppointments(selectedSalon ?? undefined);
+  const { salons: remoteSalons } = useDbSalons(currentOrgId ?? undefined);
+
+  const isDemo = !session || user?.email === 'demo@coreboard.local';
+  const effectiveAppointments: Appointment[] = isDemo ? appointments : (remoteAppointments as any);
+  const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
+
+  const selectedSalonName = useMemo(() => {
+    if (!selectedSalon) return "Ninguna peluquería seleccionada";
+    const found = effectiveSalons.find(s => s.id === selectedSalon);
+    return found?.name || "";
+  }, [selectedSalon, effectiveSalons]);
   const [services, setServices] = useState(() => {
     // ejemplo inicial
     return [
@@ -626,22 +642,29 @@ export default function App() {
     return salons.find(s => s.id === selectedSalon)?.name || "";
   };
 
+  // Keep local theme state in sync with document for Toaster display
   useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [theme]);
+    const sync = () => setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    sync();
+    const handler = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent<'light' | 'dark'>).detail;
+        if (detail === 'light' || detail === 'dark') setTheme(detail);
+        else sync();
+      } catch {
+        sync();
+      }
+    };
+    window.addEventListener('theme:changed', handler as EventListener);
+    return () => window.removeEventListener('theme:changed', handler as EventListener);
+  }, []);
 
   // Reset selected appointment when changing sections
   useEffect(() => {
     setSelectedAppointment(null);
   }, [activeNavItem]);
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-  };
+  // Theme toggling is handled by the floating bubble
 
   const handleLogout = async () => {
     await signOut();
@@ -652,47 +675,60 @@ export default function App() {
     toast.info("Sesión cerrada correctamente");
   };
 
-  const handleSaveAppointment = useCallback((appointmentData: Partial<Appointment>) => {
-    if (editingAppointment) {
-      setAppointments((prev) =>
-        prev.map((apt) =>
-          apt.id === editingAppointment.id
-            ? { ...apt, ...appointmentData }
-            : apt
-        )
-      );
-      setEditingAppointment(null);
-      toast.success("Turno actualizado correctamente");
-    } else {
-      const newAppointment: Appointment = {
-        id: Date.now().toString(),
-        clientName: appointmentData.clientName || "",
-        service: appointmentData.service || "",
-        date: appointmentData.date || "",
-        time: appointmentData.time || "",
-        status: "pending",
-        stylist: appointmentData.stylist || "",
-        salonId: appointmentData.salonId || selectedSalon || "1",
-      };
-      setAppointments((prev) => [newAppointment, ...prev]);
-      toast.success("Turno creado correctamente");
+  const handleSaveAppointment = useCallback(async (appointmentData: Partial<Appointment>) => {
+    try {
+      if (isDemo) {
+        if (editingAppointment) {
+          setAppointments((prev) =>
+            prev.map((apt) => (apt.id === editingAppointment.id ? { ...apt, ...appointmentData } : apt))
+          );
+          setEditingAppointment(null);
+          toast.success("Turno actualizado correctamente");
+        } else {
+          const newAppointment: Appointment = {
+            id: Date.now().toString(),
+            clientName: appointmentData.clientName || "",
+            service: appointmentData.service || "",
+            date: appointmentData.date || "",
+            time: appointmentData.time || "",
+            status: "pending",
+            stylist: appointmentData.stylist || "",
+            salonId: appointmentData.salonId || selectedSalon || "1",
+          };
+          setAppointments((prev) => [newAppointment, ...prev]);
+          toast.success("Turno creado correctamente");
+        }
+        return;
+      }
+      // Remote
+      if (editingAppointment) {
+        await (useDbAppointments as any); // no-op to avoid TS isolated error in patch
+        await (updateAppointment as any)(editingAppointment.id, appointmentData);
+        setEditingAppointment(null);
+        toast.success("Turno actualizado correctamente");
+      } else {
+        await (createAppointment as any)({ ...appointmentData, salonId: appointmentData.salonId || selectedSalon || undefined });
+        toast.success("Turno creado correctamente");
+      }
+    } catch (e) {
+      toast.error('No se pudo guardar el turno');
     }
-  }, [editingAppointment, selectedSalon]);
+  }, [isDemo, editingAppointment, selectedSalon]);
 
   const handleEditAppointment = useCallback((appointment: Appointment) => {
     setEditingAppointment(appointment);
     setDialogOpen(true);
   }, []);
 
-  const handleCancelAppointment = useCallback((id: string) => {
-    setAppointments((prev) =>
-      prev.map((apt) =>
-        apt.id === id ? { ...apt, status: "cancelled" as const } : apt
-      )
-    );
+  const handleCancelAppointment = useCallback(async (id: string) => {
+    if (isDemo) {
+      setAppointments((prev) => prev.map((apt) => (apt.id === id ? { ...apt, status: "cancelled" as const } : apt)));
+    } else {
+      try { await (updateAppointment as any)(id, { status: 'cancelled' as const }); } catch (e) { toast.error('No se pudo cancelar'); return; }
+    }
     toast.success("Turno cancelado");
     setSelectedAppointment(null);
-  }, []);
+  }, [isDemo, updateAppointment]);
 
   const handleCompleteAppointment = useCallback((id: string) => {
     setAppointments((prev) =>
@@ -729,8 +765,8 @@ export default function App() {
 
   const handleUpdateAppointment = useCallback(() => {
     const salonAppointments = !selectedSalon 
-      ? appointments 
-      : appointments.filter(apt => apt.salonId === selectedSalon);
+      ? effectiveAppointments 
+      : effectiveAppointments.filter(apt => apt.salonId === selectedSalon);
     if (salonAppointments.length === 0) {
       toast.error("No hay turnos para actualizar");
       return;
@@ -739,10 +775,10 @@ export default function App() {
     setEditingAppointment(lastAppointment);
     setDialogOpen(true);
     setShowQuickActions(false);
-  }, [appointments, selectedSalon]);
+  }, [effectiveAppointments, selectedSalon]);
 
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((apt) => {
+    return effectiveAppointments.filter((apt) => {
       // Filter by salon
       if (selectedSalon && apt.salonId !== selectedSalon) return false;
 
@@ -787,7 +823,7 @@ export default function App() {
 
       return true;
     });
-  }, [appointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
+  }, [effectiveAppointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
 
   const handleAddSalon = useCallback((salonData: Omit<Salon, 'id'>) => {
     const newSalon: Salon = {
@@ -819,55 +855,44 @@ export default function App() {
     { id: "clients", label: "Clientes", icon: Users, allowed: ['admin','owner','employee'] },
     { id: "salons", label: "Peluquerías", icon: Building2, allowed: ['admin','owner'] },
     { id: "settings", label: "Configuración", icon: Settings, allowed: ['admin'] },
-    { 
-      id: "theme", 
-      label: theme === "light" ? "Modo Oscuro" : "Modo Claro", 
-      icon: theme === "light" ? Moon : Sun,
-      allowed: ['admin','owner','employee','demo']
-    },
+    
   ];
 
   const navItems = useMemo(() => {
-    const role = user?.role ?? 'demo';
+    const role = currentRole ?? 'demo';
     // If demo user, show all sections for exploration
     if (role === 'demo') return allNavItems;
     return allNavItems.filter(item => !item.allowed || item.allowed.includes(role));
-  }, [user, theme]);
+  }, [currentRole]);
 
   const SidebarContent = () => (
     <div className="w-full bg-sidebar border-r border-sidebar-border flex flex-col h-full">
       <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
         <Avatar className="h-12 w-12 border-2 border-border">
           <AvatarFallback className="bg-primary text-primary-foreground">
-            {user?.role === 'demo' ? 'D' : 'M'}
+            {currentRole === 'demo' ? 'D' : 'M'}
           </AvatarFallback>
         </Avatar>
         <div className="flex flex-col">
           <span className="text-muted-foreground text-xs">Bienvenido</span>
-          <span className="text-sidebar-foreground font-medium">{user?.role === 'demo' ? 'Modo demostración' : (user?.email || 'María García')}</span>
+          <span className="text-sidebar-foreground font-medium">{currentRole === 'demo' ? 'Modo demostración' : (user?.email || 'María García')}</span>
         </div>
       </div>
 
       <nav className="flex-1 p-3">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isThemeButton = item.id === "theme";
-          
           return (
             <button
               key={item.id}
               onClick={() => {
-                if (isThemeButton) {
-                  toggleTheme();
-                } else {
-                  setActiveNavItem(item.id);
-                  if (isMobile) {
-                    setMobileMenuOpen(false);
-                  }
+                setActiveNavItem(item.id);
+                if (isMobile) {
+                  setMobileMenuOpen(false);
                 }
               }}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-colors ${
-                activeNavItem === item.id && !isThemeButton
+                activeNavItem === item.id
                   ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted"
               }`}
@@ -911,9 +936,9 @@ export default function App() {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
           <HomeView 
-            appointments={appointments} 
+            appointments={effectiveAppointments} 
             selectedSalon={selectedSalon}
-            salons={salons}
+            salons={effectiveSalons}
             onSelectSalon={handleSelectSalon}
             onAppointmentClick={handleSelectAppointment}
             onAddAppointment={() => {
@@ -927,14 +952,14 @@ export default function App() {
     if (activeNavItem === "finances") {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <FinancesView appointments={appointments} selectedSalon={selectedSalon} salonName={getSelectedSalonName()} />
+          <FinancesView appointments={effectiveAppointments} selectedSalon={selectedSalon} salonName={selectedSalonName} />
         </Suspense>
       );
     }
     if (activeNavItem === "clients") {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <ClientsView appointments={appointments} selectedSalon={selectedSalon} />
+          <ClientsView appointments={effectiveAppointments} selectedSalon={selectedSalon} />
         </Suspense>
       );
     }
@@ -942,7 +967,7 @@ export default function App() {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
           <SalonsManagementView 
-            salons={salons}
+            salons={effectiveSalons}
             onAddSalon={handleAddSalon}
             onEditSalon={handleEditSalon}
             onDeleteSalon={handleDeleteSalon}
@@ -1075,7 +1100,7 @@ export default function App() {
             <div className="p-4 md:p-6 pb-4 border-b border-border">
               <h2 className="mb-3">Seleccionar Peluquería</h2>
               <SalonCarousel 
-                salons={salons}
+                salons={effectiveSalons}
                 selectedSalon={selectedSalon}
                 onSelectSalon={handleSelectSalon}
               />
@@ -1098,6 +1123,9 @@ export default function App() {
         onUpdateAppointment={handleUpdateAppointment}
       />
 
+      {/* Floating Theme Bubble */}
+      <ThemeBubble />
+
       {/* Appointment Dialog */}
       <AppointmentDialog
         open={dialogOpen}
@@ -1108,7 +1136,7 @@ export default function App() {
         onSave={handleSaveAppointment}
         appointment={editingAppointment}
         salonId={selectedSalon}
-        salons={salons}
+        salons={effectiveSalons}
       />
 
       {/* Appointment Action Bar */}
@@ -1141,7 +1169,11 @@ export default function App() {
             return;
           }
           // Reprogramación simple por fecha/hora
-          setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, date: date || apt.date, time: time || apt.time } : apt));
+          if (isDemo) {
+            setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, date: date || apt.date, time: time || apt.time } : apt));
+          } else {
+            (async () => { try { await (updateAppointment as any)(selectedAppointment.id, { date, time }); } catch { toast.error('No se pudo reprogramar'); } })();
+          }
 
           // Ajustar filtro de fecha para que el turno recién reprogramado sea visible
           if (date) {
@@ -1160,15 +1192,23 @@ export default function App() {
           setSelectedAppointment(null);
         }}
         onRestore={(id: string) => {
-          setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: 'confirmed' as const } : apt));
-          toast.success('Turno restaurado');
-          setSelectedAppointment(null);
+          if (isDemo) {
+            setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: 'confirmed' as const } : apt));
+            toast.success('Turno restaurado');
+            setSelectedAppointment(null);
+          } else {
+            (async () => { try { await (updateAppointment as any)(id, { status: 'confirmed' as const }); toast.success('Turno restaurado'); } catch { toast.error('No se pudo restaurar'); } finally { setSelectedAppointment(null); } })();
+          }
         }}
         onSetStatus={(status) => {
           if (!selectedAppointment) return;
-          setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, status } : apt));
-          toast.success('Estado actualizado');
-          setSelectedAppointment(null);
+          if (isDemo) {
+            setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, status } : apt));
+            toast.success('Estado actualizado');
+            setSelectedAppointment(null);
+          } else {
+            (async () => { try { await (updateAppointment as any)(selectedAppointment.id, { status }); toast.success('Estado actualizado'); } catch { toast.error('No se pudo actualizar'); } finally { setSelectedAppointment(null); } })();
+          }
         }}
       />
     </div>
