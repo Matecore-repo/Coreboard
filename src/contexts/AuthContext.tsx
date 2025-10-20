@@ -56,6 +56,7 @@ type AuthContextValue = {
   currentOrgId: string | null;
   currentRole: string | null;
   createOrganization: (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => Promise<void>;
+  sendMagicLink: (email: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -186,6 +187,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendMagicLink = async (email: string) => {
+    console.log('🔗 AUTH: Enviando magic link a:', email);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      
+      if (error) {
+        console.error('❌ AUTH: Error enviando magic link:', error.message);
+        throw error;
+      }
+      
+      console.log('✅ AUTH: Magic link enviado correctamente');
+    } catch (error: any) {
+      console.error('❌ AUTH: Error en sendMagicLink:', error.message);
+      throw error;
+    }
+  };
+
   const switchOrganization = (org_id: string) => {
     if (user) {
       setUser({ ...user, current_org_id: org_id });
@@ -242,7 +265,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentRole = user?.memberships?.find(m => m.org_id === currentOrgId)?.role || null;
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole, createOrganization }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole, createOrganization, sendMagicLink }}>
       {children}
     </AuthContext.Provider>
   );

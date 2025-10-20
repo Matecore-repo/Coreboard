@@ -19,7 +19,7 @@ interface LoginViewProps {
 }
 
 export function LoginView({ onLogin }: LoginViewProps) {
-  const { signInAsDemo, signIn } = useAuth();
+  const { signInAsDemo, signIn, sendMagicLink } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // Empezamos con la imagen embebida en `src/assets` (evita mostrar placeholder roto)
@@ -65,6 +65,24 @@ export function LoginView({ onLogin }: LoginViewProps) {
       return;
     }
     onLogin();
+  };
+
+  const handleMagicLink = async () => {
+    console.log('🔗 LOGIN: 🖱️ BOTÓN "MAGIC LINK" PRESIONADO desde LoginView');
+    
+    if (!email) {
+      console.log('❌ LOGIN: Email vacío para magic link');
+      toast.error('Por favor ingresa tu email');
+      return;
+    }
+    
+    try {
+      await sendMagicLink(email);
+      toast.success('Magic link enviado a tu email. Revisa tu bandeja de entrada.');
+    } catch (error: any) {
+      console.error('❌ LOGIN: Error enviando magic link:', error.message);
+      toast.error('Error enviando magic link: ' + error.message);
+    }
   };
 
   return (
@@ -132,9 +150,10 @@ export function LoginView({ onLogin }: LoginViewProps) {
               <div className="flex justify-end">
                 <button
                   type="button"
+                  onClick={handleMagicLink}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  ¿Olvidaste tu contraseña?
+                  ¿Olvidaste tu contraseña? Enviar magic link
                 </button>
               </div>
 
