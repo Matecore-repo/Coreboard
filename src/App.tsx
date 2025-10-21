@@ -31,6 +31,8 @@ import { toast } from "sonner";
 import { Toaster as Sonner } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
 import ThemeBubble from "./components/ThemeBubble";
+import DemoDataBubble from "./components/DemoDataBubble";
+import DemoWelcomeModal from "./components/DemoWelcomeModal";
 import { useAppointments as useDbAppointments } from "./hooks/useAppointments";
 import { useSalons as useDbSalons } from "./hooks/useSalons";
 import { OnboardingModal } from "./components/OnboardingModal";
@@ -48,7 +50,7 @@ interface Salon {
   openingHours?: string;
 }
 
-const initialSalons: Salon[] = [
+const sampleSalons: Salon[] = [
   {
     id: "1",
     name: "Studio Elegance",
@@ -79,7 +81,7 @@ const initialSalons: Salon[] = [
   },
 ];
 
-const initialAppointments: Appointment[] = [
+const sampleAppointments: Appointment[] = [
   // Hoy - 2025-10-08
   {
     id: "1",
@@ -590,8 +592,13 @@ export default function App() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
   // Demo/local state
-  const [salons, setSalons] = useState<Salon[]>(initialSalons);
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+  const [salons, setSalons] = useState<Salon[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [demoName, setDemoName] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try { return localStorage.getItem('demo:name'); } catch { return null; }
+  });
+  const [showDemoWelcome, setShowDemoWelcome] = useState(false);
 
   // Remote data via Supabase (only after login)
   const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment } = useDbAppointments(
@@ -609,6 +616,7 @@ export default function App() {
     hasSession: !!session,
     sessionEmail: session?.user?.email,
     isDemo: isDemo,
+    demoName: demoName,
     currentRole: currentRole,
     currentOrgId: currentOrgId,
     isNewUser: user?.isNewUser,
@@ -617,6 +625,7 @@ export default function App() {
   
   // Log específico del tipo de usuario
   if (isDemo) {
+
     console.log('🎭 MODO DEMO ACTIVO - Usando datos mock');
   } else if (user?.email) {
     console.log('👤 USUARIO REAL ACTIVO - Usando datos de Supabase para:', user.email);
@@ -640,6 +649,20 @@ export default function App() {
     ];
   });
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null);
+  // Demo: ask for user name on first entry
+  useEffect(() => {
+    if (isDemo && !demoName) setShowDemoWelcome(true);
+  }, [isDemo, demoName]);
+
+  const handleSaveDemoName = useCallback((name: string) => {
+    setDemoName(name);
+    try { localStorage.setItem('demo:name', name); } catch {}
+    setShowDemoWelcome(false);
+    // In demo, kick off onboarding to crear la primera peluquería
+    try {
+      setShowOnboarding(true);
+    } catch {}
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
@@ -857,12 +880,16 @@ export default function App() {
   }, [effectiveAppointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
 
   const handleAddSalon = useCallback((salonData: Omit<Salon, 'id'>) => {
+    if (isDemo && salons.length >= 1) {
+      toast.error('En modo demo solo se permite 1 peluquería');
+      return;
+    }
     const newSalon: Salon = {
       ...salonData,
       id: Date.now().toString(),
     };
     setSalons(prev => [...prev, newSalon]);
-  }, []);
+  }, [isDemo, salons.length]);
 
   const handleEditSalon = useCallback((id: string, salonData: Partial<Salon>) => {
     setSalons(prev => prev.map(salon => 
@@ -903,18 +930,25 @@ export default function App() {
     const b = (parts[1] || '').charAt(0);
     return (a + (b || '')).toUpperCase();
   };
+  const getInitialsFromName = (name?: string | null) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(/\s+/);
+    const a = (parts[0] || '').charAt(0);
+    const b = (parts[1] || '').charAt(0);
+    return (a + (b || '')).toUpperCase();
+  };
 
   const SidebarContent = () => (
     <div className="w-full bg-sidebar border-r border-sidebar-border flex flex-col h-full">
-      <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
+      <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
         <Avatar className="h-12 w-12 border-2 border-border">
           <AvatarFallback className="bg-primary text-primary-foreground">
-            {isDemo ? 'D' : getInitials(user?.email)}
+            {isDemo ? getInitialsFromName(demoName) : getInitials(user?.email)}
           </AvatarFallback>
         </Avatar>
         <div className="flex flex-col">
           <span className="text-muted-foreground text-xs">Bienvenido</span>
-          <span className="text-sidebar-foreground font-medium">{isDemo ? 'Modo demostración' : (user?.email || 'Usuario')}</span>
+          <span className="text-sidebar-foreground font-medium">{isDemo ? (demoName?.trim() || "Unnamed") : (user?.email?.split("@")[0] || "Unnamed")}</span>
         </div>
       </div>
 
@@ -1180,6 +1214,19 @@ export default function App() {
 
       {/* Floating Theme Bubble */}
       <ThemeBubble />
+      {isDemo && (
+        <DemoDataBubble
+          onSeed={() => {
+            if (salons.length !== 1) {
+              toast.error('Crea una única peluquería para cargar datos demo');
+              return;
+            }
+            const targetSalonId = salons[0].id;
+            setAppointments(sampleAppointments.map((a) => ({ ...a, salonId: targetSalonId })));
+            toast.success('Datos de ejemplo cargados en tu peluquería demo');
+          }}
+        />
+      )}
 
       {/* Appointment Dialog */}
       <AppointmentDialog
@@ -1274,7 +1321,18 @@ export default function App() {
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
       />
+      {isDemo && (
+        <DemoWelcomeModal
+          isOpen={showDemoWelcome}
+          onSave={handleSaveDemoName}
+          onClose={() => setShowDemoWelcome(false)}
+        />
+      )}
     </div>
     </>
   );
 }
+
+
+
+

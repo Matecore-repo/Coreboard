@@ -19,7 +19,7 @@ interface LoginViewProps {
 }
 
 export function LoginView({ onLogin }: LoginViewProps) {
-  const { signInAsDemo, signIn, sendMagicLink } = useAuth();
+  const { signInAsDemo, signIn, signUp, sendMagicLink, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // Empezamos con la imagen embebida en `src/assets` (evita mostrar placeholder roto)
@@ -103,8 +103,8 @@ export function LoginView({ onLogin }: LoginViewProps) {
             {/* Header: title */}
             <div className="flex items-center justify-between">
               <div className="space-y-2 text-center sm:text-left">
-                <h1 className="text-3xl sm:text-4xl tracking-tight">Bienvenido de nuevo</h1>
-                <p className="text-muted-foreground">Ingresa tus credenciales para acceder al sistema</p>
+                <h1 className="text-4xl sm:text-5xl tracking-tight">Bienvenido de nuevo</h1>
+                <p className="text-base sm:text-lg text-muted-foreground">Ingresa tus credenciales para acceder al sistema</p>
               </div>
             </div>
 
@@ -112,7 +112,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Email Field */}
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-base">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -121,7 +121,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
                     placeholder="tu@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-12 text-base md:text-base"
                     autoComplete="username"
                     required
                   />
@@ -151,7 +151,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
                 <button
                   type="button"
                   onClick={handleMagicLink}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
                 >
                   ¿Olvidaste tu contraseña? Enviar magic link
                 </button>
@@ -160,7 +160,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
               {/* Submit Button */}
               <Button
                 type="submit"
-                className="w-full h-11"
+                className="w-full h-12 text-base"
               >
                 Iniciar Sesión
               </Button>
@@ -173,7 +173,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
             </form>
 
             {/* Footer */}
-            <div className="text-center text-sm text-muted-foreground pt-4">
+            <div className="text-center text-base text-muted-foreground pt-4">
               ¿No tienes cuenta?{" "}
               <button className="text-foreground hover:underline">
                 Regístrate aquí
@@ -201,3 +201,4 @@ export function LoginView({ onLogin }: LoginViewProps) {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, lazy } from "react";
+﻿import React, { useState, useCallback, lazy } from "react";
 import { Plus, Users, MapPin, Upload, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -7,7 +7,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
-import { GenericActionBar } from "../GenericActionBar";
+// import { GenericActionBar } from "../GenericActionBar";
 const ServicesPanel = lazy(() => import("../ServicesPanel").then(m => ({ default: m.ServicesPanel })));
 import { toast } from "sonner";
 
@@ -112,7 +112,7 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
 
   const handleSave = () => {
     if (!formData.name || !formData.address) {
-      toast.error("Por favor completa todos los campos requeridos (Nombre y Dirección)");
+      toast.error("Por favor completa todos los campos requeridos (Nombre y DirecciÃ³n)");
       return;
     }
 
@@ -123,18 +123,18 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
 
     if (editingSalon) {
       onEditSalon(editingSalon.id, dataToSave);
-      toast.success("Peluquería actualizada correctamente");
+      toast.success("PeluquerÃ­a actualizada correctamente");
     } else {
       onAddSalon(dataToSave);
-      toast.success("Peluquería creada correctamente");
+      toast.success("PeluquerÃ­a creada correctamente");
     }
     setDialogOpen(false);
   };
 
   const handleDelete = (salon: Salon) => {
-    if (confirm(`¿Estás seguro de eliminar "${salon.name}"?`)) {
+    if (confirm(`Â¿EstÃ¡s seguro de eliminar "${salon.name}"?`)) {
       onDeleteSalon(salon.id);
-      toast.success("Peluquería eliminada");
+      toast.success("PeluquerÃ­a eliminada");
       setSelectedSalon(null);
     }
   };
@@ -160,12 +160,12 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
     <div className="p-6 space-y-6 pb-20">
       <div className="flex items-center justify-between">
         <div>
-          <h1>Gestión de Peluquerías</h1>
+          <h1>GestiÃ³n de PeluquerÃ­as</h1>
           <p className="text-muted-foreground text-sm">Administra tus sucursales y personal</p>
         </div>
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="h-4 w-4 mr-2" />
-          Nueva Peluquería
+          Nueva PeluquerÃ­a
         </Button>
       </div>
 
@@ -222,7 +222,30 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
         ))}
       </div>
 
-      {/* Servicios por Peluquería */}
+      {selectedSalon && (
+        <div className="mt-6 space-y-4">
+          <h3 className="mb-3">Detalle de {selectedSalon.name}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="text-sm"><span className="text-muted-foreground">Dirección:</span> {selectedSalon.address || "No especificada"}</div>
+            <div className="text-sm"><span className="text-muted-foreground">Teléfono:</span> {selectedSalon.phone || "No especificado"}</div>
+            <div className="text-sm"><span className="text-muted-foreground">Email:</span> {selectedSalon.email || "No especificado"}</div>
+            <div className="text-sm"><span className="text-muted-foreground">Alquiler:</span> {selectedSalon.rentPrice ? `$${selectedSalon.rentPrice.toLocaleString()}/mes` : "No especificado"}</div>
+            <div className="text-sm"><span className="text-muted-foreground">Horarios:</span> {selectedSalon.openingHours || "No especificado"}</div>
+            <div className="text-sm"><span className="text-muted-foreground">Personal:</span> {(selectedSalon.staff?.length || 0)} empleados</div>
+          </div>
+          {selectedSalon.notes && (
+            <div className="text-sm"><span className="text-muted-foreground">Notas:</span> {selectedSalon.notes}</div>
+          )}
+          {selectedSalon.staff && selectedSalon.staff.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {selectedSalon.staff.map((m, i) => (
+                <Badge key={i} variant="secondary">{m}</Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {selectedSalon && (
         <div className="mt-6">
           <h3 className="mb-3">Servicios de {selectedSalon.name}</h3>
@@ -232,228 +255,10 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
         </div>
       )}
 
-      {/* Generic Action Bar */}
-      <GenericActionBar
-        title={selectedSalon?.name || ""}
-        subtitle={selectedSalon?.address}
-        isOpen={selectedSalon !== null}
-        onClose={() => setSelectedSalon(null)}
-        onEdit={() => {
-          if (selectedSalon) {
-            handleOpenDialog(selectedSalon);
-          }
-        }}
-        onDelete={() => {
-          if (selectedSalon) {
-            handleDelete(selectedSalon);
-          }
-        }}
-        detailFields={selectedSalon ? [
-          { label: "Dirección", value: selectedSalon.address },
-          { label: "Teléfono", value: selectedSalon.phone || "No especificado" },
-          { label: "Email", value: selectedSalon.email || "No especificado" },
-          { label: "Alquiler", value: selectedSalon.rentPrice ? `$${selectedSalon.rentPrice.toLocaleString()}/mes` : "No especificado" },
-          { label: "Horarios", value: selectedSalon.openingHours || "No especificado" },
-          { label: "Personal", value: `${selectedSalon.staff?.length || 0} empleados` },
-          { 
-            label: "Equipo", 
-            value: selectedSalon.staff && selectedSalon.staff.length > 0 
-              ? selectedSalon.staff.join(", ") 
-              : "Sin personal asignado" 
-          },
-          { label: "Notas", value: selectedSalon.notes || "Sin notas" },
-        ] : undefined}
-      />
-
-      {/* Dialog para crear/editar */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingSalon ? "Editar Peluquería" : "Nueva Peluquería"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingSalon 
-                ? "Modifica los datos de la peluquería" 
-                : "Completa los datos para crear una nueva peluquería"}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Información básica */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Información Básica</h3>
-              
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre *</Label>
-                <Input
-                  id="name"
-                  placeholder="Ej: Studio Elegance"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Dirección *</Label>
-                <Input
-                  id="address"
-                  placeholder="Ej: Av. Corrientes 1234, CABA"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="Ej: +54 11 1234-5678"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Ej: contacto@salon.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Información financiera y operativa */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Información Financiera y Operativa</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="rentPrice">Precio de Alquiler ($/mes)</Label>
-                  <Input
-                    id="rentPrice"
-                    type="number"
-                    placeholder="Ej: 150000"
-                    value={formData.rentPrice || ""}
-                    onChange={(e) => setFormData({ ...formData, rentPrice: Number(e.target.value) })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="openingHours">Horarios de Atención</Label>
-                  <Input
-                    id="openingHours"
-                    placeholder="Ej: Lun-Vie 9-18hs"
-                    value={formData.openingHours}
-                    onChange={(e) => setFormData({ ...formData, openingHours: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notas Adicionales</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Información adicional sobre la peluquería..."
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            {/* Imagen */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Imagen del Local</h3>
-              
-              <div className="space-y-2">
-                <Label htmlFor="image">Cargar Imagen</Label>
-                <div className="flex items-center gap-4">
-                  <Input
-                    id="image"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="flex-1"
-                  />
-                  {imagePreview && (
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleRemoveImage}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Formato: JPG, PNG. Tamaño máximo: 5MB
-                </p>
-                {imagePreview && (
-                  <div className="mt-2 rounded-lg overflow-hidden border relative h-40">
-                    <img 
-                      src={imagePreview} 
-                      alt="Vista previa" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Personal */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Personal</h3>
-              
-              <div className="space-y-2">
-                <Label>Agregar Empleados</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Nombre del empleado"
-                    value={newStaff}
-                    onChange={(e) => setNewStaff(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddStaff()}
-                  />
-                  <Button type="button" onClick={handleAddStaff} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                {formData.staff.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {formData.staff.map((member, index) => (
-                      <Badge key={index} variant="secondary" className="gap-1">
-                        {member}
-                        <button
-                          onClick={() => handleRemoveStaff(index)}
-                          className="ml-1 hover:text-destructive"
-                        >
-                          ×
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave}>
-              {editingSalon ? "Guardar Cambios" : "Crear Peluquería"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Generic Action Bar eliminado */}
     </div>
   );
 }
+
+
+

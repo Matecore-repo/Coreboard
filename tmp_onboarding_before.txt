@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -51,8 +51,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => { /* locked until creation */ }}>
-      <DialogContent className="locked-modal w-[92vw] sm:max-w-[640px] max-h-[85vh] overflow-y-auto rounded-2xl p-6 sm:p-8 border-0 shadow-xl">        <div className="relative overflow-hidden rounded-2xl">          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5" />          <div className="absolute -top-8 -right-10 h-28 w-28 rounded-full bg-primary/15 blur-2xl" />          <div className="absolute -bottom-10 -left-10 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />          <div className="p-1 relative"><div className="bg-background rounded-xl p-5 sm:p-6 space-y-6">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="w-[92vw] sm:max-w-[640px] max-h-[85vh] overflow-y-auto rounded-2xl p-5 border-0 shadow-xl">        <div className="relative overflow-hidden rounded-2xl">          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5" />          <div className="absolute -top-8 -right-10 h-28 w-28 rounded-full bg-primary/15 blur-2xl" />          <div className="absolute -bottom-10 -left-10 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />          <div className="p-7 sm:p-8 relative">
         <DialogHeader className="text-center">
           <Sparkles className="h-7 w-7 text-primary mx-auto mb-2" />            <DialogTitle className="text-xl sm:text-2xl">
 
@@ -61,10 +61,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
           <DialogDescription className="text-sm sm:text-base">
             Vamos a configurar tu primera peluquería. Esto solo tomará unos minutos.
           </DialogDescription>
-        </DialogHeader>            
+        </DialogHeader>            <div className="h-px bg-border/70 my-5" />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Card className="border-0 shadow-none bg-transparent">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Building2 className="h-5 w-5 text-primary" />
@@ -88,7 +88,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-none bg-transparent">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <MapPin className="h-5 w-5 text-primary" />
@@ -134,22 +134,25 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
           <div className="flex justify-end gap-3 pt-4">
             <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button
               type="submit"
               disabled={loading || !formData.businessName.trim() || !formData.salonName.trim()}
             >
               {loading ? 'Creando...' : 'Crear mi peluquería'}
             </Button>
           </div>
-        </form></div></div></div>
+        </form>          </div>        </div>
       </DialogContent>
     </Dialog>
   );
 };
-
-
-
-
-
 
 
 

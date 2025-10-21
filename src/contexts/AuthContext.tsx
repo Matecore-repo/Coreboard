@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+﻿import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 
@@ -9,7 +9,7 @@ const safeLocalStorage = {
     try {
       return localStorage.getItem(key);
     } catch (e) {
-      // localStorage no disponible (modo incógnito, políticas de seguridad, etc.)
+      // localStorage no disponible (modo incÃ³gnito, polÃ­ticas de seguridad, etc.)
       return null;
     }
   },
@@ -50,6 +50,7 @@ type AuthContextValue = {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signInAsDemo: () => void;
   signOut: () => Promise<void>;
   switchOrganization: (org_id: string) => void;
@@ -57,6 +58,7 @@ type AuthContextValue = {
   currentRole: string | null;
   createOrganization: (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => Promise<void>;
   sendMagicLink: (email: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -69,24 +71,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // NO restaurar sesión automáticamente - solo cuando el usuario haga login explícito
+  // NO restaurar sesiÃ³n automÃ¡ticamente - solo cuando el usuario haga login explÃ­cito
   useEffect(() => {
-    console.log('🚀 AUTH: Iniciando AuthContext - SIN restauración automática');
+    console.log('ðŸš€ AUTH: Iniciando AuthContext - SIN restauraciÃ³n automÃ¡tica');
     setLoading(false);
-    console.log('✅ AUTH: AuthContext listo - esperando login explícito');
+    console.log('âœ… AUTH: AuthContext listo - esperando login explÃ­cito');
 
-    // Escuchar cambios de autenticación
+    // Escuchar cambios de autenticaciÃ³n
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log('🔄 AUTH: onAuthStateChange - Event:', event, 'Session:', !!newSession);
+      console.log('ðŸ”„ AUTH: onAuthStateChange - Event:', event, 'Session:', !!newSession);
       
       setSession(newSession);
       
       if (newSession?.user) {
-        console.log('🔐 AUTH: Nueva sesión detectada para:', newSession.user.email);
+        console.log('ðŸ” AUTH: Nueva sesiÃ³n detectada para:', newSession.user.email);
         safeLocalStorage.setItem('sb-session', JSON.stringify(newSession));
         await fetchUserMemberships(newSession.user.id);
       } else {
-        console.log('🚪 AUTH: Sesión cerrada - limpiando usuario');
+        console.log('ðŸšª AUTH: SesiÃ³n cerrada - limpiando usuario');
         setUser(null);
         safeLocalStorage.removeItem('sb-session');
       }
@@ -99,15 +101,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserMemberships = async (userId: string) => {
     try {
-      console.log('🔍 Fetching memberships for user:', userId);
+      console.log('ðŸ” Fetching memberships for user:', userId);
       
-      // Obtener todas las membresías del usuario
+      // Obtener todas las membresÃ­as del usuario
       const { data: memberships, error } = await supabase
         .from('memberships')
         .select('org_id, role, is_primary')
         .eq('user_id', userId);
 
-      console.log('📊 Memberships result:', { memberships, error });
+      console.log('ðŸ“Š Memberships result:', { memberships, error });
 
       if (error) {
         console.error('Error fetching memberships:', error);
@@ -115,14 +117,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      console.log('👤 Auth user:', authUser?.email);
+      console.log('ðŸ‘¤ Auth user:', authUser?.email);
       
       if (!authUser) return;
 
-      // Detectar si es usuario nuevo (sin membresías)
+      // Detectar si es usuario nuevo (sin membresÃ­as)
       const isNewUser = !memberships || memberships.length === 0;
       
-      // Si tiene membresías, seleccionar la primaria o la primera como org actual
+      // Si tiene membresÃ­as, seleccionar la primaria o la primera como org actual
       const primaryOrg = memberships?.find(m => m.is_primary) || memberships?.[0];
       
       const userData = {
@@ -133,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isNewUser,
       };
       
-      console.log('✅ Setting user data:', userData);
+      console.log('âœ… Setting user data:', userData);
       setUser(userData);
     } catch (e) {
       console.error('Error loading user memberships:', e);
@@ -141,19 +143,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (email: string, password: string) => {
-    console.log('🔑 AUTH: 🖱️ BOTÓN "INICIAR SESIÓN" PRESIONADO');
-    console.log('🔑 AUTH: Intentando login con email:', email);
+    console.log('ðŸ”‘ AUTH: ðŸ–±ï¸ BOTÃ“N "INICIAR SESIÃ“N" PRESIONADO');
+    console.log('ðŸ”‘ AUTH: Intentando login con email:', email);
     try {
       setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) {
-        console.error('❌ AUTH: Error en login:', error.message);
+        console.error('âŒ AUTH: Error en login:', error.message);
         throw error;
       }
       
       if (data?.session) {
-        console.log('✅ AUTH: Login exitoso para:', data.session.user.email);
+        console.log('âœ… AUTH: Login exitoso para:', data.session.user.email);
         setSession(data.session);
         safeLocalStorage.setItem('sb-session', JSON.stringify(data.session));
         await fetchUserMemberships(data.session.user.id);
@@ -163,9 +165,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signUp = async (email: string, password: string) => {
+    console.log('ðŸ“ AUTH: Registro de usuario', email);
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined },
+      });
+      if (error) throw error;
+      // Si la confirmaciÃ³n por email estÃ¡ activa, no habrÃ¡ sesiÃ³n inmediata
+      if (data?.session?.user) {
+        setSession(data.session);
+        safeLocalStorage.setItem('sb-session', JSON.stringify(data.session));
+        await fetchUserMemberships(data.session.user.id);
+      }
+      console.log('âœ… AUTH: SignUp enviado. Verifique email si corresponde.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signInAsDemo = () => {
-    console.log('🎭 AUTH: 🖱️ BOTÓN "EXPLORAR DEMO" PRESIONADO');
-    console.log('🎭 AUTH: Usuario seleccionó MODO DEMO');
+    console.log('ðŸŽ­ AUTH: ðŸ–±ï¸ BOTÃ“N "EXPLORAR DEMO" PRESIONADO');
+    console.log('ðŸŽ­ AUTH: Usuario seleccionÃ³ MODO DEMO');
     setUser({
       id: DEMO_USER_ID,
       email: 'demo@coreboard.local',
@@ -174,7 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     setSession(null);
     safeLocalStorage.setItem('sb-session', JSON.stringify({ user: { id: DEMO_USER_ID, email: 'demo@coreboard.local' } }));
-    console.log('✅ AUTH: Usuario DEMO configurado correctamente');
+    console.log('âœ… AUTH: Usuario DEMO configurado correctamente');
   };
 
   const signOut = async () => {
@@ -188,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const sendMagicLink = async (email: string) => {
-    console.log('🔗 AUTH: Enviando magic link a:', email);
+    console.log('ðŸ”— AUTH: Enviando magic link a:', email);
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -198,14 +222,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (error) {
-        console.error('❌ AUTH: Error enviando magic link:', error.message);
+        console.error('âŒ AUTH: Error enviando magic link:', error.message);
         throw error;
       }
       
-      console.log('✅ AUTH: Magic link enviado correctamente');
+      console.log('âœ… AUTH: Magic link enviado correctamente');
     } catch (error: any) {
-      console.error('❌ AUTH: Error en sendMagicLink:', error.message);
+      console.error('âŒ AUTH: Error en sendMagicLink:', error.message);
       throw error;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    console.log('ðŸ” AUTH: Reset password para:', email);
+    try {
+      const redirect = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirect });
+      if (error) throw error;
+      console.log('âœ… AUTH: Email de reset enviado');
+    } catch (e:any) {
+      console.error('âŒ AUTH: Error en resetPassword:', e.message);
+      throw e;
     }
   };
 
@@ -221,7 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
 
-      // Crear organización
+      // Crear organizaciÃ³n
       const { data: org, error: orgError } = await supabase
         .from('orgs')
         .insert({ name: orgData.name })
@@ -230,7 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (orgError) throw orgError;
 
-      // Crear membresía como owner
+      // Crear membresÃ­a como owner
       const { error: membershipError } = await supabase
         .from('memberships')
         .insert({
@@ -242,7 +279,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (membershipError) throw membershipError;
 
-      // Crear primer salón
+      // Crear primer salÃ³n
       const { error: salonError } = await supabase
         .from('salons')
         .insert({
@@ -254,7 +291,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (salonError) throw salonError;
 
-      // Actualizar el usuario con la nueva organización
+      // Actualizar el usuario con la nueva organizaciÃ³n
       await fetchUserMemberships(user.id);
     } finally {
       setLoading(false);
@@ -265,7 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentRole = user?.memberships?.find(m => m.org_id === currentOrgId)?.role || null;
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole, createOrganization, sendMagicLink }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole, createOrganization, sendMagicLink, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
@@ -276,5 +313,6 @@ export const useAuth = () => {
   if (!ctx) throw new Error('useAuth debe usarse dentro de AuthProvider');
   return ctx;
 };
+
 
 
