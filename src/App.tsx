@@ -11,6 +11,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { SalonCarousel } from "./components/SalonCarousel";
+import type { Service } from "./components/ServicesPanel";
 import { AppointmentCard, Appointment } from "./components/AppointmentCard";
 import { AppointmentDialog } from "./components/AppointmentDialog";
 import { AppointmentActionBar } from "./components/AppointmentActionBar";
@@ -48,6 +49,7 @@ interface Salon {
   email?: string;
   notes?: string;
   openingHours?: string;
+  services?: Service[];
 }
 
 const sampleSalons: Salon[] = [
@@ -713,6 +715,26 @@ export default function App() {
     return () => window.removeEventListener('theme:changed', handler as EventListener);
   }, []);
 
+  useEffect(() => {
+    if (!isDemo) return;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ salonName?: string; salonAddress?: string; salonPhone?: string }>).detail || {};
+      const name = detail.salonName && detail.salonName.trim().length > 0 ? detail.salonName.trim() : 'Mi Peluquería';
+      const address = detail.salonAddress && detail.salonAddress.trim().length > 0 ? detail.salonAddress.trim() : '';
+      const phone = detail.salonPhone && detail.salonPhone.trim().length > 0 ? detail.salonPhone.trim() : '';
+
+      setSalons((prev) => {
+        if (prev.length >= 1) return prev;
+        const id = Date.now().toString();
+        const image = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080';
+        setSelectedSalon(id);
+        return [...prev, { id, name, address, image, phone, email: '', notes: '', openingHours: '', staff: [], services: [] }];
+      });
+    };
+    window.addEventListener('demo:create-org', handler as EventListener);
+    return () => window.removeEventListener('demo:create-org', handler as EventListener);
+  }, [isDemo]);
+
   // Reset selected appointment when changing sections
   useEffect(() => {
     setSelectedAppointment(null);
@@ -1184,8 +1206,8 @@ export default function App() {
           {/* Spacer for mobile menu button */}
           <div className="md:hidden h-20" />
           
-          {/* Salon Carousel - Solo en vista Turnos y Finanzas */}
-          {(activeNavItem === "appointments" || activeNavItem === "finances") && (
+          {/* Salon Carousel - vistas que dependen del local */}
+          {["appointments", "finances", "clients"].includes(activeNavItem) && (
             <div className="p-4 md:p-6 pb-4 border-b border-border">
               <h2 className="mb-3">Seleccionar Peluquería</h2>
               <SalonCarousel 

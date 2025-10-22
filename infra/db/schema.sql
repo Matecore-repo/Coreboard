@@ -173,3 +173,88 @@ alter table public.commissions enable row level security;
 alter table public.payments enable row level security;
 alter table public.expenses enable row level security;
 
+-- Signup tokens (para registro cerrado por invitación)
+create table if not exists public.signup_tokens (
+  id uuid primary key default gen_random_uuid(),
+  token text unique not null,
+  description text,
+  is_used boolean not null default false,
+  used_by uuid references auth.users(id),
+  expires_at timestamptz,
+  created_at timestamptz default now(),
+  used_at timestamptz
+);
+
+alter table public.signup_tokens enable row level security;
+
+-- Hook: validar token secreto antes de crear usuario
+create or replace function public.hook_require_signup_token(event jsonb)
+returns jsonb
+language plpgsql
+as $$
+declare
+  provided_token text;
+  token_row record;
+begin
+  provided_token := coalesce(event->'user'->'user_metadata'->>'signup_token', '');
+
+  if provided_token = '' then
+    return jsonb_build_object(
+      'error', jsonb_build_object(
+        'message', 'Token secreto requerido para registrarse',
+        'http_code', 400
+      )
+    );
+  end if;
+
+  select * into token_row
+  from public.signup_tokens st
+  where st.token = provided_token
+    and st.is_used = false
+    and (st.expires_at is null or st.expires_at > now())
+  limit 1;
+
+  if not found then
+    return jsonb_build_object(
+      'error', jsonb_build_object(
+        'message', 'Token inválido o expirado',
+        'http_code', 403
+      )
+    );
+  end if;
+
+  return '{}'::jsonb;
+end;
+$$;
+
+grant execute on function public.hook_require_signup_token(jsonb) to supabase_auth_admin;
+revoke execute on function public.hook_require_signup_token(jsonb) from authenticated, anon, public;
+
+-- Hook: marcar token como usado después de crear el usuario
+create or replace function public.hook_mark_token_used(event jsonb)
+returns jsonb
+language plpgsql
+as $$
+declare
+  provided_token text;
+  new_user_id uuid;
+begin
+  provided_token := coalesce(event->'user'->'user_metadata'->>'signup_token', '');
+  new_user_id := (event->'user'->>'id')::uuid;
+
+  if provided_token <> '' and new_user_id is not null then
+    update public.signup_tokens
+    set is_used = true,
+        used_by = new_user_id,
+        used_at = now()
+    where token = provided_token
+      and is_used = false;
+  end if;
+
+  return '{}'::jsonb;
+end;
+$$;
+
+grant execute on function public.hook_mark_token_used(jsonb) to supabase_auth_admin;
+revoke execute on function public.hook_mark_token_used(jsonb) from authenticated, anon, public;
+
