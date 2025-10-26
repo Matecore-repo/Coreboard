@@ -37,10 +37,6 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
       // 3. Crear membresía en memberships
       // 4. Enviar email de invitación
       
-      console.log('Invitar empleado:', {
-        ...formData,
-        orgId: currentOrgId
-      });
       
       // Simular éxito
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -48,7 +44,6 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
       onClose();
       // TODO: Mostrar toast de éxito
     } catch (error) {
-      console.error('Error invitando empleado:', error);
       // TODO: Mostrar error al usuario
     } finally {
       setLoading(false);

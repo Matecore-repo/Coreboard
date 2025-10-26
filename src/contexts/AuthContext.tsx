@@ -1,15 +1,14 @@
-﻿import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session } from '@supabase/supabase-js';
+﻿﻿import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 
-// Helper functions para manejar localStorage de manera segura
+// Gestión segura de localStorage
 const safeLocalStorage = {
   getItem: (key: string): string | null => {
     if (typeof window === 'undefined') return null;
     try {
       return localStorage.getItem(key);
     } catch (e) {
-      // localStorage no disponible (modo incÃ³gnito, polÃ­ticas de seguridad, etc.)
       return null;
     }
   },
@@ -18,7 +17,7 @@ const safeLocalStorage = {
     try {
       localStorage.setItem(key, value);
     } catch (e) {
-      // localStorage no disponible - continuar sin persistir
+      // localStorage no disponible
     }
   },
   removeItem: (key: string): void => {
@@ -26,7 +25,7 @@ const safeLocalStorage = {
     try {
       localStorage.removeItem(key);
     } catch (e) {
-      // localStorage no disponible - continuar sin limpiar
+      // localStorage no disponible
     }
   }
 };
@@ -42,7 +41,7 @@ export type User = {
   email?: string | null;
   memberships: Membership[];
   current_org_id?: string;
-  isNewUser?: boolean; // Flag para detectar usuarios nuevos
+  isNewUser?: boolean;
 };
 
 type AuthContextValue = {
@@ -50,7 +49,7 @@ type AuthContextValue = {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, secretToken?: string) => Promise<void>;
+  signUp: (email: string, password: string, signupToken?: string) => Promise<void>;
   signInAsDemo: () => void;
   signOut: () => Promise<void>;
   switchOrganization: (org_id: string) => void;
@@ -59,6 +58,7 @@ type AuthContextValue = {
   createOrganization: (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => Promise<void>;
   sendMagicLink: (email: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -71,120 +71,126 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-// NO restaurar sesiÃ³n automÃ¡ticamente - solo cuando el usuario haga login explÃ­cito
-  useEffect(() => {
-
-setLoading(false);
-
-// Escuchar cambios de autenticaciÃ³n
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-
-setSession(newSession);
-
-if (newSession?.user) {
-
-safeLocalStorage.setItem('sb-session', JSON.stringify(newSession));
-        await fetchUserMemberships(newSession.user.id);
-      } else {
-
-setUser(null);
-        safeLocalStorage.removeItem('sb-session');
-      }
-    });
-
-return () => {
-      listener?.subscription?.unsubscribe?.();
-    };
-  }, []);
-
-const fetchUserMemberships = async (userId: string) => {
+  // Obtener membresías del usuario
+  const fetchUserMemberships = async (userId: string, authUser: SupabaseUser): Promise<void> => {
     try {
-
-// Obtener todas las membresÃ­as del usuario
       const { data: memberships, error } = await supabase
         .from('memberships')
         .select('org_id, role, is_primary')
         .eq('user_id', userId);
 
-if (error) {
-
-return;
+      if (error) {
+        console.error('Error al obtener membresías:', error);
+        setUser({ 
+          id: authUser.id, 
+          email: authUser.email, 
+          memberships: [], 
+          isNewUser: true 
+        });
+        return;
       }
 
-const { data: { user: authUser } } = await supabase.auth.getUser();
-
-if (!authUser) return;
-
-// Detectar si es usuario nuevo (sin membresÃ­as)
       const isNewUser = !memberships || memberships.length === 0;
-
-// Si tiene membresÃ­as, seleccionar la primaria o la primera como org actual
       const primaryOrg = memberships?.find(m => m.is_primary) || memberships?.[0];
 
-const userData = {
-        id: userId,
+      const userData: User = {
+        id: authUser.id,
         email: authUser.email,
         memberships: memberships || [],
         current_org_id: primaryOrg?.org_id,
         isNewUser,
       };
 
-setUser(userData);
+      setUser(userData);
     } catch (e) {
-
-}
+      console.error('Error al construir contexto de usuario:', e);
+      setUser(null);
+    }
   };
 
-const signIn = async (email: string, password: string) => {
+  // Restaurar sesión y escuchar cambios de autenticación
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const { data: { session: activeSession } } = await supabase.auth.getSession();
+        
+        if (activeSession?.user) {
+          setSession(activeSession);
+          await fetchUserMemberships(activeSession.user.id, activeSession.user);
+        }
+      } catch (e) {
+        console.error('Error al restaurar sesión:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-try {
+    restoreSession();
+
+    // Escuchar cambios de autenticación
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
+        safeLocalStorage.removeItem('sb-session');
+      } else if (newSession?.user) {
+        setSession(newSession);
+        safeLocalStorage.setItem('sb-session', JSON.stringify(newSession));
+        await fetchUserMemberships(newSession.user.id, newSession.user);
+      } else {
+        setUser(null);
+        setSession(null);
+      }
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe?.();
+    };
+  }, []);
+
+  const signIn = async (email: string, password: string): Promise<void> => {
+    try {
       setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-if (error) {
-
-throw error;
+      if (error) {
+        throw error;
       }
 
-if (data?.session) {
-
-setSession(data.session);
-        safeLocalStorage.setItem('sb-session', JSON.stringify(data.session));
-        await fetchUserMemberships(data.session.user.id);
+      if (!data.session) {
+        throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
       }
+
+      // onAuthStateChange se encargará del resto
     } finally {
       setLoading(false);
     }
   };
 
-const signUp = async (email: string, password: string, secretToken?: string) => {
-
-try {
+  const signUp = async (email: string, password: string, signupToken?: string): Promise<void> => {
+    try {
       setLoading(true);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
-          data: secretToken ? { signup_token: secretToken } : undefined,
+          data: signupToken ? { signup_token: signupToken } : undefined,
         },
       });
-      if (error) throw error;
-      // Si la confirmaciÃ³n por email estÃ¡ activa, no habrÃ¡ sesiÃ³n inmediata
-      if (data?.session?.user) {
-        setSession(data.session);
-        safeLocalStorage.setItem('sb-session', JSON.stringify(data.session));
-        await fetchUserMemberships(data.session.user.id);
+
+      if (error) {
+        throw error;
       }
 
-} finally {
+      // onAuthStateChange se encargará si hay sesión inmediata
+    } finally {
       setLoading(false);
     }
   };
 
-const signInAsDemo = () => {
-
-setUser({
+  const signInAsDemo = () => {
+    setUser({
       id: DEMO_USER_ID,
       email: 'demo@coreboard.local',
       memberships: [{ org_id: DEMO_ORG_ID, role: 'owner' }],
@@ -192,10 +198,9 @@ setUser({
     });
     setSession(null);
     safeLocalStorage.setItem('sb-session', JSON.stringify({ user: { id: DEMO_USER_ID, email: 'demo@coreboard.local' } }));
+  };
 
-};
-
-const signOut = async () => {
+  const signOut = async (): Promise<void> => {
     try {
       await supabase.auth.signOut();
     } finally {
@@ -205,9 +210,8 @@ const signOut = async () => {
     }
   };
 
-const sendMagicLink = async (email: string) => {
-
-try {
+  const sendMagicLink = async (email: string): Promise<void> => {
+    try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -215,100 +219,124 @@ try {
         },
       });
 
-if (error) {
-
-throw error;
+      if (error) {
+        throw error;
       }
-
-} catch (error: any) {
-
-throw error;
+    } catch (error: any) {
+      throw error;
     }
   };
 
-const resetPassword = async (email: string) => {
-
-try {
-      const redirect = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+  const resetPassword = async (email: string): Promise<void> => {
+    try {
+      const redirect = typeof window !== 'undefined' ? `${window.location.origin}/auth/reset-password` : undefined;
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirect });
-      if (error) throw error;
 
-} catch (e:any) {
-
-throw e;
+      if (error) {
+        throw error;
+      }
+    } catch (e: any) {
+      throw e;
     }
   };
 
-const switchOrganization = (org_id: string) => {
+  const updatePassword = async (newPassword: string): Promise<void> => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+      if (error) {
+        throw error;
+      }
+    } catch (e: any) {
+      throw e;
+    }
+  };
+
+  const switchOrganization = (org_id: string) => {
     if (user) {
       setUser({ ...user, current_org_id: org_id });
     }
   };
 
-const createOrganization = async (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => {
-  if (!user) throw new Error('Usuario no autenticado');
+  const createOrganization = async (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }): Promise<void> => {
+    if (!user) throw new Error('Usuario no autenticado');
 
-  const isDemoUser = user.email === 'demo@coreboard.local' || !session;
-  if (isDemoUser) {
-    setUser(prev => (prev ? { ...prev, isNewUser: false } : prev));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('demo:create-org', {
-          detail: {
-            salonName: orgData.salonName,
-            salonAddress: orgData.salonAddress,
-            salonPhone: orgData.salonPhone,
-          },
-        }),
-      );
+    const isDemoUser = user.email === 'demo@coreboard.local' || !session;
+    if (isDemoUser) {
+      setUser(prev => (prev ? { ...prev, isNewUser: false } : prev));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('demo:create-org', {
+            detail: {
+              salonName: orgData.salonName,
+              salonAddress: orgData.salonAddress,
+              salonPhone: orgData.salonPhone,
+            },
+          }),
+        );
+      }
+      return;
     }
-    return;
-  }
 
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const { data: org, error: orgError } = await supabase
-      .from('orgs')
-      .insert({ name: orgData.name })
-      .select()
-      .single();
+      const { data: org, error: orgError } = await supabase
+        .from('orgs')
+        .insert({ name: orgData.name })
+        .select()
+        .single();
 
-    if (orgError) throw orgError;
+      if (orgError) throw orgError;
 
-    const { error: membershipError } = await supabase
-      .from('memberships')
-      .insert({
-        org_id: org.id,
-        user_id: user.id,
-        role: 'owner',
-        is_primary: true,
-      });
+      const { error: membershipError } = await supabase
+        .from('memberships')
+        .insert({
+          org_id: org.id,
+          user_id: user.id,
+          role: 'owner',
+          is_primary: true,
+        });
 
-    if (membershipError) throw membershipError;
+      if (membershipError) throw membershipError;
 
-    const { error: salonError } = await supabase
-      .from('salons')
-      .insert({
-        org_id: org.id,
-        name: orgData.salonName,
-        address: orgData.salonAddress,
-        phone: orgData.salonPhone,
-      });
+      const { error: salonError } = await supabase
+        .from('salons')
+        .insert({
+          org_id: org.id,
+          name: orgData.salonName,
+          address: orgData.salonAddress,
+          phone: orgData.salonPhone,
+        });
 
-    if (salonError) throw salonError;
+      if (salonError) throw salonError;
 
-    await fetchUserMemberships(user.id);
-  } finally {
-    setLoading(false);
-  }
-};
+      await fetchUserMemberships(user.id, { id: user.id, email: user.email } as SupabaseUser);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-const currentOrgId = user?.current_org_id || null;
+  const currentOrgId = user?.current_org_id || null;
   const currentRole = user?.memberships?.find(m => m.org_id === currentOrgId)?.role || null;
 
-return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signInAsDemo, signOut, switchOrganization, currentOrgId, currentRole, createOrganization, sendMagicLink, resetPassword }}>
+  return (
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      loading, 
+      signIn, 
+      signUp, 
+      signInAsDemo, 
+      signOut, 
+      switchOrganization, 
+      currentOrgId, 
+      currentRole, 
+      createOrganization, 
+      sendMagicLink, 
+      resetPassword,
+      updatePassword
+    }}>
       {children}
     </AuthContext.Provider>
   );

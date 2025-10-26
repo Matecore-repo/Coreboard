@@ -39,7 +39,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
       });
       onClose();
     } catch (error) {
-      console.error('Error creando organización:', error);
       // TODO: Mostrar error al usuario
     } finally {
       setLoading(false);

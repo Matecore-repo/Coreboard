@@ -44,7 +44,6 @@ export function useCommissions(options?: { enabled?: boolean }) {
         .from('commissions')
         .select('id, stylist_id, amount, date, salon_id, source_appointment_id');
       if (error) {
-        console.error('Error fetching commissions', error);
         setCommissions([]);
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToCommission);

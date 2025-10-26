@@ -61,7 +61,6 @@ export const useOrganizations = () => {
         setOrgs(organizations || []);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error'));
-        console.error('Error fetching organizations:', err);
       } finally {
         setLoading(false);
       }
@@ -100,7 +99,6 @@ export const useClients = (orgId?: string) => {
       setClients(data || []);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Unknown error'));
-      console.error('Error fetching clients:', err);
     } finally {
       setLoading(false);
     }

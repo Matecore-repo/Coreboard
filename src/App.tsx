@@ -590,7 +590,6 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   
   // Log inicial del componente
-  console.log('🚀 APP: Componente App iniciado');
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
   // Demo/local state
@@ -611,29 +610,7 @@ export default function App() {
 
   const isDemo = user?.email === 'demo@coreboard.local';
   
-  // Debug logs detallados
-  console.log('🎭 APP STATE:', {
-    userEmail: user?.email,
-    userId: user?.id,
-    hasSession: !!session,
-    sessionEmail: session?.user?.email,
-    isDemo: isDemo,
-    demoName: demoName,
-    currentRole: currentRole,
-    currentOrgId: currentOrgId,
-    isNewUser: user?.isNewUser,
-    membershipsCount: user?.memberships?.length || 0
-  });
   
-  // Log específico del tipo de usuario
-  if (isDemo) {
-
-    console.log('🎭 MODO DEMO ACTIVO - Usando datos mock');
-  } else if (user?.email) {
-    console.log('👤 USUARIO REAL ACTIVO - Usando datos de Supabase para:', user.email);
-  } else {
-    console.log('❓ ESTADO DESCONOCIDO - Sin usuario definido');
-  }
   
   const effectiveAppointments: Appointment[] = isDemo ? appointments : (remoteAppointments as any);
   const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
@@ -1153,13 +1130,11 @@ export default function App() {
 
   // Show login if not authenticated
   if (!isAuthenticated) {
-    console.log('🔒 APP: Mostrando vista de LOGIN - usuario no autenticado');
     return (
       <>
         <Sonner theme={theme} position="top-right" />
         <Suspense fallback={<div className="p-8 text-center">Cargando...</div>}>
           <LoginView onLogin={() => { 
-            console.log('🎭 APP: 🖱️ BOTÓN "EXPLORAR DEMO" PRESIONADO desde LoginView');
             if (signInAsDemo) signInAsDemo(); 
             else toast.error('Demo no disponible'); 
           }} />
@@ -1168,7 +1143,6 @@ export default function App() {
     );
   }
   
-  console.log('🏠 APP: Mostrando vista PRINCIPAL - usuario autenticado');
 
   return (
     <>

@@ -52,7 +52,6 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         .select('id, client_name, service, date, time, status, stylist, stylist_id, salon_id');
       const { data, error } = salonId ? await base.eq('salon_id', salonId) : await base;
       if (error) {
-        console.error('Error fetching appointments', error);
         setAppointments([]);
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToAppointment);
