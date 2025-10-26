@@ -7,16 +7,34 @@ import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 import { useRouter } from 'next/router';
 import ThemeBubble from '../ThemeBubble';
+import { useEffect } from 'react';
 
 export function ResetPasswordPage() {
-  const { updatePassword, loading } = useAuth();
+  const { updatePassword, loading, session } = useAuth();
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  // Esperar a que la sesión esté disponible
+  useEffect(() => {
+    // La sesión puede estar null inicialmente, pero si está definida es porque se cargó
+    // Damos un tiempo para que Supabase procese el token del link
+    const timer = setTimeout(() => {
+      setSessionReady(true);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!session) {
+      toast.error('Sesión no disponible. Recarga la página e intenta de nuevo.');
+      return;
+    }
 
     if (!password || !confirmPassword) {
       toast.error('Ingresa la contraseña en ambos campos');
@@ -51,7 +69,7 @@ export function ResetPasswordPage() {
     }
   };
 
-  const isFormValid = password && confirmPassword && password === confirmPassword;
+  const isFormValid = password && confirmPassword && password === confirmPassword && sessionReady && !!session;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -66,9 +84,17 @@ export function ResetPasswordPage() {
             </div>
             <h1 className="text-3xl font-bold">Actualizar contraseña</h1>
             <p className="text-base text-muted-foreground">
-              Ingresa tu nueva contraseña para continuar
+              {!sessionReady ? 'Cargando...' : 'Ingresa tu nueva contraseña para continuar'}
             </p>
           </div>
+
+          {!session && sessionReady && (
+            <div className="bg-destructive/10 border border-destructive/50 rounded-lg p-4 text-center">
+              <p className="text-sm text-destructive">
+                El enlace de recuperación no es válido o ha expirado. Por favor, solicita uno nuevo.
+              </p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -87,6 +113,7 @@ export function ResetPasswordPage() {
                   autoComplete="new-password"
                   required
                   minLength={6}
+                  disabled={!sessionReady || !session}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
@@ -110,6 +137,7 @@ export function ResetPasswordPage() {
                   autoComplete="new-password"
                   required
                   minLength={6}
+                  disabled={!sessionReady || !session}
                 />
               </div>
             </div>
@@ -125,7 +153,7 @@ export function ResetPasswordPage() {
               className="w-full h-12 text-base"
               disabled={!isFormValid || isSubmitting || loading}
             >
-              {isSubmitting ? 'Actualizando...' : 'Actualizar contraseña'}
+              {isSubmitting ? 'Actualizando...' : !sessionReady ? 'Cargando...' : 'Actualizar contraseña'}
             </Button>
           </form>
 

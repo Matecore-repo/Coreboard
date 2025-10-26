@@ -2,8 +2,9 @@ import React from 'react';
 import { useEffect, useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { getStoredTheme, toggleTheme as toggleThemeLib } from '../lib/theme';
+import dynamic from 'next/dynamic';
 
-export default function ThemeBubble() {
+function ThemeBubbleContent() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof document !== 'undefined') {
       const stored = getStoredTheme();
@@ -48,3 +49,7 @@ export default function ThemeBubble() {
     </button>
   );
 }
+
+export default dynamic(() => Promise.resolve(ThemeBubbleContent), {
+  ssr: false,
+});
