@@ -258,3 +258,114 @@ $$;
 grant execute on function public.hook_mark_token_used(jsonb) to supabase_auth_admin;
 revoke execute on function public.hook_mark_token_used(jsonb) from authenticated, anon, public;
 
+-- Invitations (tokens single-use con rol y organización)
+create table if not exists public.invitations (
+  id               uuid primary key default gen_random_uuid(),
+  organization_id  uuid not null references app.orgs(id) on delete cascade,
+  email            citext, -- opcional: fuerza email si se especifica
+  role             text not null check (role in ('owner', 'admin', 'employee', 'viewer')),
+  token_hash       bytea not null, -- SHA-256 del token (nunca guardamos el token plano)
+  expires_at       timestamptz not null default (now() + interval '7 days'),
+  used_at          timestamptz,
+  used_by          uuid references auth.users(id),
+  created_by       uuid references auth.users(id),
+  created_at       timestamptz not null default now()
+);
+
+-- Índices críticos
+create index if not exists invitations_org_idx on public.invitations(organization_id);
+create unique index if not exists invitations_token_unique_open
+  on public.invitations(token_hash)
+  where used_at is null;
+create unique index if not exists invitations_unique_pending_email
+  on public.invitations(organization_id, email)
+  where used_at is null and email is not null;
+
+alter table public.invitations enable row level security;
+
+-- RLS: Nadie puede leer invitaciones por defecto (evita filtrar hashes)
+drop policy if exists "inv_no_select" on public.invitations;
+create policy "inv_no_select"
+  on public.invitations for select
+  using (false);
+
+-- RLS: Admins/Owners del org pueden gestionar invitaciones desde app
+drop policy if exists "inv_admin_manage" on public.invitations;
+create policy "inv_admin_manage"
+  on public.invitations
+  using (
+    exists (
+      select 1 from public.memberships m
+      where m.org_id = invitations.organization_id
+        and m.user_id = auth.uid()
+        and m.role in ('owner', 'admin')
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.memberships m
+      where m.org_id = invitations.organization_id
+        and m.user_id = auth.uid()
+        and m.role in ('owner', 'admin')
+    )
+  );
+
+-- RPC: claim_invitation(token_plano) -> crea membership y consume token atómicamente
+create or replace function public.claim_invitation(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_email   text;
+  v_inv     public.invitations%rowtype;
+  v_hash    bytea := digest(p_token, 'sha256');
+begin
+  if v_user_id is null then
+    raise exception 'auth_required' using errcode = 'PT401';
+  end if;
+
+  select u.email into v_email from auth.users u where u.id = v_user_id;
+
+  -- Buscamos y bloqueamos la invitación vigente (FOR UPDATE evita carreras)
+  select *
+    into v_inv
+  from public.invitations i
+  where i.token_hash = v_hash
+    and i.used_at is null
+    and now() < i.expires_at
+  for update;
+
+  if not found then
+    raise exception 'invalid_or_expired_or_used' using errcode = 'PT403';
+  end if;
+
+  -- Si la invitación fue nominada, el email debe coincidir
+  if v_inv.email is not null and lower(v_inv.email) <> lower(v_email) then
+    raise exception 'email_mismatch' using errcode = 'PT403';
+  end if;
+
+  -- Idempotente: crea o actualiza membership
+  insert into public.memberships(org_id, user_id, role)
+  values (v_inv.organization_id, v_user_id, v_inv.role)
+  on conflict (org_id, user_id) do update
+    set role = excluded.role;
+
+  -- Marca como usada
+  update public.invitations
+     set used_at = now(),
+         used_by = v_user_id
+   where id = v_inv.id;
+
+  return jsonb_build_object(
+    'organization_id', v_inv.organization_id,
+    'role',            v_inv.role
+  );
+end;
+$$;
+
+-- Mantener hooks originales para compatibilidad con signup_tokens existentes
+-- Las nuevas invitations se manejan exclusivamente con RPC claim_invitation
+

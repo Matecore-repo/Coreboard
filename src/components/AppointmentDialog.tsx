@@ -18,6 +18,7 @@ interface Salon {
   address: string;
   image: string;
   staff?: string[];
+  services?: { id: string; name: string; price: number; durationMinutes: number }[];
 }
 
 interface AppointmentDialogProps {
@@ -136,12 +137,22 @@ export function AppointmentDialog({
                 <SelectValue placeholder="Seleccionar servicio" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Corte">Corte</SelectItem>
-                <SelectItem value="Coloración">Coloración</SelectItem>
-                <SelectItem value="Peinado">Peinado</SelectItem>
-                <SelectItem value="Tratamiento">Tratamiento</SelectItem>
-                <SelectItem value="Barba">Barba</SelectItem>
-                <SelectItem value="Mechas">Mechas</SelectItem>
+                {/* Mostrar servicios pasados vía props salons[].services si existen */}
+                {salons && salons.length > 0 && salons.find(s => s.id === (formData.salonId || salonId))?.services ? (
+                  (salons.find(s => s.id === (formData.salonId || salonId))?.services || []).map((svc: any) => (
+                    <SelectItem key={svc.id} value={svc.name}>{svc.name}</SelectItem>
+                  ))
+                ) : (
+                  // Fallback a opciones genéricas si no hay servicios reales
+                  <>
+                    <SelectItem value="Corte">Corte</SelectItem>
+                    <SelectItem value="Coloración">Coloración</SelectItem>
+                    <SelectItem value="Peinado">Peinado</SelectItem>
+                    <SelectItem value="Tratamiento">Tratamiento</SelectItem>
+                    <SelectItem value="Barba">Barba</SelectItem>
+                    <SelectItem value="Mechas">Mechas</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>

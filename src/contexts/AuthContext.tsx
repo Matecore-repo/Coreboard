@@ -2,6 +2,9 @@
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 
+// Demo mode: si está activado, no hacer requests reales
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
 // Gestión segura de localStorage
 const safeLocalStorage = {
   getItem: (key: string): string | null => {
@@ -59,6 +62,7 @@ type AuthContextValue = {
   sendMagicLink: (email: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
+  claimInvitation: (token: string) => Promise<{ organization_id: string; role: string }>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -73,23 +77,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Obtener membresías del usuario
   const fetchUserMemberships = async (userId: string, authUser: SupabaseUser): Promise<void> => {
+    // En modo demo, no hacer queries reales
+    if (isDemoMode) {
+      return;
+    }
+
     try {
+      console.log('🔍 Fetching memberships for user:', userId);
       const { data: memberships, error } = await supabase
         .from('memberships')
         .select('org_id, role, is_primary')
         .eq('user_id', userId);
 
       if (error) {
-        console.error('Error al obtener membresías:', error);
-        setUser({ 
-          id: authUser.id, 
-          email: authUser.email, 
-          memberships: [], 
-          isNewUser: true 
+        console.error('❌ Error al obtener membresías:', error);
+        setUser({
+          id: authUser.id,
+          email: authUser.email,
+          memberships: [],
+          isNewUser: true
         });
         return;
       }
 
+      console.log('✅ Membresías encontradas:', memberships);
       const isNewUser = !memberships || memberships.length === 0;
       const primaryOrg = memberships?.find(m => m.is_primary) || memberships?.[0];
 
@@ -102,8 +113,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setUser(userData);
+      console.log('✅ Usuario configurado:', userData);
     } catch (e) {
-      console.error('Error al construir contexto de usuario:', e);
+      console.error('❌ Error al construir contexto de usuario:', e);
       setUser(null);
     }
   };
@@ -111,9 +123,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Restaurar sesión y escuchar cambios de autenticación
   useEffect(() => {
     const restoreSession = async () => {
+      // En modo demo, no restaurar sesiones reales
+      if (isDemoMode) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data: { session: activeSession } } = await supabase.auth.getSession();
-        
+
         if (activeSession?.user) {
           setSession(activeSession);
           await fetchUserMemberships(activeSession.user.id, activeSession.user);
@@ -127,8 +145,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     restoreSession();
 
-    // Escuchar cambios de autenticación
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    // Escuchar cambios de autenticación (solo si no es demo mode)
+    const { data: listener } = isDemoMode ? { subscription: { unsubscribe: () => {} } } as any : supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setSession(null);
@@ -149,18 +167,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string): Promise<void> => {
+    console.log('🔐 Intentando login con:', email);
+
+    if (isDemoMode) {
+      throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
+    }
+
     try {
       setLoading(true);
+      console.log('📡 Enviando request a Supabase...');
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
+        console.error('❌ Error de Supabase:', error);
         throw error;
       }
 
       if (!data.session) {
+        console.error('❌ No se recibió sesión');
         throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
       }
 
+      console.log('✅ Login exitoso, sesión recibida');
       // onAuthStateChange se encargará del resto
     } finally {
       setLoading(false);
@@ -168,14 +196,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string, signupToken?: string): Promise<void> => {
+    if (isDemoMode) {
+      throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
+    }
+
     try {
       setLoading(true);
+
+      // TEMPORAL: Si es el usuario específico, intentar resetear contraseña primero
+      if (email === 'iangel.oned@gmail.com') {
+        console.log('🔧 Usuario específico detectado, intentando setup especial...');
+        // Por ahora, solo continuar con el registro normal
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
-          data: signupToken ? { signup_token: signupToken } : undefined,
+          data: signupToken ? { invite_token: signupToken } : undefined,
         },
       });
 
@@ -183,7 +222,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      // onAuthStateChange se encargará si hay sesión inmediata
+      // Si hay sesión inmediata y token, intentar claim inmediatamente
+      if (data.session && signupToken) {
+        try {
+          await supabase.rpc('claim_invitation', { p_token: signupToken });
+        } catch (claimError) {
+          // Claim falló, pero el usuario ya se creó. Podrá intentar claim después.
+          console.warn('Claim automático falló, el usuario podrá reclamar manualmente:', claimError);
+        }
+      }
+
+      // TEMPORAL: Si no hay token, crear una membresía básica para testing
+      if (data.session && !signupToken) {
+        try {
+          console.log('🏗️ Creando organización y membresía para usuario nuevo...');
+
+          // Verificar si ya existe una membresía para este usuario
+          const { data: existingMembership } = await supabase
+            .from('memberships')
+            .select('id')
+            .eq('user_id', data.session.user.id)
+            .single();
+
+          if (!existingMembership) {
+            // Crear una organización de prueba si no existe
+            const { data: org, error: orgError } = await supabase
+              .from('orgs')
+              .insert({ name: 'Test Organization' })
+              .select()
+              .single();
+
+            if (!orgError && org) {
+              console.log('✅ Organización creada:', org.id);
+
+              // Crear membresía como owner
+              const { error: membershipError } = await supabase
+                .from('memberships')
+                .insert({
+                  org_id: org.id,
+                  user_id: data.session.user.id,
+                  role: 'owner',
+                  is_primary: true,
+                });
+
+              if (!membershipError) {
+                console.log('✅ Membresía creada como owner');
+
+                // Crear un salón de prueba
+                const { error: salonError } = await supabase
+                  .from('salons')
+                  .insert({
+                    org_id: org.id,
+                    name: 'Test Salon',
+                    address: 'Test Address',
+                  });
+
+                if (!salonError) {
+                  console.log('✅ Salón de prueba creado');
+                }
+              }
+            }
+          } else {
+            console.log('ℹ️ El usuario ya tiene una membresía');
+          }
+        } catch (setupError) {
+          console.warn('⚠️ Error creando setup inicial:', setupError);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -252,6 +357,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const claimInvitation = async (token: string): Promise<{ organization_id: string; role: string }> => {
+    if (isDemoMode) {
+      throw new Error('Modo demo: no se pueden reclamar invitaciones reales');
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('claim_invitation', { p_token: token });
+
+      if (error) {
+        throw error;
+      }
+
+      // Refrescar memberships después del claim
+      if (session?.user) {
+        await fetchUserMemberships(session.user.id, session.user);
+      }
+
+      return data;
+    } catch (e: any) {
+      throw e;
+    }
+  };
+
   const switchOrganization = (org_id: string) => {
     if (user) {
       setUser({ ...user, current_org_id: org_id });
@@ -261,7 +389,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const createOrganization = async (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }): Promise<void> => {
     if (!user) throw new Error('Usuario no autenticado');
 
-    const isDemoUser = user.email === 'demo@coreboard.local' || !session;
+    const isDemoUser = user.email === 'demo@coreboard.local' || !session || isDemoMode;
     if (isDemoUser) {
       setUser(prev => (prev ? { ...prev, isNewUser: false } : prev));
       if (typeof window !== 'undefined') {
@@ -321,21 +449,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentRole = user?.memberships?.find(m => m.org_id === currentOrgId)?.role || null;
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      session, 
-      loading, 
-      signIn, 
-      signUp, 
-      signInAsDemo, 
-      signOut, 
-      switchOrganization, 
-      currentOrgId, 
-      currentRole, 
-      createOrganization, 
-      sendMagicLink, 
+    <AuthContext.Provider value={{
+      user,
+      session,
+      loading,
+      signIn,
+      signUp,
+      signInAsDemo,
+      signOut,
+      switchOrganization,
+      currentOrgId,
+      currentRole,
+      createOrganization,
+      sendMagicLink,
       resetPassword,
-      updatePassword
+      updatePassword,
+      claimInvitation
     }}>
       {children}
     </AuthContext.Provider>

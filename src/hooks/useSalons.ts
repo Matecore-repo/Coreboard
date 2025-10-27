@@ -26,6 +26,8 @@ function mapDBToUI(s: DBSalon): UISalon {
     address: s.address || '',
     // Fallback a una imagen conocida del proyecto
     image: '/imagenlogin.jpg',
+    // services vendrán por separado desde la DB; default vacío
+    staff: [],
   };
 }
 

@@ -11,7 +11,6 @@ import {
   LogOut,
 } from "lucide-react";
 import { SalonCarousel } from "./components/SalonCarousel";
-import type { Service } from "./components/ServicesPanel";
 import { AppointmentCard, Appointment } from "./components/AppointmentCard";
 import { AppointmentDialog } from "./components/AppointmentDialog";
 import { AppointmentActionBar } from "./components/AppointmentActionBar";
@@ -50,6 +49,13 @@ interface Salon {
   notes?: string;
   openingHours?: string;
   services?: Service[];
+}
+
+interface Service {
+  id: string;
+  name: string;
+  price: number;
+  durationMinutes: number;
 }
 
 const sampleSalons: Salon[] = [
@@ -621,7 +627,7 @@ export default function App() {
     return found?.name || "";
   }, [selectedSalon, effectiveSalons]);
   const [services, setServices] = useState(() => {
-    // ejemplo inicial
+    // ejemplo inicial (solo para demo)
     return [
       { id: 's1', name: 'Corte', price: 1200, durationMinutes: 30 },
       { id: 's2', name: 'Coloración', price: 3000, durationMinutes: 90 },
@@ -918,7 +924,12 @@ export default function App() {
   const navItems = useMemo(() => {
     const role = isDemo ? 'demo' : (currentRole ?? 'viewer');
     if (role === 'demo') return allNavItems;
-    return allNavItems.filter(item => !item.allowed || item.allowed.includes(role));
+    // Respect existing allowed lists but also support stricter filtering for 'employee'
+    const allowedFiltered = allNavItems.filter(item => !item.allowed || item.allowed.includes(role));
+    if (role === 'employee') {
+      return allowedFiltered.filter(it => ['home','appointments','clients'].includes(it.id));
+    }
+    return allowedFiltered;
   }, [currentRole, isDemo]);
 
   const getInitials = (email?: string | null) => {

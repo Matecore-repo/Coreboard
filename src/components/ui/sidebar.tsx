@@ -382,6 +382,14 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+// Helper para condicionar items por rol: owner ve todo, employee ve subset
+export function filterNavItemsByRole(items: any[], role: string | null) {
+  if (!role) return items;
+  if (role === 'owner' || role === 'admin') return items;
+  if (role === 'employee') return items.filter(it => ['home','appointments','clients'].includes(it.id));
+  return items;
+}
+
 function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div

@@ -38,6 +38,24 @@ Todos los datos están protegidos con Row Level Security (RLS):
 - Memberships define rol: `admin`, `owner`, `employee`, `viewer`
 - Función `app.user_is_member_of(org_id)` valida acceso
 
+## ⚙️ Variables de Entorno
+
+Crear archivo `.env.local` en la raíz:
+
+```bash
+# Supabase Configuration (requeridas)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_KEY=your_service_key
+
+# Demo Mode (opcional, default: false)
+# Deshabilita requests reales a BD, usa datos locales para desarrollo
+NEXT_PUBLIC_DEMO_MODE=false
+
+# Development
+NODE_ENV=development
+```
+
 ## 🔐 Gestión de Tokens
 
 ### AuthContext - `src/contexts/AuthContext.tsx`
