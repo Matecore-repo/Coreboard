@@ -21,6 +21,7 @@ const ClientsView = lazy(() => import("./components/views/ClientsView").then((m)
 const FinancesView = lazy(() => import("./components/views/FinancesView").then((m) => ({ default: m.FinancesView })));
 const SettingsView = lazy(() => import("./components/views/SettingsView").then((m) => ({ default: m.SettingsView })));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView").then((m) => ({ default: m.SalonsManagementView })));
+const OrganizationView = lazy(() => import("./components/views/OrganizationView").then((m) => ({ default: m.default })));
 const LoginView = lazy(() => import("./components/views/LoginView").then((m) => ({ default: m.LoginView })));
 import { Button } from "./components/ui/button";
 import { ScrollArea } from "./components/ui/scroll-area";
@@ -914,11 +915,12 @@ export default function App() {
   const allNavItems = [
     { id: "home", label: "Inicio", icon: Home, allowed: ['admin','owner','employee','demo'] },
     { id: "appointments", label: "Turnos", icon: Calendar, allowed: ['admin','owner','employee'] },
-    { id: "finances", label: "Finanzas", icon: DollarSign, allowed: ['admin','owner'] },
     { id: "clients", label: "Clientes", icon: Users, allowed: ['admin','owner','employee'] },
+    { id: "organization", label: "Organización", icon: Users, allowed: ['admin','owner','employee'] },
     { id: "salons", label: "Peluquerías", icon: Building2, allowed: ['admin','owner'] },
+    { id: "finances", label: "Finanzas", icon: DollarSign, allowed: ['admin','owner'] },
     { id: "settings", label: "Configuración", icon: Settings, allowed: ['admin'] },
-    
+
   ];
 
   const navItems = useMemo(() => {
@@ -1060,6 +1062,13 @@ export default function App() {
         </Suspense>
       );
     }
+    if (activeNavItem === "organization") {
+      return (
+        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
+          <OrganizationView isDemo={isDemo} />
+        </Suspense>
+      );
+    }
     if (activeNavItem === "settings") {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
@@ -1067,7 +1076,7 @@ export default function App() {
         </Suspense>
       );
     }
-    
+
     // appointments view
     return (
       <>
@@ -1230,6 +1239,12 @@ export default function App() {
             }
             const targetSalonId = salons[0].id;
             setAppointments(sampleAppointments.map((a) => ({ ...a, salonId: targetSalonId })));
+            
+            // Cargar datos demo de organización si está disponible
+            if (typeof window !== 'undefined' && (window as any).__loadOrganizationDemoData) {
+              (window as any).__loadOrganizationDemoData();
+            }
+            
             toast.success('Datos de ejemplo cargados en tu peluquería demo');
           }}
         />

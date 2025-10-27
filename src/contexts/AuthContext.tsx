@@ -83,14 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      console.log('🔍 Fetching memberships for user:', userId);
       const { data: memberships, error } = await supabase
         .from('memberships')
         .select('org_id, role, is_primary')
         .eq('user_id', userId);
 
       if (error) {
-        console.error('❌ Error al obtener membresías:', error);
+        console.error('Error al obtener membresías:', error);
         setUser({
           id: authUser.id,
           email: authUser.email,
@@ -100,7 +99,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      console.log('✅ Membresías encontradas:', memberships);
       const isNewUser = !memberships || memberships.length === 0;
       const primaryOrg = memberships?.find(m => m.is_primary) || memberships?.[0];
 
@@ -113,9 +111,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setUser(userData);
-      console.log('✅ Usuario configurado:', userData);
     } catch (e) {
-      console.error('❌ Error al construir contexto de usuario:', e);
+      console.error('Error al construir contexto de usuario:', e);
       setUser(null);
     }
   };
@@ -167,28 +164,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string): Promise<void> => {
-    console.log('🔐 Intentando login con:', email);
-
     if (isDemoMode) {
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
     try {
       setLoading(true);
-      console.log('📡 Enviando request a Supabase...');
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        console.error('❌ Error de Supabase:', error);
         throw error;
       }
 
       if (!data.session) {
-        console.error('❌ No se recibió sesión');
         throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
       }
 
-      console.log('✅ Login exitoso, sesión recibida');
       // onAuthStateChange se encargará del resto
     } finally {
       setLoading(false);
@@ -202,12 +193,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setLoading(true);
-
-      // TEMPORAL: Si es el usuario específico, intentar resetear contraseña primero
-      if (email === 'iangel.oned@gmail.com') {
-        console.log('🔧 Usuario específico detectado, intentando setup especial...');
-        // Por ahora, solo continuar con el registro normal
-      }
 
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -235,8 +220,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // TEMPORAL: Si no hay token, crear una membresía básica para testing
       if (data.session && !signupToken) {
         try {
-          console.log('🏗️ Creando organización y membresía para usuario nuevo...');
-
           // Verificar si ya existe una membresía para este usuario
           const { data: existingMembership } = await supabase
             .from('memberships')
@@ -253,10 +236,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .single();
 
             if (!orgError && org) {
-              console.log('✅ Organización creada:', org.id);
-
               // Crear membresía como owner
-              const { error: membershipError } = await supabase
+              await supabase
                 .from('memberships')
                 .insert({
                   org_id: org.id,
@@ -265,28 +246,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   is_primary: true,
                 });
 
-              if (!membershipError) {
-                console.log('✅ Membresía creada como owner');
-
-                // Crear un salón de prueba
-                const { error: salonError } = await supabase
-                  .from('salons')
-                  .insert({
-                    org_id: org.id,
-                    name: 'Test Salon',
-                    address: 'Test Address',
-                  });
-
-                if (!salonError) {
-                  console.log('✅ Salón de prueba creado');
-                }
-              }
+              // Crear un salón de prueba
+              await supabase
+                .from('salons')
+                .insert({
+                  org_id: org.id,
+                  name: 'Test Salon',
+                  address: 'Test Address',
+                });
             }
-          } else {
-            console.log('ℹ️ El usuario ya tiene una membresía');
           }
         } catch (setupError) {
-          console.warn('⚠️ Error creando setup inicial:', setupError);
+          console.warn('Error creando setup inicial:', setupError);
         }
       }
     } finally {

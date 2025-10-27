@@ -369,3 +369,51 @@ $$;
 -- Mantener hooks originales para compatibilidad con signup_tokens existentes
 -- Las nuevas invitations se manejan exclusivamente con RPC claim_invitation
 
+-- RLS: Admins/Owners del org pueden gestionar invitaciones desde app
+drop policy if exists "inv_admin_manage" on public.invitations;
+create policy "inv_admin_manage"
+  on public.invitations
+  using (
+    exists (
+      select 1 from public.memberships m
+      where m.org_id = invitations.organization_id
+        and m.user_id = auth.uid()
+        and m.role in ('owner', 'admin')
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.memberships m
+      where m.org_id = invitations.organization_id
+        and m.user_id = auth.uid()
+        and m.role in ('owner', 'admin')
+    )
+  );
+
+-- RLS: Políticas para memberships
+-- Los admins de plataforma pueden leer todas las memberships
+drop policy if exists "members_admin_read_all" on public.memberships;
+create policy "members_admin_read_all"
+  on public.memberships
+  for select
+  using (
+    exists (
+      select 1 from public.memberships m2
+      where m2.user_id = auth.uid()
+        and m2.role = 'admin'
+    )
+  );
+
+-- Los usuarios normales leen solo memberships de sus organizaciones
+drop policy if exists "members_user_read_own_org" on public.memberships;
+create policy "members_user_read_own_org"
+  on public.memberships
+  for select
+  using (
+    exists (
+      select 1 from public.memberships m2
+      where m2.org_id = memberships.org_id
+        and m2.user_id = auth.uid()
+    )
+  );
+
