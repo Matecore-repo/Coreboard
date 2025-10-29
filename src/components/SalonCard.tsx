@@ -1,4 +1,4 @@
-import { memo } from "react";
+﻿import { memo } from "react";
 import { MapPin } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 
@@ -30,7 +30,7 @@ export const SalonCard = memo(function SalonCard({ name, address, image, onClick
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
       />
       
-      {/* Overlay con efecto de iluminación suave en hover */}
+      {/* Overlay con efecto de iluminaci├│n suave en hover */}
       <div className={`absolute inset-0 transition-opacity duration-200 pointer-events-none ${
         isSelected 
           ? "bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-100" 

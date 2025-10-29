@@ -2,14 +2,18 @@
 import { Plus, Users, MapPin, Upload, X, Phone, Mail, Clock, DollarSign, Edit3, FileText, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
-const ServicesPanel = lazy(() => import("../ServicesPanel").then((m) => ({ default: m.ServicesPanel })));
+const ServicesPanel = lazy(() => import("../ServicesPanel"));
 import type { Service } from "../ServicesPanel";
+import { EmptyStateServices } from "../empty-states/EmptyStateServices";
 import { toast } from "sonner";
+import { useSalonServices } from "../../hooks/useSalonServices";
+import { useServices } from "../../hooks/useServices";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface Salon {
   id: string;
@@ -32,10 +36,14 @@ interface SalonsManagementViewProps {
   onDeleteSalon: (id: string) => void;
 }
 
-export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }: SalonsManagementViewProps) {
+function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }: SalonsManagementViewProps) {
+  const { currentOrgId } = useAuth();
+  const { services: allServices } = useServices(currentOrgId ?? undefined);
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalon, setEditingSalon] = useState<Salon | null>(null);
   const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
+  const { services: salonServices, assignService, unassignService, updateServiceAssignment } = useSalonServices(selectedSalon?.id);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -312,13 +320,141 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
 
       {selectedSalon && (
         <div className="mt-6" ref={servicesSectionRef}>
-          <h3 className="mb-3">Servicios de {selectedSalon.name}</h3>
-          <React.Suspense fallback={<div>Cargando servicios...</div>}>
-            <ServicesPanel
-              services={selectedSalon.services || []}
-              onChange={(updated) => handleServicesChange(updated)}
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold">Servicios de {selectedSalon.name}</h3>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Asignar Servicio
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Asignar servicios a {selectedSalon.name}</DialogTitle>
+                  <DialogDescription>
+                    Selecciona los servicios disponibles para ofrecer en este salón
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {allServices.map((service) => {
+                    const isAssigned = salonServices.some(ss => ss.service_id === service.id);
+                    return (
+                      <div key={service.id} className="flex items-center justify-between p-2 border rounded">
+                        <div>
+                          <p className="font-medium">{service.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            ${service.base_price} - {service.duration_minutes} min
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={isAssigned ? "destructive" : "default"}
+                          onClick={async () => {
+                            try {
+                              if (isAssigned) {
+                                const assignment = salonServices.find(ss => ss.service_id === service.id);
+                                if (assignment) {
+                                  await unassignService(assignment.id);
+                                  toast.success(`Servicio "${service.name}" removido`);
+                                }
+                              } else {
+                                await assignService(service.id);
+                                toast.success(`Servicio "${service.name}" asignado`);
+                              }
+                            } catch (error) {
+                              console.error('Error managing service assignment:', error);
+                              toast.error('Error al gestionar el servicio');
+                            }
+                          }}
+                        >
+                          {isAssigned ? 'Remover' : 'Asignar'}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                  {allServices.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4">
+                      No hay servicios disponibles. Crea servicios primero.
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {salonServices.length === 0 ? (
+            <EmptyStateServices
+              salonName={selectedSalon.name}
+              onCreateService={() => {
+                toast.info("Crea servicios en la sección de configuración primero");
+              }}
+              className="max-w-md mx-auto"
             />
-          </React.Suspense>
+          ) : (
+            <div className="space-y-2">
+              {salonServices.map((service) => (
+                <div key={service.id} className="p-3 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">{service.service_name}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Precio: ${service.price_override ?? service.base_price} |
+                        Duración: {service.duration_override ?? service.duration_minutes} min
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const newPrice = prompt('Nuevo precio (deja vacío para precio base):', service.price_override?.toString() || '');
+                            const newDuration = prompt('Nueva duración en minutos (deja vacío para duración base):', service.duration_override?.toString() || '');
+
+                            const updates: any = {};
+                            if (newPrice && newPrice.trim()) {
+                              updates.price_override = Number(newPrice);
+                            }
+                            if (newDuration && newDuration.trim()) {
+                              updates.duration_override = Number(newDuration);
+                            }
+
+                            if (Object.keys(updates).length > 0) {
+                              await updateServiceAssignment(service.id, updates);
+                              toast.success('Servicio actualizado');
+                            }
+                          } catch (error) {
+                            console.error('Error updating service:', error);
+                            toast.error('Error al actualizar el servicio');
+                          }
+                        }}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={async () => {
+                          if (confirm(`¿Remover "${service.service_name}" de este salón?`)) {
+                            try {
+                              await unassignService(service.id);
+                              toast.success('Servicio removido del salón');
+                            } catch (error) {
+                              console.error('Error removing service:', error);
+                              toast.error('Error al remover el servicio');
+                            }
+                          }
+                        }}
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -489,3 +625,5 @@ export function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDelete
     </div>
   );
 }
+
+export default SalonsManagementView;

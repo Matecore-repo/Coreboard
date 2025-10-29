@@ -1,39 +1,43 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import supabase from '../lib/supabase';
+import { Appointment as GlobalAppointment } from '../types';
 
-export type Appointment = {
-  id: string;
-  clientName: string;
-  service: string;
-  date: string;
-  time: string;
-  status: string;
-  stylist?: string;
-  salonId?: string;
-};
+export type Appointment = GlobalAppointment;
 
 function mapRowToAppointment(row: any): Appointment {
   return {
     id: String(row.id),
-    clientName: row.client_name ?? row.clientName ?? '',
-    service: row.service ?? '',
-    date: typeof row.date === 'string' ? row.date : String(row.date ?? ''),
-    time: typeof row.time === 'string' ? row.time : String(row.time ?? ''),
+    org_id: String(row.org_id),
+    salon_id: String(row.salon_id),
+    service_id: String(row.service_id),
+    stylist_id: row.stylist_id,
+    client_name: row.client_name ?? '',
+    client_phone: row.client_phone,
+    client_email: row.client_email,
+    starts_at: row.starts_at ?? '',
     status: row.status ?? 'pending',
-    stylist: row.stylist ?? row.stylist_id ?? '',
-    salonId: row.salon_id ?? row.salonId ?? undefined,
+    total_amount: Number(row.total_amount) || 0,
+    notes: row.notes,
+    created_by: String(row.created_by),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
   };
 }
 
 function mapAppointmentToRow(payload: Partial<Appointment>) {
   return {
-    client_name: payload.clientName,
-    service: payload.service,
-    date: payload.date,
-    time: payload.time,
+    org_id: payload.org_id,
+    salon_id: payload.salon_id,
+    service_id: payload.service_id,
+    stylist_id: payload.stylist_id,
+    client_name: payload.client_name,
+    client_phone: payload.client_phone,
+    client_email: payload.client_email,
+    starts_at: payload.starts_at,
     status: payload.status,
-    stylist: payload.stylist,
-    salon_id: payload.salonId,
+    total_amount: payload.total_amount,
+    notes: payload.notes,
+    created_by: payload.created_by,
   };
 }
 
@@ -49,8 +53,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     try {
       const base = supabase
         .from('appointments')
-        .select('id, client_name, service, date, time, status, stylist, stylist_id, salon_id');
-      const { data, error } = salonId ? await base.eq('salon_id', salonId) : await base;
+        .select('id, org_id, salon_id, service_id, stylist_id, client_name, client_phone, client_email, starts_at, status, total_amount, notes, created_by, created_at, updated_at');
+            const { data, error } = salonId ? await base.eq('salon_id', salonId).order('starts_at') : await base.order('starts_at');
       if (error) {
         setAppointments([]);
       } else {

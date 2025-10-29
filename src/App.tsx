@@ -16,13 +16,13 @@ import { AppointmentDialog } from "./components/AppointmentDialog";
 import { AppointmentActionBar } from "./components/AppointmentActionBar";
 import { FloatingQuickActions } from "./components/FloatingQuickActions";
 import { FilterBar } from "./components/FilterBar";
-const HomeView = lazy(() => import("./components/views/HomeView").then((m) => ({ default: m.HomeView })));
-const ClientsView = lazy(() => import("./components/views/ClientsView").then((m) => ({ default: m.ClientsView })));
-const FinancesView = lazy(() => import("./components/views/FinancesView").then((m) => ({ default: m.FinancesView })));
-const SettingsView = lazy(() => import("./components/views/SettingsView").then((m) => ({ default: m.SettingsView })));
-const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView").then((m) => ({ default: m.SalonsManagementView })));
-const OrganizationView = lazy(() => import("./components/views/OrganizationView").then((m) => ({ default: m.default })));
-const LoginView = lazy(() => import("./components/views/LoginView").then((m) => ({ default: m.LoginView })));
+const HomeView = lazy(() => import("./components/views/HomeView"));
+const ClientsView = lazy(() => import("./components/views/ClientsView"));
+const FinancesView = lazy(() => import("./components/views/FinancesView"));
+const SettingsView = lazy(() => import("./components/views/SettingsView"));
+const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
+const OrganizationView = lazy(() => import("./components/views/OrganizationView"));
+const LoginView = lazy(() => import("./components/views/LoginView"));
 import { Button } from "./components/ui/button";
 import { ScrollArea } from "./components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "./components/ui/avatar";
@@ -64,7 +64,7 @@ const sampleSalons: Salon[] = [
     id: "1",
     name: "Studio Elegance",
     address: "Av. Corrientes 1234, CABA",
-    image: "https://images.unsplash.com/photo-1600948836101-f9ffda59d250?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBoYWlyJTIwc2Fsb24lMjBpbnRlcmlvcnxlbnwxfHx8fDE3NTk5MzAyMjJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+    image: "https://images.unsplash.com/photo-1562322140-8baeececf3df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBoYWlyJTIwc2Fsb24lMjBpbnRlcmlvcnxlbnwxfHx8fDE3NTk5MzAyMjJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
     staff: ["María García", "Ana Martínez", "Laura Fernández"],
   },
   {
@@ -90,7 +90,19 @@ const sampleSalons: Salon[] = [
   },
 ];
 
-const sampleAppointments: Appointment[] = [
+// Demo appointments with simplified structure
+interface DemoAppointment {
+  id: string;
+  clientName: string;
+  service: string;
+  date: string;
+  time: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  stylist: string;
+  salonId: string;
+}
+
+const sampleAppointments: DemoAppointment[] = [
   // Hoy - 2025-10-08
   {
     id: "1",
@@ -595,7 +607,7 @@ export default function App() {
   const { user, session, signOut, signInAsDemo, currentRole, currentOrgId } = useAuth() as any;
   const isAuthenticated = !!user;
   const [showOnboarding, setShowOnboarding] = useState(false);
-  
+
   // Log inicial del componente
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
@@ -616,9 +628,9 @@ export default function App() {
   const { salons: remoteSalons } = useDbSalons(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId });
 
   const isDemo = user?.email === 'demo@coreboard.local';
-  
-  
-  
+
+
+
   const effectiveAppointments: Appointment[] = isDemo ? appointments : (remoteAppointments as any);
   const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
 
@@ -654,7 +666,7 @@ export default function App() {
   const [dateFilter, setDateFilter] = useState("all");
   const [stylistFilter, setStylistFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [activeNavItem, setActiveNavItem] = useState("home");
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -710,7 +722,7 @@ export default function App() {
       setSalons((prev) => {
         if (prev.length >= 1) return prev;
         const id = Date.now().toString();
-        const image = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080';
+        const image = 'https://images.unsplash.com/photo-1562322140-8baeececf3df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080';
         setSelectedSalon(id);
         return [...prev, { id, name, address, image, phone, email: '', notes: '', openingHours: '', staff: [], services: [] }];
       });
@@ -782,12 +794,11 @@ export default function App() {
 
   const handleCancelAppointment = useCallback(async (id: string) => {
     if (isDemo) {
-      setAppointments((prev) => prev.map((apt) => (apt.id === id ? { ...apt, status: "cancelled" as const } : apt)));
+      setAppointments((prev) => prev.map((apt) => apt.id === id ? { ...apt, status: "cancelled" as const } : apt));
     } else {
       try { await (updateAppointment as any)(id, { status: 'cancelled' as const }); } catch (e) { toast.error('No se pudo cancelar'); return; }
     }
     toast.success("Turno cancelado");
-    setSelectedAppointment(null);
   }, [isDemo, updateAppointment]);
 
   const handleCompleteAppointment = useCallback((id: string) => {
@@ -802,8 +813,8 @@ export default function App() {
 
   const handleDeleteAppointment = useCallback(() => {
     setAppointments((prev) => {
-      const salonAppointments = !selectedSalon 
-        ? prev 
+      const salonAppointments = !selectedSalon
+        ? prev
         : prev.filter(apt => apt.salonId === selectedSalon);
       if (salonAppointments.length === 0) {
         toast.error("No hay turnos para eliminar");
@@ -816,16 +827,9 @@ export default function App() {
     setShowQuickActions(false);
   }, [selectedSalon]);
 
-  const handleDeleteSelectedAppointment = useCallback(() => {
-    if (!selectedAppointment) return;
-    setAppointments((prev) => prev.filter(apt => apt.id !== selectedAppointment.id));
-    toast.success("Turno eliminado");
-    setSelectedAppointment(null);
-  }, [selectedAppointment]);
-
   const handleUpdateAppointment = useCallback(() => {
-    const salonAppointments = !selectedSalon 
-      ? effectiveAppointments 
+    const salonAppointments = !selectedSalon
+      ? effectiveAppointments
       : effectiveAppointments.filter(apt => apt.salonId === selectedSalon);
     if (salonAppointments.length === 0) {
       toast.error("No hay turnos para actualizar");
@@ -987,7 +991,7 @@ export default function App() {
             </button>
           );
         })}
-        
+
         {/* Logout Button */}
         <button
           onClick={handleLogout}
@@ -1020,8 +1024,8 @@ export default function App() {
     if (activeNavItem === "home") {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <HomeView 
-            appointments={effectiveAppointments} 
+          <HomeView
+            appointments={effectiveAppointments}
             selectedSalon={selectedSalon}
             salons={effectiveSalons}
             onSelectSalon={handleSelectSalon}
@@ -1053,7 +1057,7 @@ export default function App() {
     if (activeNavItem === "salons") {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <SalonsManagementView 
+          <SalonsManagementView
             salons={effectiveSalons}
             onAddSalon={handleAddSalon}
             onEditSalon={handleEditSalon}
@@ -1106,7 +1110,7 @@ export default function App() {
               <>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-3">
                   <h2>Lista de Turnos</h2>
-                  <Button 
+                  <Button
                     onClick={() => {
                       setEditingAppointment(null);
                       setDialogOpen(true);
@@ -1154,15 +1158,15 @@ export default function App() {
       <>
         <Sonner theme={theme} position="top-right" />
         <Suspense fallback={<div className="p-8 text-center">Cargando...</div>}>
-          <LoginView onLogin={() => { 
-            if (signInAsDemo) signInAsDemo(); 
-            else toast.error('Demo no disponible'); 
+          <LoginView onLogin={() => {
+            if (signInAsDemo) signInAsDemo();
+            else toast.error('Demo no disponible');
           }} />
         </Suspense>
       </>
     );
   }
-  
+
 
   return (
     <>
@@ -1284,7 +1288,7 @@ export default function App() {
             handleCancelAppointment(selectedAppointment.id);
           }
         }}
-        onDelete={handleDeleteSelectedAppointment}
+        onDelete={handleDeleteAppointment}
         onReschedule={({ date, time, openPicker }) => {
           if (!selectedAppointment) return;
           // Si se pidió abrir picker, reutilizamos AppointmentDialog
@@ -1339,7 +1343,7 @@ export default function App() {
       )}
 
       {/* Onboarding Modal */}
-      <OnboardingModal 
+      <OnboardingModal
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
       />
@@ -1354,7 +1358,3 @@ export default function App() {
     </>
   );
 }
-
-
-
-

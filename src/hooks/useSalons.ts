@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import supabase from '../lib/supabase';
 
 export type UISalon = {
@@ -7,6 +7,7 @@ export type UISalon = {
   address: string;
   image: string;
   staff?: string[];
+  services?: { id: string; name: string; price: number; durationMinutes: number }[];
 };
 
 type DBSalon = {
@@ -19,14 +20,32 @@ type DBSalon = {
   active?: boolean | null;
 };
 
-function mapDBToUI(s: DBSalon): UISalon {
+type DBService = {
+  id: string;
+  org_id: string;
+  name: string;
+  base_price: number;
+  duration_minutes: number;
+  active: boolean;
+};
+
+function mapDBToUI(s: DBSalon, services: DBService[]): UISalon {
+  // Filtrar servicios de esta org
+  const salonServices = services
+    .filter(svc => svc.org_id === s.org_id && svc.active)
+    .map(svc => ({
+      id: svc.id,
+      name: svc.name,
+      price: svc.base_price,
+      durationMinutes: svc.duration_minutes,
+    }));
+
   return {
     id: String(s.id),
     name: s.name,
     address: s.address || '',
-    // Fallback a una imagen conocida del proyecto
     image: '/imagenlogin.jpg',
-    // services vendrán por separado desde la DB; default vacío
+    services: salonServices,
     staff: [],
   };
 }
@@ -37,36 +56,88 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
   const [error, setError] = useState<Error | null>(null);
   const enabled = options?.enabled ?? true;
 
-  useEffect(() => {
-    let active = true;
-    const fetchSalons = async () => {
-      if (!enabled || !orgId) {
-        setSalons([]);
-        return;
-      }
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('salons')
-          .select('id, org_id, name, address, phone, timezone, active')
-          .eq('org_id', orgId)
-          .order('name');
-        if (error) throw error as any;
-        if (!active) return;
-        setSalons((data || []).map(mapDBToUI));
-      } catch (e) {
-        if (!active) return;
-        setError(e instanceof Error ? e : new Error('Unknown error'));
-        setSalons([]);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    fetchSalons();
-    return () => {
-      active = false;
-    };
+  const fetchSalons = useCallback(async () => {
+    if (!enabled || !orgId) {
+      setSalons([]);
+      return;
+    }
+    try {
+      setLoading(true);
+
+      // Cargar salones
+      const { data: salonsData, error: salonsError } = await supabase
+        .from('salons')
+        .select('id, org_id, name, address, phone, timezone, active')
+        .eq('org_id', orgId)
+        .order('name');
+
+      if (salonsError) throw salonsError as any;
+
+      // Cargar servicios de la org
+            const { data: servicesData, error: servicesError } = await supabase
+              .from('services')
+              .select('id, org_id, name, base_price, duration_minutes, active')
+              .eq('org_id', orgId);
+
+      if (servicesError) throw servicesError as any;
+
+      const mappedSalons = (salonsData || []).map(s =>
+        mapDBToUI(s, (servicesData || []) as DBService[])
+      );
+      setSalons(mappedSalons);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error('Unknown error'));
+      setSalons([]);
+    } finally {
+      setLoading(false);
+    }
   }, [orgId, enabled]);
 
-  return { salons, isLoading: loading, error };
+  useEffect(() => {
+    fetchSalons();
+  }, [fetchSalons]);
+
+  const createSalon = async (salonData: Omit<DBSalon, 'id'>) => {
+    const { data, error } = await supabase
+      .from('salons')
+      .insert([salonData])
+      .select()
+      .single();
+
+    if (error) throw error;
+    await fetchSalons();
+    return data;
+  };
+
+  const updateSalon = async (id: string, updates: Partial<DBSalon>) => {
+    const { data, error } = await supabase
+      .from('salons')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    await fetchSalons();
+    return data;
+  };
+
+  const deleteSalon = async (id: string) => {
+    const { error } = await supabase
+      .from('salons')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    await fetchSalons();
+  };
+
+  return {
+    salons,
+    isLoading: loading,
+    error,
+    createSalon,
+    updateSalon,
+    deleteSalon
+  };
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, lazy, Suspense } from "react";
+import React, { useMemo } from "react";
 import { 
   DollarSign, 
   TrendingUp, 
@@ -20,9 +20,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-const BarChartComponent = lazy(() => import("./FinancesCharts").then((m) => ({ default: m.BarChartComponent })));
-const AreaChartComponent = lazy(() => import("./FinancesCharts").then((m) => ({ default: m.AreaChartComponent })));
-const PieChartComponent = lazy(() => import("./FinancesCharts").then((m) => ({ default: m.PieChartComponent })));
+import { lazy, Suspense } from "react";
+
+const BarChartComponent = lazy(() => import("./FinancesCharts").then(m => ({ default: m.BarChartComponent })));
+const AreaChartComponent = lazy(() => import("./FinancesCharts").then(m => ({ default: m.AreaChartComponent })));
+const PieChartComponent = lazy(() => import("./FinancesCharts").then(m => ({ default: m.PieChartComponent })));
 import { Appointment } from "../AppointmentCard";
 import { toast } from "sonner";
 
@@ -110,7 +112,7 @@ const COLORS = [
   '#10b981', // emerald-500
 ];
 
-export function FinancesView({ appointments, selectedSalon, salonName = "Ninguna peluquería seleccionada" }: FinancesViewProps) {
+function FinancesView({ appointments, selectedSalon, salonName = "Ninguna peluquería seleccionada" }: FinancesViewProps) {
   const metrics = useMemo(() => {
     const salonAppointments = !selectedSalon 
       ? [] 
@@ -778,3 +780,5 @@ export function FinancesView({ appointments, selectedSalon, salonName = "Ninguna
     </div>
   );
 }
+
+export default FinancesView;

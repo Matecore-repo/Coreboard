@@ -16,7 +16,7 @@ interface LoginViewProps {
   onLogin: () => void;
 }
 
-export function LoginView({ onLogin }: LoginViewProps) {
+function LoginView({ onLogin }: LoginViewProps) {
   const { signInAsDemo, signIn, signUp, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -216,3 +216,5 @@ export function LoginView({ onLogin }: LoginViewProps) {
     </div>
   );
 }
+
+export default LoginView;

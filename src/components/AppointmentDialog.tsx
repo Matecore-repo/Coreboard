@@ -10,7 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Appointment } from "./AppointmentCard";
+import { useSalonEmployees } from "../hooks/useSalonEmployees";
+import { useSalonServices } from "../hooks/useSalonServices";
+import { Appointment as FullAppointment } from "../types";
 
 interface Salon {
   id: string;
@@ -24,8 +26,8 @@ interface Salon {
 interface AppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (appointment: Partial<Appointment>) => void;
-  appointment?: Appointment | null;
+  onSave: (appointment: Partial<FullAppointment>) => void;
+  appointment?: FullAppointment | null;
   salonId: string | null;
   salons: Salon[];
 }
@@ -38,39 +40,82 @@ export function AppointmentDialog({
   salonId,
   salons,
 }: AppointmentDialogProps) {
-  const [formData, setFormData] = useState<Partial<Appointment>>({
-    clientName: "",
-    service: "",
-    date: "",
-    time: "",
-    stylist: "",
+  // Si no hay salonId especificado, usar el primer salón disponible
+  const defaultSalonId = salonId || (salons && salons.length > 0 ? salons[0].id : "");
+
+  const [formData, setFormData] = useState<Partial<FullAppointment>>({
+    client_name: "",
+    starts_at: "",
+    stylist_id: "",
     status: "pending",
-    salonId: salonId || "1",
+    salon_id: defaultSalonId,
+    service_id: "",
+    total_amount: 0,
+    created_by: "",
   });
+
+  // Estado local para fecha y hora separados
+  const [dateInput, setDateInput] = useState("");
+  const [timeInput, setTimeInput] = useState("");
+
+  // Helper to get date and time from starts_at
+  const getDateTimeFromStartsAt = (startsAt: string) => {
+    if (!startsAt) return { date: "", time: "" };
+    const date = new Date(startsAt);
+    return {
+      date: date.toISOString().split('T')[0],
+      time: date.toTimeString().slice(0, 5)
+    };
+  };
+
+  // Helper to combine date and time into starts_at
+  const combineDateTime = (date: string, time: string) => {
+    if (!date || !time) return "";
+    return `${date}T${time}:00`;
+  };
+
+  // Update starts_at when date or time changes
+  useEffect(() => {
+    if (dateInput && timeInput) {
+      const startsAt = combineDateTime(dateInput, timeInput);
+      setFormData(prev => ({ ...prev, starts_at: startsAt }));
+    }
+  }, [dateInput, timeInput]);
+
+  const currentSalonId = formData.salon_id || salonId || undefined;
+  const { assignments: salonEmployees, isLoading: loadingEmployees } = useSalonEmployees(currentSalonId, { enabled: open });
+  const { services: salonServices, loading: loadingServices } = useSalonServices(currentSalonId, { enabled: open });
 
   useEffect(() => {
     if (appointment) {
+      const { date, time } = getDateTimeFromStartsAt(appointment.starts_at || "");
+      setDateInput(date);
+      setTimeInput(time);
       setFormData({
-        clientName: appointment.clientName || "",
-        service: appointment.service || "",
-        date: appointment.date || "",
-        time: appointment.time || "",
-        stylist: appointment.stylist || "",
+        client_name: appointment.client_name || "",
+        starts_at: appointment.starts_at || "",
+        stylist_id: appointment.stylist_id || "",
         status: appointment.status || "pending",
-        salonId: appointment.salonId || salonId || "1",
+        salon_id: appointment.salon_id || defaultSalonId,
+        service_id: appointment.service_id || "",
+        total_amount: appointment.total_amount || 0,
+        created_by: appointment.created_by || "",
       });
     } else {
+      setDateInput("");
+      setTimeInput("");
       setFormData({
-        clientName: "",
-        service: "",
-        date: "",
-        time: "",
-        stylist: "",
+        client_name: "",
+        starts_at: "",
+        stylist_id: "",
         status: "pending",
-        salonId: salonId || "1",
+        salon_id: defaultSalonId,
+        service_id: "",
+        total_amount: 0,
+        created_by: "",
       });
     }
-  }, [appointment, open, salonId]);
+  }, [appointment, open, salonId, defaultSalonId]);
 
   const handleSave = () => {
     onSave(formData);
@@ -93,11 +138,11 @@ export function AppointmentDialog({
 
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="salonId">Peluquería</Label>
+            <Label htmlFor="salon_id">Peluquería</Label>
             <Select
-              value={formData.salonId}
+              value={formData.salon_id}
               onValueChange={(value) =>
-                setFormData({ ...formData, salonId: value })
+                setFormData({ ...formData, salon_id: value })
               }
             >
               <SelectTrigger>
@@ -114,12 +159,12 @@ export function AppointmentDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="clientName">Nombre del Cliente</Label>
+            <Label htmlFor="client_name">Nombre del cliente</Label>
             <Input
-              id="clientName"
-              value={formData.clientName}
+              id="client_name"
+              value={formData.client_name}
               onChange={(e) =>
-                setFormData({ ...formData, clientName: e.target.value })
+                setFormData({ ...formData, client_name: e.target.value })
               }
               placeholder="Juan Pérez"
             />
@@ -128,30 +173,27 @@ export function AppointmentDialog({
           <div className="grid gap-2">
             <Label htmlFor="service">Servicio</Label>
             <Select
-              value={formData.service}
+              value={formData.service_id}
               onValueChange={(value) =>
-                setFormData({ ...formData, service: value })
+                setFormData({ ...formData, service_id: value })
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar servicio" />
               </SelectTrigger>
               <SelectContent>
-                {/* Mostrar servicios pasados vía props salons[].services si existen */}
-                {salons && salons.length > 0 && salons.find(s => s.id === (formData.salonId || salonId))?.services ? (
-                  (salons.find(s => s.id === (formData.salonId || salonId))?.services || []).map((svc: any) => (
-                    <SelectItem key={svc.id} value={svc.name}>{svc.name}</SelectItem>
+                {loadingServices ? (
+                  <SelectItem value="loading" disabled>Cargando servicios...</SelectItem>
+                ) : !currentSalonId ? (
+                  <SelectItem value="no-salon" disabled>Selecciona una sucursal primero</SelectItem>
+                ) : salonServices.length > 0 ? (
+                  salonServices.map((svc) => (
+                    <SelectItem key={svc.service_id} value={svc.service_id}>
+                      {svc.service_name} - ${svc.price_override || svc.base_price}
+                    </SelectItem>
                   ))
                 ) : (
-                  // Fallback a opciones genéricas si no hay servicios reales
-                  <>
-                    <SelectItem value="Corte">Corte</SelectItem>
-                    <SelectItem value="Coloración">Coloración</SelectItem>
-                    <SelectItem value="Peinado">Peinado</SelectItem>
-                    <SelectItem value="Tratamiento">Tratamiento</SelectItem>
-                    <SelectItem value="Barba">Barba</SelectItem>
-                    <SelectItem value="Mechas">Mechas</SelectItem>
-                  </>
+                  <SelectItem value="no-services" disabled>No hay servicios asignados a esta sucursal</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -163,10 +205,8 @@ export function AppointmentDialog({
               <Input
                 id="date"
                 type="date"
-                value={formData.date}
-                onChange={(e) =>
-                  setFormData({ ...formData, date: e.target.value })
-                }
+                value={dateInput}
+                onChange={(e) => setDateInput(e.target.value)}
               />
             </div>
 
@@ -175,10 +215,8 @@ export function AppointmentDialog({
               <Input
                 id="time"
                 type="time"
-                value={formData.time}
-                onChange={(e) =>
-                  setFormData({ ...formData, time: e.target.value })
-                }
+                value={timeInput}
+                onChange={(e) => setTimeInput(e.target.value)}
               />
             </div>
           </div>
@@ -186,19 +224,29 @@ export function AppointmentDialog({
           <div className="grid gap-2">
             <Label htmlFor="stylist">Estilista</Label>
             <Select
-              value={formData.stylist}
+              value={formData.stylist_id}
               onValueChange={(value) =>
-                setFormData({ ...formData, stylist: value })
+                setFormData({ ...formData, stylist_id: value })
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar estilista" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="María García">María García</SelectItem>
-                <SelectItem value="Carlos López">Carlos López</SelectItem>
-                <SelectItem value="Ana Martínez">Ana Martínez</SelectItem>
-                <SelectItem value="Roberto Silva">Roberto Silva</SelectItem>
+                {loadingEmployees ? (
+                  <SelectItem value="loading-employees" disabled>Cargando empleados...</SelectItem>
+                ) : salonEmployees.length > 0 ? (
+                  salonEmployees.map((assignment) => (
+                    <SelectItem
+                      key={assignment.employee_id}
+                      value={assignment.employee_id}
+                    >
+                      {assignment.employees?.full_name || `Empleado ${assignment.employee_id.substring(0, 8)}`}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-employees" disabled>No hay empleados asignados a este salón</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

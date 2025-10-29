@@ -2,11 +2,12 @@ export type Appointment = {
   id: string;
   org_id: string;
   salon_id: string;
-  client_id?: string;
+  service_id: string;
+  stylist_id?: string;
   client_name: string;
-  employee_id?: string;
-  date: string;
-  time: string;
+  client_phone?: string;
+  client_email?: string;
+  starts_at: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   total_amount: number;
   notes?: string;
@@ -18,12 +19,14 @@ export type Appointment = {
 export type Client = {
   id: string;
   org_id: string;
-  name: string;
+  full_name: string;
   phone?: string;
   email?: string;
   notes?: string;
+  marketing_opt_in?: boolean;
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
 };
 
 export type Commission = {
@@ -61,7 +64,7 @@ export type Service = {
   description?: string;
   base_price: number;
   duration_minutes: number;
-  is_active: boolean;
+  active: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -70,13 +73,34 @@ export type Employee = {
   id: string;
   org_id: string;
   user_id?: string;
-  name: string;
+  full_name: string;
   email?: string;
   phone?: string;
-  commission_rate: number;
-  is_active: boolean;
+  role: 'owner' | 'admin' | 'employee';
+  default_commission_pct: number;
+  active: boolean;
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
+};
+
+export type SalonService = {
+  id: string;
+  salon_id: string;
+  service_id: string;
+  price_override?: number;
+  duration_override?: number;
+  active: boolean;
+  created_at: string;
+};
+
+export type SalonEmployee = {
+  id: string;
+  salon_id: string;
+  employee_id: string;
+  active: boolean;
+  assigned_at: string;
+  assigned_by: string;
 };
 
 export type Membership = {

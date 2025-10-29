@@ -30,7 +30,7 @@ interface HomeViewProps {
   isNewUser?: boolean;
 }
 
-export function HomeView({ appointments, selectedSalon, salons, onSelectSalon, onAppointmentClick, onAddAppointment, orgName, isNewUser }: HomeViewProps) {
+export default function HomeView({ appointments, selectedSalon, salons, onSelectSalon, onAppointmentClick, onAddAppointment, orgName, isNewUser }: HomeViewProps) {
   const [showInviteModal, setShowInviteModal] = useState(false);
   
   // HomeView muestra información del peluquero, no filtra por salón

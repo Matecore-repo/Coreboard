@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { User, Calendar, Phone, Download } from "lucide-react";
 import { Appointment } from "../AppointmentCard";
 import { GenericActionBar } from "../GenericActionBar";
+import { EmptyStateClients } from "../empty-states/EmptyStateClients";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
@@ -14,7 +15,7 @@ interface ClientsViewProps {
   selectedSalon: string | null;
 }
 
-export function ClientsView({ appointments, selectedSalon }: ClientsViewProps) {
+function ClientsView({ appointments, selectedSalon }: ClientsViewProps) {
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editedClientName, setEditedClientName] = useState("");
@@ -187,8 +188,24 @@ export function ClientsView({ appointments, selectedSalon }: ClientsViewProps) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {clients.map((client) => (
+        {clients.length === 0 ? (
+          <EmptyStateClients
+            onAddClient={() => {
+              // TODO: implement add client
+              toast.info("Agregar cliente próximamente");
+            }}
+            onImportClients={() => {
+              // TODO: implement import
+              toast.info("Importar clientes próximamente");
+            }}
+            onSyncContacts={() => {
+              // TODO: implement sync
+              toast.info("Sincronizar contactos próximamente");
+            }}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {clients.map((client) => (
             <div
               key={client.name}
               onClick={() => setSelectedClient(client.name)}
@@ -221,11 +238,6 @@ export function ClientsView({ appointments, selectedSalon }: ClientsViewProps) {
               </div>
             </div>
           ))}
-        </div>
-
-        {clients.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            No hay clientes registrados
           </div>
         )}
 
@@ -304,3 +316,5 @@ export function ClientsView({ appointments, selectedSalon }: ClientsViewProps) {
     </div>
   );
 }
+
+export default ClientsView;

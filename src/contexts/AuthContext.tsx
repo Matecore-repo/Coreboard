@@ -83,6 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      // Obtener perfil del usuario para current_org_id guardado
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('raw_app_meta_data')
+        .eq('id', userId)
+        .single();
+
       const { data: memberships, error } = await supabase
         .from('memberships')
         .select('org_id, role, is_primary')
@@ -102,11 +109,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isNewUser = !memberships || memberships.length === 0;
       const primaryOrg = memberships?.find(m => m.is_primary) || memberships?.[0];
 
+      // Usar current_org_id guardado, o primary org, o primera membresía
+      const savedOrgId = profile?.raw_app_meta_data?.current_org_id;
+      const currentOrgId = savedOrgId || primaryOrg?.org_id;
+
       const userData: User = {
         id: authUser.id,
         email: authUser.email,
         memberships: memberships || [],
-        current_org_id: primaryOrg?.org_id,
+        current_org_id: currentOrgId,
         isNewUser,
       };
 
@@ -343,6 +354,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Refrescar memberships después del claim
       if (session?.user) {
         await fetchUserMemberships(session.user.id, session.user);
+
+        // Si se reclamó una invitación y se obtuvo una organización, guardarla como current_org_id
+        if (data.organization_id) {
+          await supabase
+            .from('profiles')
+            .update({ raw_app_meta_data: { current_org_id: data.organization_id } })
+            .eq('id', session.user.id);
+        }
       }
 
       return data;
@@ -351,8 +370,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const switchOrganization = (org_id: string) => {
+  const switchOrganization = async (org_id: string) => {
     if (user) {
+      // Guardar en BD para que persista
+      await supabase
+        .from('profiles')
+        .update({ raw_app_meta_data: { current_org_id: org_id } })
+        .eq('id', user.id);
+
       setUser({ ...user, current_org_id: org_id });
     }
   };

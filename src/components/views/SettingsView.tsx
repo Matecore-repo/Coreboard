@@ -4,7 +4,7 @@ import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import { toast } from "sonner";
 
-export function SettingsView() {
+function SettingsView() {
   const handleSaveSettings = () => {
     toast.success("Configuración guardada correctamente");
   };
@@ -106,3 +106,5 @@ export function SettingsView() {
     </div>
   );
 }
+
+export default SettingsView;
