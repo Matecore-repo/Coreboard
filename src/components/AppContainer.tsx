@@ -271,24 +271,45 @@ export default function AppContainer() {
               services: s.services || []
             })) || []}
             onAddSalon={async (salon) => {
-              if (currentOrgId) {
-                await createSalon({
-                  org_id: currentOrgId,
-                  name: salon.name,
-                  address: salon.address,
-                  phone: salon.phone,
-                  active: true
-                });
+              try {
+                if (currentOrgId) {
+                  const result = await createSalon({
+                    org_id: currentOrgId,
+                    name: salon.name,
+                    address: salon.address,
+                    phone: salon.phone || '',
+                    active: true
+                  });
+                  console.log('✅ Salón creado:', result);
+                } else {
+                  console.error('❌ currentOrgId no disponible');
+                }
+              } catch (error) {
+                console.error('❌ Error creando salón:', error);
+                throw error;
               }
             }}
             onEditSalon={async (id, updates) => {
-              await updateSalon(id, {
-                name: updates.name,
-                address: updates.address,
-                phone: updates.phone
-              });
+              try {
+                await updateSalon(id, {
+                  name: updates.name,
+                  address: updates.address,
+                  phone: updates.phone
+                });
+              } catch (error) {
+                console.error('❌ Error editando salón:', error);
+                throw error;
+              }
             }}
-            onDeleteSalon={deleteSalon}
+            onDeleteSalon={async (id) => {
+              try {
+                await deleteSalon(id);
+                console.log('✅ Salón eliminado:', id);
+              } catch (error) {
+                console.error('❌ Error eliminando salón:', error);
+                throw error;
+              }
+            }}
           />
         );
       case "organization":
