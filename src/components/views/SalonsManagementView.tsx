@@ -135,19 +135,19 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     };
 
     if (editingSalon) {
-      onEditSalon(editingSalon.id, dataToSave);
+      await onEditSalon(editingSalon.id, dataToSave);
       toast.success("Peluquería actualizada correctamente");
     } else {
-      onAddSalon(dataToSave);
+      await onAddSalon(dataToSave);
       toast.success("Peluquería creada correctamente");
     }
     setDialogOpen(false);
   }, [formData, imagePreview, editingSalon, onAddSalon, onEditSalon]);
 
   const handleDelete = useCallback(
-    (salon: Salon) => {
+    async (salon: Salon) => {
       if (confirm('¿Estás seguro de eliminar "' + salon.name + '"?')) {
-        onDeleteSalon(salon.id);
+        await onDeleteSalon(salon.id);
         toast.success("Peluquería eliminada");
         setSelectedSalon(null);
       }
