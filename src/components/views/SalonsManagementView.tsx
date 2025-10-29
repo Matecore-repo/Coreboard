@@ -121,7 +121,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     setFormData((prev) => ({ ...prev, image: "" }));
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!formData.name.trim() || !formData.address.trim()) {
       toast.error("Por favor completa los campos requeridos (Nombre y Dirección)");
       return;
