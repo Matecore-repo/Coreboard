@@ -1,41 +1,50 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import supabase from '../lib/supabase';
-import { Appointment as GlobalAppointment } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { Appointment as FullAppointment } from '../types';
+import { demoStore } from '../demo/store';
+import { isValidUUID } from '../lib/uuid';
 
-export type Appointment = GlobalAppointment;
+export interface Appointment {
+  id: string;
+  clientName: string;
+  service: string;
+  date: string;
+  time: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  stylist: string;
+  salonId: string;
+}
 
 function mapRowToAppointment(row: any): Appointment {
+  const startsAt = row.starts_at ? new Date(row.starts_at) : new Date();
+  const date = startsAt.toISOString().split('T')[0];
+  const time = startsAt.toTimeString().slice(0, 5);
+
   return {
-    id: String(row.id),
-    org_id: String(row.org_id),
-    salon_id: String(row.salon_id),
-    service_id: String(row.service_id),
-    stylist_id: row.stylist_id,
-    client_name: row.client_name ?? '',
-    client_phone: row.client_phone,
-    client_email: row.client_email,
-    starts_at: row.starts_at ?? '',
-    status: row.status ?? 'pending',
-    total_amount: Number(row.total_amount) || 0,
-    notes: row.notes,
-    created_by: String(row.created_by),
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    id: row.id,
+    clientName: row.client_name || '',
+    service: row.service_id || '',
+    date,
+    time,
+    status: row.status || 'pending',
+    stylist: row.stylist_id || '',
+    salonId: row.salon_id || '',
   };
 }
 
 function mapAppointmentToRow(payload: Partial<Appointment>) {
+  const startsAt = payload.date && payload.time 
+    ? `${payload.date}T${payload.time}:00`
+    : undefined;
+
   return {
-    org_id: payload.org_id,
-    salon_id: payload.salon_id,
-    service_id: payload.service_id,
-    stylist_id: payload.stylist_id,
-    client_name: payload.client_name,
-    client_phone: payload.client_phone,
-    client_email: payload.client_email,
-    starts_at: payload.starts_at,
+    client_name: payload.clientName,
+    service_id: payload.service || null,
+    starts_at: startsAt,
     status: payload.status,
-    total_amount: payload.total_amount,
+    stylist_id: payload.stylist || null,
+    salon_id: payload.salonId,
     notes: payload.notes,
     created_by: payload.created_by,
   };
@@ -46,16 +55,29 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
   const [loading, setLoading] = useState(false);
   const enabled = options?.enabled ?? true;
   const subscribed = useRef(false);
+  const { isDemo, user, currentOrgId } = useAuth() as any;
 
   const fetchAppointments = useCallback(async () => {
     if (!enabled) return;
     setLoading(true);
     try {
+      if (isDemo) {
+        const data = await demoStore.appointments.list(salonId);
+        setAppointments(data as Appointment[]);
+        return;
+      }
+
+      if (salonId && !isValidUUID(salonId)) {
+        setAppointments([]);
+        return;
+      }
+
       const base = supabase
         .from('appointments')
         .select('id, org_id, salon_id, service_id, stylist_id, client_name, client_phone, client_email, starts_at, status, total_amount, notes, created_by, created_at, updated_at');
-            const { data, error } = salonId ? await base.eq('salon_id', salonId).order('starts_at') : await base.order('starts_at');
+      const { data, error } = salonId ? await base.eq('salon_id', salonId).order('starts_at') : await base.order('starts_at');
       if (error) {
+        console.error('Error fetching appointments:', error);
         setAppointments([]);
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToAppointment);
@@ -64,47 +86,90 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     } finally {
       setLoading(false);
     }
-  }, [salonId, enabled]);
+  }, [salonId, enabled, isDemo]);
 
   useEffect(() => {
     if (!enabled) return;
     fetchAppointments();
-    if (subscribed.current) return;
-    const subscription = supabase
-      .channel('app:appointments')
-      .on('postgres_changes', { event: '*', schema: 'app', table: 'appointments' }, () => {
-        fetchAppointments();
-      })
-      .subscribe();
-    subscribed.current = true;
-    return () => {
-      try { subscription.unsubscribe(); } catch {}
-      subscribed.current = false;
-    };
+    // Commenting out subscriptions temporarily to avoid infinite loops
+    // if (isDemo || subscribed.current) return;
+    // const subscription = supabase
+    //   .channel('app:appointments')
+    //   .on('postgres_changes', { event: '*', schema: 'app', table: 'appointments' }, () => {
+    //     fetchAppointments();
+    //   })
+    //   .subscribe();
+    // subscribed.current = true;
+    // return () => {
+    //   try { subscription.unsubscribe(); } catch {}
+    //   subscribed.current = false;
+    // };
   }, [fetchAppointments, enabled]);
 
-  const createAppointment = async (payload: Partial<Appointment>) => {
-    const toInsert = mapAppointmentToRow(payload);
-    const { data, error } = await supabase.from('appointments').insert([toInsert]).select();
+  const createAppointment = async (appointmentData: Partial<Appointment>) => {
+    if (!salonId || (!isDemo && !isValidUUID(salonId))) {
+      throw new Error('Salón inválido');
+    }
+    if (isDemo) {
+      const newApt: Appointment = {
+        id: Date.now().toString(),
+        ...appointmentData as Appointment,
+      };
+      setAppointments(prev => [newApt, ...prev]);
+      return newApt;
+    }
+    const row = {
+      ...mapAppointmentToRow({ ...appointmentData, salonId }),
+      org_id: currentOrgId || null,
+      created_by: user?.id || null,
+    } as any;
+    const { data, error } = await supabase
+      .from('appointments')
+      .insert([row])
+      .select()
+      .single();
+
     if (error) throw error;
     await fetchAppointments();
-    return data;
+    return mapRowToAppointment(data);
   };
 
   const updateAppointment = async (id: string, updates: Partial<Appointment>) => {
-    const toUpdate = mapAppointmentToRow(updates);
-    const { data, error } = await supabase.from('appointments').update(toUpdate).eq('id', id).select();
+    if (isDemo) {
+      setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, ...updates } : apt));
+      return;
+    }
+    const row = mapAppointmentToRow(updates);
+    const { error } = await supabase
+      .from('appointments')
+      .update(row)
+      .eq('id', id);
+
     if (error) throw error;
     await fetchAppointments();
-    return data;
   };
 
   const deleteAppointment = async (id: string) => {
-    const { error } = await supabase.from('appointments').delete().eq('id', id);
+    if (isDemo) {
+      setAppointments(prev => prev.filter(apt => apt.id !== id));
+      return;
+    }
+    const { error } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', id);
+
     if (error) throw error;
     await fetchAppointments();
   };
 
-  return { appointments, loading, fetchAppointments, createAppointment, updateAppointment, deleteAppointment };
+  return {
+    appointments,
+    isLoading: loading,
+    fetchAppointments,
+    createAppointment,
+    updateAppointment,
+    deleteAppointment,
+  };
 }
 

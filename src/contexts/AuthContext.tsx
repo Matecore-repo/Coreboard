@@ -1,9 +1,11 @@
-﻿﻿import React, { createContext, useContext, useEffect, useState } from 'react';
+﻿﻿import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
+import { useRouter } from 'next/router';
+import { DEMO_ORG_ID, DEMO_USER_EMAIL, DEMO_USER_ID, DEMO_FEATURE_FLAG } from '../demo/constants';
 
 // Demo mode: si está activado, no hacer requests reales
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+const isDemoModeFlag = DEMO_FEATURE_FLAG;
 
 // Gestión segura de localStorage
 const safeLocalStorage = {
@@ -51,6 +53,7 @@ type AuthContextValue = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isDemo: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, signupToken?: string) => Promise<void>;
   signInAsDemo: () => void;
@@ -67,24 +70,30 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const DEMO_ORG_ID = 'demo-org-00000000000000000000';
-const DEMO_USER_ID = 'demo-user-000000000000000000';
+const STORAGE_KEYS = {
+  session: 'sb-session',
+  currentOrg: 'sb-current-org',
+  selectedSalon: 'sb-selected-salon',
+} as const;
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const isDemoUser = user?.id === DEMO_USER_ID;
+  const isDemo = isDemoModeFlag || isDemoUser;
 
   // Obtener membresías del usuario
-  const fetchUserMemberships = async (userId: string, authUser: SupabaseUser): Promise<void> => {
+  const fetchUserMemberships = useCallback(async (userId: string, authUser: SupabaseUser): Promise<string | null> => {
     // En modo demo, no hacer queries reales
-    if (isDemoMode) {
-      return;
+    if (isDemoModeFlag) {
+      return null;
     }
 
     try {
       // Obtener perfil del usuario para current_org_id guardado
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('raw_app_meta_data')
         .eq('id', userId)
@@ -103,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           memberships: [],
           isNewUser: true
         });
-        return;
+        return null;
       }
 
       const isNewUser = !memberships || memberships.length === 0;
@@ -122,17 +131,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setUser(userData);
+      if (currentOrgId) {
+        safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, currentOrgId);
+      } else {
+        safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
+      }
+      return currentOrgId || null;
     } catch (e) {
       console.error('Error al construir contexto de usuario:', e);
       setUser(null);
+      safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
+      return null;
     }
-  };
+  }, []);
+
+  const handleSignedOut = useCallback(() => {
+    safeLocalStorage.removeItem(STORAGE_KEYS.session);
+    safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
+    safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+    setUser(null);
+    setSession(null);
+    router.push('/login');
+  }, [router]);
+
+  const handleSignedIn = useCallback(async (newSession: Session | null) => {
+    if (!newSession?.user) {
+      handleSignedOut();
+      return;
+    }
+
+    setSession(newSession);
+    safeLocalStorage.setItem(STORAGE_KEYS.session, JSON.stringify(newSession));
+    await fetchUserMemberships(newSession.user.id, newSession.user as SupabaseUser);
+    router.push('/dashboard');
+  }, [handleSignedOut, router, fetchUserMemberships]);
 
   // Restaurar sesión y escuchar cambios de autenticación
   useEffect(() => {
+    let isMounted = true;
     const restoreSession = async () => {
       // En modo demo, no restaurar sesiones reales
-      if (isDemoMode) {
+      if (isDemoModeFlag) {
         setLoading(false);
         return;
       }
@@ -140,42 +179,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session: activeSession } } = await supabase.auth.getSession();
 
-        if (activeSession?.user) {
-          setSession(activeSession);
-          await fetchUserMemberships(activeSession.user.id, activeSession.user);
+        if (isMounted && activeSession?.user) {
+          await handleSignedIn(activeSession);
+        } else if (isMounted) {
+          setUser(null);
+          setSession(null);
         }
       } catch (e) {
         console.error('Error al restaurar sesión:', e);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     restoreSession();
 
     // Escuchar cambios de autenticación (solo si no es demo mode)
-    const { data: listener } = isDemoMode ? { subscription: { unsubscribe: () => {} } } as any : supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setSession(null);
-        safeLocalStorage.removeItem('sb-session');
-      } else if (newSession?.user) {
-        setSession(newSession);
-        safeLocalStorage.setItem('sb-session', JSON.stringify(newSession));
-        await fetchUserMemberships(newSession.user.id, newSession.user);
-      } else {
-        setUser(null);
-        setSession(null);
-      }
-    });
+    const { data: listener } = isDemoModeFlag
+      ? ({ subscription: { unsubscribe: () => {} } } as any)
+      : supabase.auth.onAuthStateChange(async (event, newSession) => {
+          if (!isMounted) return;
+          if (event === 'SIGNED_OUT') {
+            handleSignedOut();
+          } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            await handleSignedIn(newSession ?? null);
+          }
+        });
 
     return () => {
+      isMounted = false;
       listener?.subscription?.unsubscribe?.();
     };
-  }, []);
+  }, [handleSignedIn, handleSignedOut]);
 
   const signIn = async (email: string, password: string): Promise<void> => {
-    if (isDemoMode) {
+    if (isDemoModeFlag) {
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
@@ -198,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string, signupToken?: string): Promise<void> => {
-    if (isDemoMode) {
+    if (isDemoModeFlag) {
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
@@ -279,21 +317,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInAsDemo = () => {
     setUser({
       id: DEMO_USER_ID,
-      email: 'demo@coreboard.local',
+      email: DEMO_USER_EMAIL,
       memberships: [{ org_id: DEMO_ORG_ID, role: 'owner' }],
       current_org_id: DEMO_ORG_ID,
     });
     setSession(null);
-    safeLocalStorage.setItem('sb-session', JSON.stringify({ user: { id: DEMO_USER_ID, email: 'demo@coreboard.local' } }));
+    safeLocalStorage.setItem(STORAGE_KEYS.session, JSON.stringify({ user: { id: DEMO_USER_ID, email: DEMO_USER_EMAIL } }));
+    safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, DEMO_ORG_ID);
+    safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+    router.push('/dashboard');
   };
 
   const signOut = async (): Promise<void> => {
+    if (isDemoModeFlag || isDemoUser) {
+      handleSignedOut();
+      return;
+    }
+
     try {
       await supabase.auth.signOut();
-    } finally {
-      safeLocalStorage.removeItem('sb-session');
-      setUser(null);
-      setSession(null);
+      handleSignedOut();
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      handleSignedOut();
     }
   };
 
@@ -340,7 +386,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const claimInvitation = async (token: string): Promise<{ organization_id: string; role: string }> => {
-    if (isDemoMode) {
+    if (isDemoModeFlag) {
       throw new Error('Modo demo: no se pueden reclamar invitaciones reales');
     }
 
@@ -372,22 +418,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchOrganization = async (org_id: string) => {
     if (user) {
+      if (isDemo) {
+        safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, org_id);
+        setUser({ ...user, current_org_id: org_id });
+        safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+        return;
+      }
       // Guardar en BD para que persista
       await supabase
         .from('profiles')
         .update({ raw_app_meta_data: { current_org_id: org_id } })
         .eq('id', user.id);
 
+      safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, org_id);
       setUser({ ...user, current_org_id: org_id });
+      safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
     }
   };
 
   const createOrganization = async (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }): Promise<void> => {
     if (!user) throw new Error('Usuario no autenticado');
 
-    const isDemoUser = user.email === 'demo@coreboard.local' || !session || isDemoMode;
-    if (isDemoUser) {
+    const isDemoUserMode = user.email === DEMO_USER_EMAIL || !session || isDemoModeFlag;
+    if (isDemoUserMode) {
       setUser(prev => (prev ? { ...prev, isNewUser: false } : prev));
+      safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, DEMO_ORG_ID);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('demo:create-org', {
@@ -449,6 +504,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       session,
       loading,
+      isDemo,
       signIn,
       signUp,
       signInAsDemo,

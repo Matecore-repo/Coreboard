@@ -42,44 +42,8 @@ import SettingsView from "./views/SettingsView";
 import SalonsManagementView from "./views/SalonsManagementView";
 import EmployeesView from "./views/EmployeesView";
 import OrganizationView from "./views/OrganizationView";
-import LoginView from "./views/LoginView";
 
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-
-const sampleSalons = [
-  {
-    id: "1",
-    name: "Studio Elegance",
-    address: "Av. Corrientes 1234, CABA",
-    image:
-      "https://images.unsplash.com/photo-1562322140-8baeececf3df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBoYWlyJTIwc2Fsb24lMjBpbnRlcmlvcnxlbnwxfHx8fDE3NTk5Mzg0NDh8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    staff: ["Maria Garcia", "Ana Martinez", "Laura Fernandez"],
-  },
-  {
-    id: "2",
-    name: "Barber Shop Premium",
-    address: "Av. Santa Fe 3456, CABA",
-    image:
-      "https://images.unsplash.com/photo-1629881544138-c45fc917eb81?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYXJiZXJzaG9wJTIwY2hhaXJ8ZW58MXx8fHwxNzU5OTM4NDQ4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    staff: ["Roberto Silva", "Diego Romero", "Carlos Lopez"],
-  },
-  {
-    id: "3",
-    name: "Beauty Salon Luxe",
-    address: "Av. Callao 789, CABA",
-    image:
-      "https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiZWF1dHklMjBzYWxvbnxlbnwxfHx8fDE3NTk5Mzg0NDh8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    staff: ["Patricia Gomez", "Laura Fernandez"],
-  },
-  {
-    id: "4",
-    name: "Hair Studio Pro",
-    address: "Av. Cabildo 2345, CABA",
-    image:
-      "https://images.unsplash.com/photo-1562322140-8baeececf3df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoYWlyJTIwc3R5bGlzdHxlbnwxfHx8fDE3NTk5Mzg0NDh8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    staff: ["Carlos Lopez", "Ana Martinez"],
-  },
-];
+const isDemoModeEnv = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 type ViewKey =
   | "home"
@@ -166,6 +130,7 @@ export default function AppContainer() {
     currentOrgId,
     currentRole,
     signOut,
+    isDemo,
   } = useAuth();
   const { salons, createSalon, updateSalon, deleteSalon } = useSalons(currentOrgId ?? undefined);
   const [activeView, setActiveView] = useState("home");
@@ -187,6 +152,10 @@ export default function AppContainer() {
     setActiveView(view);
   }, []);
 
+  const handleSelectSalon = useCallback((id: string, _name: string) => {
+    setSelectedSalon((prev) => (prev === id ? null : id));
+  }, []);
+
   const handleLogout = useCallback(async () => {
     try {
       await signOut();
@@ -196,18 +165,18 @@ export default function AppContainer() {
   }, [signOut]);
 
   React.useEffect(() => {
-    if (user && !currentOrgId && !isDemoMode) {
+    if (user && !currentOrgId && !isDemo) {
       setShowOnboarding(true);
     } else {
       setShowOnboarding(false);
     }
-  }, [user, currentOrgId]);
+  }, [user, currentOrgId, isDemo]);
 
   React.useEffect(() => {
-    if (isDemoMode && user && !session?.user?.user_metadata?.demo_seen) {
+    if ((isDemoModeEnv || isDemo) && user && !session?.user?.user_metadata?.demo_seen) {
       setShowDemoWelcome(true);
     }
-  }, [isDemoMode, user, session]);
+  }, [isDemoModeEnv, isDemo, user, session]);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -218,12 +187,17 @@ export default function AppContainer() {
     setShowDemoWelcome(false);
   };
 
+  const normalizedSalons = (salons || []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    address: s.address || '',
+    image: s.image || '/imagenlogin.jpg',
+    staff: s.staff || [],
+    services: s.services || [],
+  }));
+
   if (!user) {
-    return (
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Cargando...</div>}>
-        <LoginView onLogin={() => {}} />
-      </Suspense>
-    );
+    return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
   }
 
   if (showOnboarding) {
@@ -245,8 +219,8 @@ export default function AppContainer() {
           <HomeView
             appointments={[]}
             selectedSalon={selectedSalon}
-            salons={sampleSalons}
-            onSelectSalon={setSelectedSalon}
+            salons={normalizedSalons}
+            onSelectSalon={handleSelectSalon}
             onAppointmentClick={() => {}}
             onAddAppointment={() => setActiveView("appointments")}
             orgName="Tu Peluqueria"
@@ -262,35 +236,21 @@ export default function AppContainer() {
       case "salons":
         return (
           <SalonsManagementView
-            salons={salons?.map(s => ({
-              id: s.id,
-              name: s.name,
-              address: s.address || '',
-              image: '/imagenlogin.jpg',
-              staff: [],
-              services: s.services || []
-            })) || []}
+            salons={normalizedSalons}
             onAddSalon={async (salon) => {
-              console.log('🟡 onAddSalon llamado con:', salon);
               try {
-                console.log('🟡 currentOrgId:', currentOrgId);
-                console.log('🟡 createSalon disponible:', typeof createSalon);
                 if (currentOrgId) {
-                  console.log('🟡 Llamando createSalon...');
-                  const result = await createSalon({
+                  await createSalon({
                     org_id: currentOrgId,
                     name: salon.name,
                     address: salon.address,
                     phone: salon.phone || '',
                     active: true
                   });
-                  console.log('✅ Salón creado:', result);
                 } else {
-                  console.error('❌ currentOrgId no disponible');
                   throw new Error('currentOrgId no disponible');
                 }
               } catch (error) {
-                console.error('❌ Error creando salón:', error);
                 throw error;
               }
             }}
@@ -309,7 +269,6 @@ export default function AppContainer() {
             onDeleteSalon={async (id) => {
               try {
                 await deleteSalon(id);
-                console.log('✅ Salón eliminado:', id);
               } catch (error) {
                 console.error('❌ Error eliminando salón:', error);
                 throw error;
@@ -318,7 +277,7 @@ export default function AppContainer() {
           />
         );
       case "organization":
-        return <OrganizationView isDemo={isDemoMode} />;
+        return <OrganizationView isDemo={isDemo} />;
       case "finances":
         return (
           <FinancesView appointments={[]} selectedSalon={selectedSalon} />
@@ -330,8 +289,8 @@ export default function AppContainer() {
           <HomeView
             appointments={[]}
             selectedSalon={selectedSalon}
-            salons={sampleSalons}
-            onSelectSalon={setSelectedSalon}
+            salons={normalizedSalons}
+            onSelectSalon={handleSelectSalon}
             onAppointmentClick={() => {}}
             onAddAppointment={() => {}}
             orgName="Tu Peluqueria"
@@ -413,7 +372,7 @@ export default function AppContainer() {
           </main>
         </SidebarInset>
 
-        {isDemoMode && (
+        {isDemoModeEnv && (
           <DemoDataBubble
             onSeed={() => {
               console.log("Seeding demo data...");

@@ -48,11 +48,11 @@ const RECOMMENDED_SERVICES: Array<{ key: string; name: string; base_price: numbe
 
 function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }: SalonsManagementViewProps) {
   const { currentOrgId } = useAuth();
+  const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
   const { services: allServices, createService: createOrgService, isLoading: servicesLoading } = useServices(currentOrgId ?? undefined);
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalon, setEditingSalon] = useState<Salon | null>(null);
-  const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
   const { services: salonServices, assignService, unassignService, updateServiceAssignment } = useSalonServices(selectedSalon?.id);
   const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
   const [serviceActionId, setServiceActionId] = useState<string | null>(null);
@@ -430,7 +430,12 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
               }
             }}>
               <DialogTrigger asChild>
-                <Button size="sm" onClick={() => setServiceDialogOpen(true)}>
+                <Button
+                  size="sm"
+                  onClick={() => setServiceDialogOpen(true)}
+                  disabled={!selectedSalon}
+                  className={!selectedSalon ? "pointer-events-none opacity-60" : undefined}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Asignar Servicio
                 </Button>
@@ -444,6 +449,9 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 </DialogHeader>
 
                 <div className="space-y-4">
+                  {servicesLoading && (
+                    <div className="text-sm text-muted-foreground">Cargando servicios disponibles…</div>
+                  )}
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Servicios recomendados</h4>
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -490,6 +498,9 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                   <div className="border rounded-lg p-3 bg-muted/20">
                     <h4 className="text-sm font-semibold mb-2">Crear servicio personalizado</h4>
                     <form className="grid gap-3" onSubmit={handleCustomServiceSubmit}>
+                      {serviceActionId === "custom" && (
+                        <p className="text-xs text-muted-foreground">Creando servicio…</p>
+                      )}
                       <div className="grid gap-2">
                         <Label htmlFor="custom-service-name">Nombre</Label>
                         <Input
@@ -525,12 +536,12 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                           />
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button type="submit" size="sm" disabled={serviceActionId === "custom"}>
-                          {serviceActionId === "custom" ? "Creando..." : "Crear y asignar"}
-                        </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={resetCustomService}>
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={resetCustomService}>
                           Limpiar
+                        </Button>
+                        <Button type="submit" disabled={serviceActionId === "custom"}>
+                          {serviceActionId === "custom" ? "Procesando..." : "Guardar y asignar"}
                         </Button>
                       </div>
                     </form>

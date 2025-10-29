@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useEmployees, CreateEmployeeData } from '../../hooks/useEmployees';
+import { useEmployees } from '../../hooks/useEmployees';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,10 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from '../ui/badge';
 import { EmptyStateEmployees } from '../empty-states/EmptyStateEmployees';
 import { toast } from 'sonner';
-import { Users, UserPlus, Mail, Phone, DollarSign, Edit3, Trash2, Plus } from 'lucide-react';
+import { Users, UserPlus, Mail, Phone, DollarSign, Edit3, Trash2, Plus, Building2 } from 'lucide-react';
+import { EmptyState } from '../ui/empty-state';
 
 const EmployeesView: React.FC = () => {
-  const { currentOrgId } = useAuth();
+  const { currentOrgId, isDemo } = useAuth();
   const { employees, isLoading, createEmployee, updateEmployee, deleteEmployee } = useEmployees(currentOrgId ?? undefined);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -81,6 +82,20 @@ const EmployeesView: React.FC = () => {
     setFormData({ full_name: '', email: '', phone: '', default_commission_pct: 50.0 });
     setDialogOpen(true);
   };
+
+  if (!currentOrgId && !isDemo) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon={Building2}
+          title="Seleccioná una organización"
+          description="Crea o elegí una organización para gestionar tu equipo."
+          actionLabel="Crear organización"
+          onAction={() => toast.info('Creación de organización próximamente')}
+        />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

@@ -26,6 +26,17 @@ export function SalonCarousel({
     <div className="relative px-4">
       <Carousel className="w-full" opts={{ align: 'start', containScroll: 'trimSnaps', loop: false }}>
         <CarouselContent className="-ml-3">
+          {/* Virtual card for All salons */}
+          <CarouselItem key="all" className="pl-3 md:basis-1/2 lg:basis-1/3">
+            <SalonCard
+              name="Todas"
+              address="Todas las peluquerías"
+              image="/imagenlogin.jpg"
+              onClick={() => onSelectSalon('all', 'Todas')}
+              isSelected={selectedSalon === 'all' || selectedSalon === null}
+              isDimmed={hasSelection && selectedSalon !== 'all'}
+            />
+          </CarouselItem>
           {salons.map((salon) => (
             <CarouselItem key={salon.id} className="pl-3 md:basis-1/2 lg:basis-1/3">
               <SalonCard

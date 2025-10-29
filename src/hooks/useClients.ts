@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import supabase from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { demoStore } from '../demo/store';
+import { isValidUUID } from '../lib/uuid';
 
 export type Organization = {
   id: string;
@@ -21,10 +23,11 @@ export type Client = {
 };
 
 export const useOrganizations = () => {
-  const { user } = useAuth();
+  const { user, isDemo } = useAuth();
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
 
   useEffect(() => {
     if (!user?.id) {
@@ -35,7 +38,13 @@ export const useOrganizations = () => {
     const fetchOrgs = async () => {
       try {
         setLoading(true);
-        
+        if (isDemo) {
+          const org = await demoStore.organization.get();
+          setOrgs([org]);
+          setError(null);
+          return;
+        }
+
         // Primero obtener las membresías del usuario
         const { data: memberships, error: membershipsErr } = await supabase
           .from('memberships')
@@ -59,6 +68,7 @@ export const useOrganizations = () => {
         if (orgsErr) throw orgsErr;
 
         setOrgs(organizations || []);
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error'));
       } finally {
@@ -67,13 +77,13 @@ export const useOrganizations = () => {
     };
 
     fetchOrgs();
-  }, [user?.id]);
+  }, [user?.id, isDemo]);
 
   return { orgs, loading, error };
 };
 
 export const useClients = (orgId?: string) => {
-  const { currentOrgId } = useAuth();
+  const { currentOrgId, isDemo } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -88,6 +98,17 @@ export const useClients = (orgId?: string) => {
 
     try {
       setLoading(true);
+      if (!isDemo && !isValidUUID(org_id)) {
+        setClients([]);
+        setError(null);
+        return;
+      }
+      if (isDemo) {
+        const demoClients = await demoStore.clients.list(org_id);
+        setClients(demoClients as Client[]);
+        setError(null);
+        return;
+      }
       const { data, error: err } = await supabase
         .from('clients')
         .select('*')
@@ -97,12 +118,13 @@ export const useClients = (orgId?: string) => {
 
       if (err) throw err;
       setClients(data || []);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setLoading(false);
     }
-  }, [org_id]);
+  }, [org_id, isDemo]);
 
   useEffect(() => {
     fetchClients();
@@ -110,6 +132,12 @@ export const useClients = (orgId?: string) => {
 
   const createClient = async (client: Omit<Client, 'id' | 'created_at'>) => {
     if (!org_id) throw new Error('No organization selected');
+    if (!isDemo && !isValidUUID(org_id)) throw new Error('Organización inválida');
+    if (isDemo) {
+      const created = await demoStore.clients.create(org_id, client);
+      await fetchClients();
+      return created;
+    }
 
     const { data, error: err } = await supabase
       .from('clients')
@@ -122,6 +150,12 @@ export const useClients = (orgId?: string) => {
   };
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
+    if (!isDemo && !isValidUUID(org_id ?? '')) throw new Error('Organización inválida');
+    if (isDemo) {
+      const updated = await demoStore.clients.update(id, updates);
+      await fetchClients();
+      return updated;
+    }
     const { data, error: err } = await supabase
       .from('clients')
       .update(updates)
@@ -134,6 +168,12 @@ export const useClients = (orgId?: string) => {
   };
 
   const deleteClient = async (id: string) => {
+    if (!isDemo && !isValidUUID(org_id ?? '')) throw new Error('Organización inválida');
+    if (isDemo) {
+      await demoStore.clients.remove(id);
+      await fetchClients();
+      return;
+    }
     const { error: err } = await supabase
       .from('clients')
       .update({ deleted_at: new Date().toISOString() })

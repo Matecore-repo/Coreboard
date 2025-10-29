@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import supabase from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { demoStore } from '../demo/store';
+import { isValidUUID } from '../lib/uuid';
 
 export type Employee = {
   id: string;
@@ -23,14 +26,26 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
   const [error, setError] = useState<Error | null>(null);
   const enabled = options?.enabled ?? true;
   const subscribed = useRef(false);
+  const { isDemo } = useAuth();
 
   const fetchEmployees = useCallback(async () => {
     if (!enabled || !orgId) {
       setEmployees([]);
       return;
     }
+    if (!isDemo && !isValidUUID(orgId)) {
+      setEmployees([]);
+      return;
+    }
     setLoading(true);
     try {
+      if (isDemo) {
+        const demoEmployees = await demoStore.employees.list(orgId);
+        setEmployees(demoEmployees as Employee[]);
+        setError(null);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('employees')
         .select(`
@@ -53,17 +68,18 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
 
       if (error) throw error;
       setEmployees(data || []);
+      setError(null);
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Unknown error'));
       setEmployees([]);
     } finally {
       setLoading(false);
     }
-  }, [orgId, enabled]);
+  }, [orgId, enabled, isDemo]);
 
   useEffect(() => {
     fetchEmployees();
-    if (subscribed.current) return;
+    if (isDemo || subscribed.current) return;
     const subscription = supabase
       .channel('app:employees')
       .on('postgres_changes', { event: '*', schema: 'app', table: 'employees' }, () => {
@@ -78,6 +94,15 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
   }, [fetchEmployees]);
 
   const createEmployee = async (employeeData: CreateEmployeeData) => {
+    if (!orgId || (!isDemo && !isValidUUID(orgId))) {
+      throw new Error('Organización inválida');
+    }
+    if (isDemo && orgId) {
+      const { org_id: _ignored, ...rest } = employeeData as any;
+      const created = await demoStore.employees.create(orgId, rest);
+      await fetchEmployees();
+      return created;
+    }
     const { data, error } = await supabase
       .from('employees')
       .insert([employeeData])
@@ -90,6 +115,14 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
   };
 
   const updateEmployee = async (id: string, updates: Partial<Employee>) => {
+    if (!isDemo && (!orgId || !isValidUUID(orgId))) {
+      throw new Error('Organización inválida');
+    }
+    if (isDemo) {
+      const updated = await demoStore.employees.update(id, updates);
+      await fetchEmployees();
+      return updated;
+    }
     const { data, error } = await supabase
       .from('employees')
       .update(updates)
@@ -103,6 +136,14 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
   };
 
   const deleteEmployee = async (id: string) => {
+    if (!isDemo && (!orgId || !isValidUUID(orgId))) {
+      throw new Error('Organización inválida');
+    }
+    if (isDemo) {
+      await demoStore.employees.remove(id);
+      await fetchEmployees();
+      return;
+    }
     const { error } = await supabase
       .from('employees')
       .delete()

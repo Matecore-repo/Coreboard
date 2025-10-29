@@ -81,38 +81,38 @@ export function CalendarView({ appointments, selectedSalon, focusDate, onAppoint
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Calendar Grid */}
-      <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-4">
+      <div className="lg:col-span-1 bg-card border border-border rounded-2xl p-3">
         {/* Calendar Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h3>
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <Button
               variant="outline"
               size="icon"
               onClick={previousMonth}
-              className="h-8 w-8 rounded-full"
+              className="h-6 w-6 rounded-full"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3 w-3" />
             </Button>
             <Button
               variant="outline"
               size="icon"
               onClick={nextMonth}
-              className="h-8 w-8 rounded-full"
+              className="h-6 w-6 rounded-full"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3 w-3" />
             </Button>
           </div>
         </div>
 
         {/* Day names */}
-        <div className="grid grid-cols-7 gap-2 mb-2">
+        <div className="grid grid-cols-7 gap-1 mb-1">
           {dayNames.map((day) => (
             <div
               key={day}
-              className="text-center text-muted-foreground p-2"
+              className="text-center text-muted-foreground text-xs p-1"
             >
               {day}
             </div>
@@ -120,7 +120,7 @@ export function CalendarView({ appointments, selectedSalon, focusDate, onAppoint
         </div>
 
         {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1">
           {/* Empty cells for days before month starts */}
           {Array.from({ length: firstDayOfMonth }).map((_, index) => (
             <div key={`empty-${index}`} className="aspect-square" />
@@ -136,7 +136,7 @@ export function CalendarView({ appointments, selectedSalon, focusDate, onAppoint
               <button
                 key={day}
                 onClick={() => setSelectedDay(day)}
-                className={`aspect-square rounded-xl p-2 transition-all relative ${
+                className={`aspect-square rounded-lg p-1 transition-all relative text-xs ${
                   isToday(day)
                     ? "bg-primary text-primary-foreground"
                     : selectedDay === day
@@ -146,7 +146,7 @@ export function CalendarView({ appointments, selectedSalon, focusDate, onAppoint
                     : "hover:bg-muted/30"
                 }`}
               >
-                <span className="text-sm">{day}</span>
+                <span className="text-xs font-medium">{day}</span>
                 {hasAppointments && (
                   <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
                     {dayAppointments.slice(0, 3).map((apt, i) => (
@@ -172,42 +172,42 @@ export function CalendarView({ appointments, selectedSalon, focusDate, onAppoint
       </div>
 
       {/* Day Details */}
-      <div className="bg-card border border-border rounded-2xl p-4 flex flex-col max-h-[600px]">
-        <h3 className="mb-4">
+      <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-3 flex flex-col max-h-[500px]">
+        <h3 className="mb-3 text-sm font-semibold">
           {selectedDay
             ? `${selectedDay} de ${monthNames[currentDate.getMonth()]}`
             : "Selecciona un día"}
         </h3>
 
         {selectedDayAppointments.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="text-center py-6 text-muted-foreground text-sm">
             No hay turnos para este día
           </div>
         ) : (
-          <div className="space-y-3 flex-1 overflow-y-auto">
+          <div className="space-y-2 flex-1 overflow-y-auto">
             {selectedDayAppointments
               .sort((a, b) => a.time.localeCompare(b.time))
               .map((appointment) => (
                 <div
                   key={appointment.id}
                   onClick={() => onAppointmentClick?.(appointment)}
-                  className="p-3 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors cursor-pointer"
+                  className="p-2 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{appointment.clientName}</span>
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3 text-muted-foreground" />
+                      <span className="font-medium text-sm">{appointment.clientName}</span>
                     </div>
                     <Badge className={`${statusColors[appointment.status]} text-xs`}>
                       {appointment.status}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <Clock className="h-3.5 w-3.5" />
+                  <div className="flex items-center gap-1 text-muted-foreground mb-0.5 text-xs">
+                    <Clock className="h-3 w-3" />
                     <span>{appointment.time}</span>
                   </div>
-                  <p className="text-muted-foreground">{appointment.service}</p>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">{appointment.service}</p>
+                  <p className="text-muted-foreground text-xs">
                     {appointment.stylist}
                   </p>
                 </div>

@@ -14,8 +14,9 @@ function createSupabaseClient(): SupabaseClient {
   }
   _client = createClient(url, key, {
     auth: {
-      persistSession: false,
-      detectSessionInUrl: false,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
     },
   });
   return _client;

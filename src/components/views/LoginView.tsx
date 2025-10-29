@@ -12,11 +12,7 @@ import ThemeBubble from "../../components/ThemeBubble";
 const salonImagePublic = "/imagenlogin.jpg";
 const salonImageAsset = "/imagenlogin.jpg";
 
-interface LoginViewProps {
-  onLogin: () => void;
-}
-
-function LoginView({ onLogin }: LoginViewProps) {
+function LoginView() {
   const { signInAsDemo, signIn, signUp, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -83,9 +79,9 @@ function LoginView({ onLogin }: LoginViewProps) {
   const handleForceLogin = () => {
     if (typeof signInAsDemo === "function") {
       signInAsDemo();
-      return;
+    } else {
+      toast.error("Demo no disponible en este entorno");
     }
-    onLogin();
   };
 
   const actionButtonClass = (forMode: "login" | "register" | "reset") =>

@@ -22,7 +22,7 @@ const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
 const OrganizationView = lazy(() => import("./components/views/OrganizationView"));
-const LoginView = lazy(() => import("./components/views/LoginView"));
+const ProfileView = lazy(() => import("./components/views/ProfileView"));
 import { Button } from "./components/ui/button";
 import { ScrollArea } from "./components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "./components/ui/avatar";
@@ -604,13 +604,12 @@ const sampleAppointments: DemoAppointment[] = [
 ];
 
 export default function App() {
-  const { user, session, signOut, signInAsDemo, currentRole, currentOrgId } = useAuth() as any;
-  const isAuthenticated = !!user;
+  const { user, session, signOut, currentRole, currentOrgId, isDemo } = useAuth() as any;
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Log inicial del componente
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
+  const [selectedSalon, setSelectedSalon] = useState<string | null>('all');
   // Demo/local state
   const [salons, setSalons] = useState<Salon[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -622,14 +621,10 @@ export default function App() {
 
   // Remote data via Supabase (only after login)
   const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment } = useDbAppointments(
-    selectedSalon ?? undefined,
-    { enabled: !!session && !!selectedSalon }
+    selectedSalon === 'all' ? undefined : (selectedSalon ?? undefined),
+    { enabled: !!session }
   );
   const { salons: remoteSalons, createSalon: createRemoteSalon, updateSalon: updateRemoteSalon, deleteSalon: deleteRemoteSalon } = useDbSalons(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId });
-
-  const isDemo = user?.email === 'demo@coreboard.local';
-
-
 
   const effectiveAppointments: Appointment[] = isDemo ? appointments : (remoteAppointments as any);
   const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
@@ -679,15 +674,9 @@ export default function App() {
   }, []);
 
   const handleSelectSalon = useCallback((salonId: string, salonName: string) => {
-    // Si se hace click en el salon ya seleccionado, desseleccionar
-    if (selectedSalon === salonId) {
-      setSelectedSalon(null);
-      toast.info("Selección removida");
-    } else {
-      setSelectedSalon(salonId);
-      toast.success(`${salonName} seleccionado`);
-    }
-  }, [selectedSalon]);
+    setSelectedSalon(salonId);
+    toast.success(`${salonName} seleccionado`);
+  }, []);
 
   const getSelectedSalonName = () => {
     if (!selectedSalon) return "Ninguna peluquería seleccionada";
@@ -779,7 +768,12 @@ export default function App() {
         setEditingAppointment(null);
         toast.success("Turno actualizado correctamente");
       } else {
-        await (createAppointment as any)({ ...appointmentData, salonId: appointmentData.salonId || selectedSalon || undefined });
+        const salonToUse = appointmentData.salonId || selectedSalon;
+        if (!salonToUse) {
+          toast.error('Debes seleccionar una peluquería');
+          return;
+        }
+        await (createAppointment as any)({ ...appointmentData, salonId: salonToUse });
         toast.success("Turno creado correctamente");
       }
     } catch (e) {
@@ -952,6 +946,7 @@ export default function App() {
     { id: "home", label: "Inicio", icon: Home, allowed: ['admin','owner','employee','demo'] },
     { id: "appointments", label: "Turnos", icon: Calendar, allowed: ['admin','owner','employee'] },
     { id: "clients", label: "Clientes", icon: Users, allowed: ['admin','owner','employee'] },
+    { id: "profile", label: "Mi Perfil", icon: Users, allowed: ['admin','owner','employee'] },
     { id: "organization", label: "Organización", icon: Users, allowed: ['admin','owner','employee'] },
     { id: "salons", label: "Peluquerías", icon: Building2, allowed: ['admin','owner'] },
     { id: "finances", label: "Finanzas", icon: DollarSign, allowed: ['admin','owner'] },
@@ -965,7 +960,7 @@ export default function App() {
     // Respect existing allowed lists but also support stricter filtering for 'employee'
     const allowedFiltered = allNavItems.filter(item => !item.allowed || item.allowed.includes(role));
     if (role === 'employee') {
-      return allowedFiltered.filter(it => ['home','appointments','clients'].includes(it.id));
+      return allowedFiltered.filter(it => ['home','appointments','clients','profile'].includes(it.id));
     }
     return allowedFiltered;
   }, [currentRole, isDemo]);
@@ -1012,10 +1007,10 @@ export default function App() {
                   setMobileMenuOpen(false);
                 }
               }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-colors ${
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-[background-color] duration-150 will-change-colors ${
                 activeNavItem === item.id
                   ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
+                  : "hover:bg-muted text-sidebar-foreground"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -1105,6 +1100,13 @@ export default function App() {
         </Suspense>
       );
     }
+    if (activeNavItem === "profile") {
+      return (
+        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
+          <ProfileView />
+        </Suspense>
+      );
+    }
     if (activeNavItem === "settings") {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
@@ -1183,22 +1185,6 @@ export default function App() {
       setShowOnboarding(true);
     }
   }, [user?.isNewUser, showOnboarding]);
-
-  // Show login if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <>
-        <Sonner theme={theme} position="top-right" />
-        <Suspense fallback={<div className="p-8 text-center">Cargando...</div>}>
-          <LoginView onLogin={() => {
-            if (signInAsDemo) signInAsDemo();
-            else toast.error('Demo no disponible');
-          }} />
-        </Suspense>
-      </>
-    );
-  }
-
 
   return (
     <>

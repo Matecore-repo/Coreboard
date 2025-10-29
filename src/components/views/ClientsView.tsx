@@ -10,9 +10,11 @@ import { Badge } from '../ui/badge';
 import { EmptyStateClients } from '../empty-states/EmptyStateClients';
 import { toast } from 'sonner';
 import { Trash2, Edit3, Plus } from 'lucide-react';
+import { EmptyState } from '../ui/empty-state';
+import { Building2 } from 'lucide-react';
 
 const ClientsView: React.FC = () => {
-  const { currentOrgId } = useAuth();
+  const { currentOrgId, isDemo } = useAuth();
   const { clients, loading: hooksLoading, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -112,6 +114,20 @@ const ClientsView: React.FC = () => {
     setFormData({ full_name: '', phone: '', email: '' });
     setDialogOpen(true);
   };
+
+  if (!currentOrgId && !isDemo) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon={Building2}
+          title="Seleccioná una organización"
+          description="Para gestionar clientes necesitás elegir o crear una organización."
+          actionLabel="Crear organización"
+          onAction={() => toast.info('Creación de organización próximamente')}
+        />
+      </div>
+    );
+  }
 
   if (displayLoading) {
     return <div className="p-6 text-center text-muted-foreground">Cargando clientes...</div>;

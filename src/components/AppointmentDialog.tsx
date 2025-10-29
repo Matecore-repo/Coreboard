@@ -12,7 +12,7 @@ import {
 } from "./ui/select";
 import { useSalonEmployees } from "../hooks/useSalonEmployees";
 import { useSalonServices } from "../hooks/useSalonServices";
-import { Appointment as FullAppointment } from "../types";
+import { Appointment } from "../hooks/useAppointments";
 
 interface Salon {
   id: string;
@@ -26,8 +26,8 @@ interface Salon {
 interface AppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (appointment: Partial<FullAppointment>) => void;
-  appointment?: FullAppointment | null;
+  onSave: (appointment: Partial<Appointment>) => void;
+  appointment?: Appointment | null;
   salonId: string | null;
   salons: Salon[];
 }
@@ -40,84 +40,55 @@ export function AppointmentDialog({
   salonId,
   salons,
 }: AppointmentDialogProps) {
-  // Si no hay salonId especificado, usar el primer salón disponible
-  const defaultSalonId = salonId || (salons && salons.length > 0 ? salons[0].id : "");
+  const defaultSalonId = (salonId && salonId !== 'all') ? salonId : (salons && salons.length > 0 ? salons[0].id : "");
 
-  const [formData, setFormData] = useState<Partial<FullAppointment>>({
-    client_name: "",
-    starts_at: "",
-    stylist_id: "",
+  const [formData, setFormData] = useState<Partial<Appointment>>({
+    clientName: "",
+    date: "",
+    time: "",
     status: "pending",
-    salon_id: defaultSalonId,
-    service_id: "",
-    total_amount: 0,
-    created_by: "",
+    salonId: defaultSalonId,
+    service: "",
+    stylist: "",
   });
 
-  // Estado local para fecha y hora separados
-  const [dateInput, setDateInput] = useState("");
-  const [timeInput, setTimeInput] = useState("");
-
-  // Helper to get date and time from starts_at
-  const getDateTimeFromStartsAt = (startsAt: string) => {
-    if (!startsAt) return { date: "", time: "" };
-    const date = new Date(startsAt);
-    return {
-      date: date.toISOString().split('T')[0],
-      time: date.toTimeString().slice(0, 5)
-    };
-  };
-
-  // Helper to combine date and time into starts_at
-  const combineDateTime = (date: string, time: string) => {
-    if (!date || !time) return "";
-    return `${date}T${time}:00`;
-  };
-
-  // Update starts_at when date or time changes
-  useEffect(() => {
-    if (dateInput && timeInput) {
-      const startsAt = combineDateTime(dateInput, timeInput);
-      setFormData(prev => ({ ...prev, starts_at: startsAt }));
-    }
-  }, [dateInput, timeInput]);
-
-  const currentSalonId = formData.salon_id || salonId || undefined;
-  const { assignments: salonEmployees, isLoading: loadingEmployees } = useSalonEmployees(currentSalonId, { enabled: open });
-  const { services: salonServices, loading: loadingServices } = useSalonServices(currentSalonId, { enabled: open });
+  const currentSalonId = (formData.salonId || salonId || undefined) === 'all' ? undefined : (formData.salonId || salonId || undefined);
+  const { assignments: salonEmployees, isLoading: loadingEmployees } = useSalonEmployees(currentSalonId, { enabled: open && !!currentSalonId });
+  const { services: salonServices, loading: loadingServices } = useSalonServices(currentSalonId, { enabled: open && !!currentSalonId });
 
   useEffect(() => {
     if (appointment) {
-      const { date, time } = getDateTimeFromStartsAt(appointment.starts_at || "");
-      setDateInput(date);
-      setTimeInput(time);
       setFormData({
-        client_name: appointment.client_name || "",
-        starts_at: appointment.starts_at || "",
-        stylist_id: appointment.stylist_id || "",
+        clientName: appointment.clientName || "",
+        date: appointment.date || "",
+        time: appointment.time || "",
         status: appointment.status || "pending",
-        salon_id: appointment.salon_id || defaultSalonId,
-        service_id: appointment.service_id || "",
-        total_amount: appointment.total_amount || 0,
-        created_by: appointment.created_by || "",
+        salonId: appointment.salonId || defaultSalonId,
+        service: appointment.service || "",
+        stylist: appointment.stylist || "",
       });
     } else {
-      setDateInput("");
-      setTimeInput("");
       setFormData({
-        client_name: "",
-        starts_at: "",
-        stylist_id: "",
+        clientName: "",
+        date: "",
+        time: "",
         status: "pending",
-        salon_id: defaultSalonId,
-        service_id: "",
-        total_amount: 0,
-        created_by: "",
+        salonId: defaultSalonId,
+        service: "",
+        stylist: "",
       });
     }
   }, [appointment, open, salonId, defaultSalonId]);
 
   const handleSave = () => {
+    if (!formData.clientName || !formData.date || !formData.time) {
+      alert('Por favor completa todos los campos requeridos');
+      return;
+    }
+    if (!formData.salonId || formData.salonId === 'all') {
+      alert('Selecciona una peluquería');
+      return;
+    }
     onSave(formData);
     onOpenChange(false);
   };
@@ -140,9 +111,9 @@ export function AppointmentDialog({
           <div className="grid gap-2">
             <Label htmlFor="salon_id">Peluquería</Label>
             <Select
-              value={formData.salon_id}
+              value={formData.salonId}
               onValueChange={(value) =>
-                setFormData({ ...formData, salon_id: value })
+                setFormData({ ...formData, salonId: value })
               }
             >
               <SelectTrigger>
@@ -162,9 +133,9 @@ export function AppointmentDialog({
             <Label htmlFor="client_name">Nombre del cliente</Label>
             <Input
               id="client_name"
-              value={formData.client_name}
+              value={formData.clientName}
               onChange={(e) =>
-                setFormData({ ...formData, client_name: e.target.value })
+                setFormData({ ...formData, clientName: e.target.value })
               }
               placeholder="Juan Pérez"
             />
@@ -173,9 +144,9 @@ export function AppointmentDialog({
           <div className="grid gap-2">
             <Label htmlFor="service">Servicio</Label>
             <Select
-              value={formData.service_id}
+              value={formData.service || ""}
               onValueChange={(value) =>
-                setFormData({ ...formData, service_id: value })
+                setFormData({ ...formData, service: value })
               }
             >
               <SelectTrigger>
@@ -184,8 +155,6 @@ export function AppointmentDialog({
               <SelectContent>
                 {loadingServices ? (
                   <SelectItem value="loading" disabled>Cargando servicios...</SelectItem>
-                ) : !currentSalonId ? (
-                  <SelectItem value="no-salon" disabled>Selecciona una sucursal primero</SelectItem>
                 ) : salonServices.length > 0 ? (
                   salonServices.map((svc) => (
                     <SelectItem key={svc.service_id} value={svc.service_id}>
@@ -193,7 +162,7 @@ export function AppointmentDialog({
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="no-services" disabled>No hay servicios asignados a esta sucursal</SelectItem>
+                  <SelectItem value="no-services" disabled>No hay servicios asignados</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -205,8 +174,8 @@ export function AppointmentDialog({
               <Input
                 id="date"
                 type="date"
-                value={dateInput}
-                onChange={(e) => setDateInput(e.target.value)}
+                value={formData.date || ""}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               />
             </div>
 
@@ -215,24 +184,25 @@ export function AppointmentDialog({
               <Input
                 id="time"
                 type="time"
-                value={timeInput}
-                onChange={(e) => setTimeInput(e.target.value)}
+                value={formData.time || ""}
+                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
               />
             </div>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="stylist">Estilista</Label>
+            <Label htmlFor="stylist">Estilista (Opcional)</Label>
             <Select
-              value={formData.stylist_id}
+              value={formData.stylist || "none"}
               onValueChange={(value) =>
-                setFormData({ ...formData, stylist_id: value })
+                setFormData({ ...formData, stylist: value === "none" ? "" : value })
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar estilista" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">Sin asignar</SelectItem>
                 {loadingEmployees ? (
                   <SelectItem value="loading-employees" disabled>Cargando empleados...</SelectItem>
                 ) : salonEmployees.length > 0 ? (
@@ -244,9 +214,7 @@ export function AppointmentDialog({
                       {assignment.employees?.full_name || `Empleado ${assignment.employee_id.substring(0, 8)}`}
                     </SelectItem>
                   ))
-                ) : (
-                  <SelectItem value="no-employees" disabled>No hay empleados asignados a este salón</SelectItem>
-                )}
+                ) : null}
               </SelectContent>
             </Select>
           </div>
@@ -255,7 +223,7 @@ export function AppointmentDialog({
             <div className="grid gap-2">
               <Label htmlFor="status">Estado</Label>
               <Select
-                value={formData.status}
+                value={formData.status || "pending"}
                 onValueChange={(value: any) =>
                   setFormData({ ...formData, status: value })
                 }

@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import supabase from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { demoStore } from '../demo/store';
+import { isValidUUID } from '../lib/uuid';
 
 export type UISalon = {
   id: string;
@@ -55,17 +58,30 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const enabled = options?.enabled ?? true;
+  const { isDemo } = useAuth();
 
   const fetchSalons = useCallback(async () => {
     if (!enabled || !orgId) {
       setSalons([]);
       return;
     }
+    if (!isDemo && !isValidUUID(orgId)) {
+      setSalons([]);
+      return;
+    }
     try {
       setLoading(true);
-      console.log('🔵 fetchSalons iniciando para orgId:', orgId);
+      if (isDemo) {
+        const [demoSalons, demoServices] = await Promise.all([
+          demoStore.salons.list(orgId),
+          demoStore.services.list(orgId),
+        ]);
+        const mappedSalons = demoSalons.map(s => mapDBToUI(s as DBSalon, demoServices as DBService[]));
+        setSalons(mappedSalons);
+        setError(null);
+        return;
+      }
 
-      // Cargar salones (solo los no eliminados)
       const { data: salonsData, error: salonsError } = await supabase
         .from('salons')
         .select('id, org_id, name, address, phone, timezone, active')
@@ -74,60 +90,73 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
         .order('name');
 
       if (salonsError) {
-        console.error('🔴 Error salonsError:', salonsError);
         throw salonsError as any;
       }
-      console.log('🟢 fetchSalons exitoso, salones:', salonsData?.length);
 
-      // Cargar servicios de la org
-            const { data: servicesData, error: servicesError } = await supabase
-              .from('services')
-              .select('id, org_id, name, base_price, duration_minutes, active')
-              .eq('org_id', orgId)
-              .is('deleted_at', null);
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('id, org_id, name, base_price, duration_minutes, active')
+        .eq('org_id', orgId)
+        .is('deleted_at', null);
 
       if (servicesError) {
-        console.error('🔴 Error servicesError:', servicesError);
         throw servicesError as any;
       }
 
-      const mappedSalons = (salonsData || []).map(s =>
-        mapDBToUI(s, (servicesData || []) as DBService[])
-      );
+      const mappedSalons = (salonsData || []).map(s => mapDBToUI(s, (servicesData || []) as DBService[]));
       setSalons(mappedSalons);
+      setError(null);
     } catch (e) {
-      console.error('🔴 fetchSalons ERROR CRÍTICO:', e);
       setError(e instanceof Error ? e : new Error('Unknown error'));
       setSalons([]);
     } finally {
       setLoading(false);
     }
-  }, [orgId, enabled]);
+  }, [orgId, enabled, isDemo]);
 
   useEffect(() => {
-    fetchSalons();
-  }, [fetchSalons]);
+    if (enabled && orgId) {
+      fetchSalons();
+    }
+  }, [orgId, enabled]);
 
   const createSalon = async (salonData: Omit<DBSalon, 'id'>) => {
-    console.log('🟡 createSalon iniciando con datos:', salonData);
+    if (isDemo) {
+      const created = await demoStore.salons.create({
+        org_id: salonData.org_id,
+        name: salonData.name,
+        address: salonData.address ?? '',
+        phone: salonData.phone ?? undefined,
+        timezone: salonData.timezone ?? undefined,
+        active: salonData.active ?? true,
+      });
+      await fetchSalons();
+      return created;
+    }
     const { data, error } = await supabase
       .from('salons')
       .insert([salonData])
       .select()
       .single();
 
-    if (error) {
-      console.error('🔴 createSalon INSERT ERROR:', error);
-      throw error;
-    }
-    console.log('🟢 createSalon INSERT exitoso:', data);
-    console.log('🟡 createSalon llamando fetchSalons...');
+    if (error) throw error;
     await fetchSalons();
-    console.log('🟢 createSalon completado');
     return data;
   };
 
   const updateSalon = async (id: string, updates: Partial<DBSalon>) => {
+    if (isDemo) {
+      const sanitized = {
+        ...updates,
+        address: updates.address ?? undefined,
+        phone: updates.phone ?? undefined,
+        timezone: updates.timezone ?? undefined,
+        active: typeof updates.active === 'boolean' ? updates.active : undefined,
+      };
+      const updated = await demoStore.salons.update(id, sanitized);
+      await fetchSalons();
+      return updated;
+    }
     const { data, error } = await supabase
       .from('salons')
       .update(updates)
@@ -141,6 +170,11 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
   };
 
   const deleteSalon = async (id: string) => {
+    if (isDemo) {
+      await demoStore.salons.remove(id);
+      await fetchSalons();
+      return;
+    }
     // Usar soft delete: marcar deleted_at
     const { error } = await supabase
       .from('salons')
