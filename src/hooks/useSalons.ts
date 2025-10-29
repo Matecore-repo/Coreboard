@@ -64,11 +64,12 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
     try {
       setLoading(true);
 
-      // Cargar salones
+      // Cargar salones (solo los no eliminados)
       const { data: salonsData, error: salonsError } = await supabase
         .from('salons')
         .select('id, org_id, name, address, phone, timezone, active')
         .eq('org_id', orgId)
+        .is('deleted_at', null)
         .order('name');
 
       if (salonsError) throw salonsError as any;
@@ -77,7 +78,8 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
             const { data: servicesData, error: servicesError } = await supabase
               .from('services')
               .select('id, org_id, name, base_price, duration_minutes, active')
-              .eq('org_id', orgId);
+              .eq('org_id', orgId)
+              .is('deleted_at', null);
 
       if (servicesError) throw servicesError as any;
 
@@ -123,9 +125,10 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
   };
 
   const deleteSalon = async (id: string) => {
+    // Usar soft delete: marcar deleted_at
     const { error } = await supabase
       .from('salons')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) throw error;
