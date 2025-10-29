@@ -234,19 +234,28 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
     // Cargar invitaciones activas (solo si puede verlas)
     if (canCreateInvites) {
-      const { data: invites, error: invitesError } = await supabase
-        .from('invitations')
-        .select('*')
-        .eq('organization_id', orgId)
-        .is('used_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false });
+      try {
+        const now = new Date().toISOString();
+        const { data: invites, error: invitesError } = await supabase
+          .from('invitations')
+          .select('*')
+          .eq('organization_id', orgId)
+          .is('used_at', null)
+          .gt('expires_at', now)
+          .order('created_at', { ascending: false });
 
-      if (invitesError) {
-        console.warn('Error cargando invitaciones:', invitesError);
-      } else {
-        setInvitations(invites || []);
+        if (invitesError) {
+          console.warn('Error cargando invitaciones:', invitesError);
+          setInvitations([]);
+        } else {
+          setInvitations(invites || []);
+        }
+      } catch (err) {
+        console.warn('Exception loading invitations:', err);
+        setInvitations([]);
       }
+    } else {
+      setInvitations([]);
     }
   };
 
