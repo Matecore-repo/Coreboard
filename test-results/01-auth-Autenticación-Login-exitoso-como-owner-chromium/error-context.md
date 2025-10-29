@@ -1,0 +1,44 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications alt+T"
+    - generic [ref=e3]:
+      - button "Cambiar a modo oscuro" [ref=e4] [cursor=pointer]:
+        - img [ref=e5]
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - heading "Bienvenido de nuevo" [level=1] [ref=e11]
+          - paragraph [ref=e12]: Ingresa tus credenciales para acceder al sistema
+        - generic [ref=e13]:
+          - generic [ref=e14]:
+            - generic [ref=e15]: Email
+            - generic [ref=e16]:
+              - img [ref=e17]
+              - textbox "Email" [ref=e20]:
+                - /placeholder: tu@email.com
+                - text: iangel.oned@gmail.com
+          - generic [ref=e21]:
+            - generic [ref=e22]: Contraseña
+            - generic [ref=e23]:
+              - img [ref=e24]
+              - textbox "Contraseña" [active] [ref=e27]:
+                - /placeholder: ••••••••
+                - text: "123456"
+          - generic [ref=e28]:
+            - button "Iniciar sesión" [ref=e29] [cursor=pointer]
+            - button "Crear cuenta" [ref=e30] [cursor=pointer]
+            - button "Recuperar contraseña" [ref=e31] [cursor=pointer]
+          - button "Iniciar sesión" [ref=e32] [cursor=pointer]
+          - button "Explorar la app" [ref=e34] [cursor=pointer]: Explorar la app
+        - generic [ref=e35]:
+          - text: ¿No tienes cuenta?
+          - button "Regístrate aquí" [ref=e36] [cursor=pointer]
+      - generic [ref=e37]:
+        - img "Modern Hair Salon" [ref=e38]
+        - generic [ref=e40]:
+          - heading "Gestiona tu peluquería" [level=2] [ref=e41]
+          - paragraph [ref=e42]: Sistema completo de gestión de turnos, clientes y finanzas para profesionales del sector
+  - alert [ref=e43]
+```
