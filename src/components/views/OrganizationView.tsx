@@ -156,10 +156,40 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
     try {
       setLoading(true);
-      await loadOrgData(currentOrgId);
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (retries < maxRetries) {
+        try {
+          await loadOrgData(currentOrgId);
+          break;
+        } catch (error) {
+          retries++;
+          if (retries < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 500 * retries));
+          } else {
+            throw error;
+          }
+        }
+      }
     } catch (error) {
       console.error('Error loading organization data:', error);
-      toast.error('Error al cargar datos de la organización');
+      toast.error('Error al cargar datos de la organización. Intenta refrescar.');
+      // Cargar datos parciales para que al menos se vea algo
+      try {
+        const { data: org } = await supabase
+          .from('orgs')
+          .select('*')
+          .eq('id', currentOrgId)
+          .single();
+        if (org) {
+          setOrganization(org);
+          setOrgName(org.name);
+          setOrgTaxId(org.tax_id || '');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
