@@ -1050,7 +1050,7 @@ export default function App() {
     if (activeNavItem === "clients") {
       return (
         <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <ClientsView appointments={effectiveAppointments} selectedSalon={selectedSalon} />
+          <ClientsView />
         </Suspense>
       );
     }

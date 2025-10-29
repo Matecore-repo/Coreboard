@@ -255,7 +255,7 @@ export default function AppContainer() {
         );
       case "clients":
         return (
-          <ClientsView appointments={[]} selectedSalon={selectedSalon} />
+          <ClientsView />
         );
       case "employees":
         return <EmployeesView />;
