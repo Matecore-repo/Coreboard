@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -49,7 +49,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [editingOrg, setEditingOrg] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [orgTaxId, setOrgTaxId] = useState('');
@@ -66,22 +66,33 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const canEdit = isAdmin || isOwner;
   const canCreateInvites = isAdmin || isOwner;
 
+  // Track si el componente está montado y si hay una carga en progreso
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, []);
+
   useEffect(() => {
     if (isDemo) {
-      // En modo demo, no cargar desde BD
       setLoading(false);
       return;
     }
+
     if (currentOrgId) {
       loadOrganizationData();
     } else if (isAdmin) {
-      // Admin puede ver todas las orgs, pero por ahora mostramos mensaje
       setLoading(false);
     }
-  }, [currentOrgId, isAdmin, isDemo]);
+  }, [currentOrgId]);
 
   const loadDemoData = () => {
-    // Organización mockup
     const demoOrg: Organization = {
       id: 'demo-org-123',
       name: 'Salón Demo - COREBOARD',
@@ -89,7 +100,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       created_at: new Date().toISOString()
     };
 
-    // Miembros mockup
     const demoMembers: Membership[] = [
       {
         id: 'demo-member-1',
@@ -98,50 +108,17 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         is_primary: true,
         user: { email: user?.email || 'demo@coreboard.local' }
       },
-      {
-        id: 'demo-member-2',
-        user_id: 'emp-123',
-        role: 'employee',
-        is_primary: false,
-        user: { email: 'empleado@salon.com' }
-      },
-      {
-        id: 'demo-member-3',
-        user_id: 'emp-456',
-        role: 'employee',
-        is_primary: false,
-        user: { email: 'barbero@salon.com' }
-      }
     ];
 
-    // Invitaciones mockup
-    const demoInvites: Invitation[] = [
-      {
-        id: 'demo-invite-1',
-        email: 'nuevo.empleado@salon.com',
-        role: 'employee',
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'demo-invite-2',
-        email: 'gerente@salon.com',
-        role: 'owner',
-        expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        created_at: new Date().toISOString()
-      }
-    ];
-
-    setOrganization(demoOrg);
-    setOrgName(demoOrg.name);
-    setOrgTaxId(demoOrg.tax_id || '');
-    setMemberships(demoMembers);
-    setInvitations(demoInvites);
-    setLoading(false);
-    toast.success('✨ Datos demo cargados exitosamente');
+    if (isMountedRef.current) {
+      setOrganization(demoOrg);
+      setOrgName(demoOrg.name);
+      setOrgTaxId(demoOrg.tax_id || '');
+      setMemberships(demoMembers);
+      setInvitations([]);
+    }
   };
 
-  // Exponer loadDemoData globalmente para que App.tsx pueda llamarla
   useEffect(() => {
     if (isDemo && typeof window !== 'undefined') {
       (window as any).__loadOrganizationDemoData = loadDemoData;
@@ -154,44 +131,67 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       return;
     }
 
-    try {
-      setLoading(true);
-      let retries = 0;
-      const maxRetries = 3;
+    // Cancelar cualquier carga anterior
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
 
-      while (retries < maxRetries) {
+    // Crear nuevo abort controller
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    if (!isMountedRef.current) return;
+    setLoading(true);
+
+    // Timeout de 10 segundos para evitar loading infinito
+    loadTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        console.warn('Loading timeout - mostrando estado parcial');
+        setLoading(false);
+      }
+    }, 10000);
+
+    try {
+      let retries = 0;
+      const maxRetries = 2;
+
+      while (retries < maxRetries && !signal.aborted) {
         try {
           await loadOrgData(currentOrgId);
           break;
         } catch (error) {
           retries++;
-          if (retries < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 500 * retries));
-          } else {
+          if (retries < maxRetries && !signal.aborted) {
+            await new Promise(resolve => setTimeout(resolve, 300 * retries));
+          } else if (retries >= maxRetries) {
             throw error;
           }
         }
       }
     } catch (error) {
-      console.error('Error loading organization data:', error);
-      toast.error('Error al cargar datos de la organización. Intenta refrescar.');
-      // Cargar datos parciales para que al menos se vea algo
-      try {
-        const { data: org } = await supabase
-          .from('orgs')
-          .select('*')
-          .eq('id', currentOrgId)
-          .single();
-        if (org) {
-          setOrganization(org);
-          setOrgName(org.name);
-          setOrgTaxId(org.tax_id || '');
+      if (!signal.aborted && isMountedRef.current) {
+        console.error('Error loading organization data:', error);
+        // Cargar datos parciales
+        try {
+          const { data: org } = await supabase
+            .from('orgs')
+            .select('*')
+            .eq('id', currentOrgId)
+            .single();
+          if (org && isMountedRef.current) {
+            setOrganization(org);
+            setOrgName(org.name);
+            setOrgTaxId(org.tax_id || '');
+          }
+        } catch (fallbackError) {
+          console.error('Fallback error:', fallbackError);
         }
-      } catch (fallbackError) {
-        console.error('Fallback error:', fallbackError);
       }
     } finally {
-      setLoading(false);
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -204,6 +204,8 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       .single();
 
     if (orgError) throw orgError;
+
+    if (!isMountedRef.current) return;
     setOrganization(org);
     setOrgName(org.name);
     setOrgTaxId(org.tax_id || '');
@@ -224,13 +226,11 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           };
         })
       );
-    } else if (membersError && (membersError as any).code === '42501') {
-      // Error 42501 = permission denied (RLS), mostrar mensaje informativo
-      console.warn('No tienes permiso para ver los miembros de esta organización');
-      toast.info('No tienes permiso para ver los miembros');
     }
 
-    setMemberships(membershipsWithEmails);
+    if (isMountedRef.current) {
+      setMemberships(membershipsWithEmails);
+    }
 
     // Cargar invitaciones activas (solo si puede verlas)
     if (canCreateInvites) {
@@ -242,20 +242,21 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           .eq('organization_id', orgId)
           .is('used_at', null)
           .gt('expires_at', now)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(50);
 
         if (invitesError) {
           console.warn('Error cargando invitaciones:', invitesError);
-          setInvitations([]);
+          if (isMountedRef.current) setInvitations([]);
         } else {
-          setInvitations(invites || []);
+          if (isMountedRef.current) setInvitations(invites || []);
         }
       } catch (err) {
         console.warn('Exception loading invitations:', err);
-        setInvitations([]);
+        if (isMountedRef.current) setInvitations([]);
       }
     } else {
-      setInvitations([]);
+      if (isMountedRef.current) setInvitations([]);
     }
   };
 

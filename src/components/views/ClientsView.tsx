@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useClients } from '../../hooks/useClients';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -13,7 +13,7 @@ import { Trash2, Edit3, Plus } from 'lucide-react';
 
 const ClientsView: React.FC = () => {
   const { currentOrgId } = useAuth();
-  const { clients, loading, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
+  const { clients, loading: hooksLoading, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
@@ -22,6 +22,36 @@ const ClientsView: React.FC = () => {
     phone: '',
     email: '',
   });
+  const [displayLoading, setDisplayLoading] = useState(false);
+  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+    };
+  }, []);
+
+  // Mostrar loading pero con timeout de 5 segundos
+  useEffect(() => {
+    if (hooksLoading) {
+      setDisplayLoading(true);
+      loadTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          console.warn('Clients loading timeout');
+          setDisplayLoading(false);
+        }
+      }, 5000);
+    } else {
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+      setDisplayLoading(false);
+    }
+
+    return () => {
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+    };
+  }, [hooksLoading]);
 
   const handleSave = async () => {
     try {
@@ -83,7 +113,7 @@ const ClientsView: React.FC = () => {
     setDialogOpen(true);
   };
 
-  if (loading) {
+  if (displayLoading) {
     return <div className="p-6 text-center text-muted-foreground">Cargando clientes...</div>;
   }
 
