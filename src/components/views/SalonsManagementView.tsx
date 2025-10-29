@@ -8,7 +8,8 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 const ServicesPanel = lazy(() => import("../ServicesPanel"));
-import type { Service } from "../ServicesPanel";
+import type { Service as SalonServiceUI } from "../ServicesPanel";
+import type { Service as OrgService } from "../../hooks/useServices";
 import { EmptyStateServices } from "../empty-states/EmptyStateServices";
 import { toast } from "sonner";
 import { useSalonServices } from "../../hooks/useSalonServices";
@@ -26,24 +27,36 @@ interface Salon {
   email?: string;
   notes?: string;
   openingHours?: string;
-  services?: Service[];
+  services?: SalonServiceUI[];
 }
 
 interface SalonsManagementViewProps {
   salons: Salon[];
-  onAddSalon: (salon: Omit<Salon, "id">) => void;
-  onEditSalon: (id: string, salon: Partial<Salon>) => void;
-  onDeleteSalon: (id: string) => void;
+  onAddSalon: (salon: Omit<Salon, "id">) => Promise<void>;
+  onEditSalon: (id: string, salon: Partial<Salon>) => Promise<void>;
+  onDeleteSalon: (id: string) => Promise<void>;
 }
+
+const RECOMMENDED_SERVICES: Array<{ key: string; name: string; base_price: number; duration_minutes: number; description: string }> = [
+  { key: "corte-clasico", name: "Corte Clásico", base_price: 3500, duration_minutes: 30, description: "El servicio esencial para nuevos clientes o mantenimiento." },
+  { key: "coloracion-premium", name: "Coloración Premium", base_price: 8500, duration_minutes: 90, description: "Incluye diagnóstico, color y terminación profesional." },
+  { key: "tratamiento-nutritivo", name: "Tratamiento Nutritivo", base_price: 6200, duration_minutes: 45, description: "Reparación profunda con masaje de relajación." },
+  { key: "peinado-eventos", name: "Peinado para Eventos", base_price: 7800, duration_minutes: 50, description: "Peinados editoriales y de fiesta listos para fotos." },
+  { key: "barberia-premium", name: "Barbería Premium", base_price: 4200, duration_minutes: 35, description: "Corte + perfilado de barba + tratamiento hot towel." },
+  { key: "alisado-keratina", name: "Alisado con Keratina", base_price: 19500, duration_minutes: 120, description: "Cabello liso, suave y sin frizz por hasta 3 meses." },
+];
 
 function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }: SalonsManagementViewProps) {
   const { currentOrgId } = useAuth();
-  const { services: allServices } = useServices(currentOrgId ?? undefined);
+  const { services: allServices, createService: createOrgService, isLoading: servicesLoading } = useServices(currentOrgId ?? undefined);
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalon, setEditingSalon] = useState<Salon | null>(null);
   const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
   const { services: salonServices, assignService, unassignService, updateServiceAssignment } = useSalonServices(selectedSalon?.id);
+  const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
+  const [serviceActionId, setServiceActionId] = useState<string | null>(null);
+  const [customService, setCustomService] = useState({ name: "", price: "", duration: "45" });
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -54,12 +67,92 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     email: "",
     notes: "",
     openingHours: "",
-    services: [] as Service[],
+    services: [] as SalonServiceUI[],
   });
   const [newStaff, setNewStaff] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const servicesSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const resetCustomService = useCallback(() => {
+    setCustomService({ name: "", price: "", duration: "45" });
+  }, []);
+
+  const handleCreateAndAssignService = useCallback(async (input: { key: string; name: string; base_price: number; duration_minutes: number; }) => {
+    if (!selectedSalon) {
+      toast.error("Selecciona una peluquería primero");
+      return;
+    }
+    if (!currentOrgId) {
+      toast.error("Organización no disponible");
+      return;
+    }
+
+    const trimmedName = input.name.trim();
+    if (!trimmedName) {
+      toast.error("El servicio debe tener un nombre");
+      return;
+    }
+
+    setServiceActionId(input.key);
+    try {
+      let serviceRecord: OrgService | undefined = allServices.find(
+        (svc) => svc.name.toLowerCase() === trimmedName.toLowerCase()
+      );
+
+      if (!serviceRecord) {
+        const created = await createOrgService({
+          org_id: currentOrgId,
+          name: trimmedName,
+          base_price: input.base_price,
+          duration_minutes: input.duration_minutes,
+          active: true,
+        });
+        serviceRecord = created as OrgService;
+        toast.success(`Servicio "${trimmedName}" creado`);
+      }
+
+      if (salonServices.some((ss) => ss.service_id === serviceRecord.id)) {
+        toast.info(`"${trimmedName}" ya está asignado a este salón`);
+      } else {
+        await assignService(serviceRecord.id);
+        toast.success(`"${trimmedName}" asignado a ${selectedSalon.name}`);
+      }
+    } catch (error) {
+      console.error("Error creando/asignando servicio", error);
+      toast.error("No se pudo crear/asignar el servicio");
+    } finally {
+      setServiceActionId(null);
+    }
+  }, [assignService, allServices, createOrgService, currentOrgId, salonServices, selectedSalon]);
+
+  const handleCustomServiceSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const price = Number(customService.price);
+    const duration = Number(customService.duration);
+
+    if (!customService.name.trim()) {
+      toast.error("Ingresa un nombre para el servicio");
+      return;
+    }
+    if (isNaN(price) || price <= 0) {
+      toast.error("Ingresa un precio válido");
+      return;
+    }
+    if (isNaN(duration) || duration <= 0) {
+      toast.error("Ingresa una duración válida");
+      return;
+    }
+
+    await handleCreateAndAssignService({
+      key: "custom",
+      name: customService.name,
+      base_price: price,
+      duration_minutes: duration,
+    });
+
+    resetCustomService();
+  }, [customService, handleCreateAndAssignService, resetCustomService]);
 
   const handleOpenDialog = useCallback((salon?: Salon) => {
     if (salon) {
@@ -121,44 +214,46 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     setFormData((prev) => ({ ...prev, image: "" }));
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!formData.name.trim() || !formData.address.trim()) {
       toast.error("Por favor completa los campos requeridos (Nombre y Dirección)");
       return;
     }
 
     try {
-      const dataToSave: Omit<Salon, "id"> = {
-        ...formData,
-        image:
-          imagePreview ||
-          "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-      };
+    const dataToSave: Omit<Salon, "id"> = {
+      ...formData,
+      image:
+        imagePreview ||
+        "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    };
 
-      if (editingSalon) {
+    if (editingSalon) {
         await onEditSalon(editingSalon.id, dataToSave);
-        toast.success("Peluquería actualizada correctamente");
-      } else {
+      toast.success("Peluquería actualizada correctamente");
+    } else {
         await onAddSalon(dataToSave);
-        toast.success("Peluquería creada correctamente");
-      }
-      setDialogOpen(false);
+      toast.success("Peluquería creada correctamente");
+    }
+    setDialogOpen(false);
     } catch (error) {
       console.error('❌ Error en handleSave:', error);
       toast.error(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
     }
-  }, [formData, imagePreview, editingSalon, onAddSalon, onEditSalon]);
+  };
 
-  const handleDelete = useCallback(
-    async (salon: Salon) => {
+  const handleDelete = async (salon: Salon) => {
       if (confirm('¿Estás seguro de eliminar "' + salon.name + '"?')) {
+      try {
         await onDeleteSalon(salon.id);
         toast.success("Peluquería eliminada");
         setSelectedSalon(null);
+      } catch (error) {
+        console.error('❌ Error eliminando salón:', error);
+        toast.error(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
       }
-    },
-    [onDeleteSalon],
-  );
+    }
+  };
 
   const handleAddStaff = useCallback(() => {
     if (!newStaff.trim()) return;
@@ -171,7 +266,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
   }, []);
 
   const handleServicesChange = useCallback(
-    (updated: Service[]) => {
+    (updated: SalonServiceUI[]) => {
       if (!selectedSalon) return;
       onEditSalon(selectedSalon.id, { services: updated });
       setSelectedSalon((prev) => (prev ? { ...prev, services: updated } : prev));
@@ -327,62 +422,170 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         <div className="mt-6" ref={servicesSectionRef}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">Servicios de {selectedSalon.name}</h3>
-            <Dialog>
+            <Dialog open={serviceDialogOpen} onOpenChange={(open) => {
+              setServiceDialogOpen(open);
+              if (!open) {
+                setServiceActionId(null);
+                resetCustomService();
+              }
+            }}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" onClick={() => setServiceDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Asignar Servicio
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Asignar servicios a {selectedSalon.name}</DialogTitle>
+                  <DialogTitle>Gestionar servicios de {selectedSalon.name}</DialogTitle>
                   <DialogDescription>
-                    Selecciona los servicios disponibles para ofrecer en este salón
+                    Crea nuevos servicios o asigna los existentes a este salón.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {allServices.map((service) => {
-                    const isAssigned = salonServices.some(ss => ss.service_id === service.id);
-                    return (
-                      <div key={service.id} className="flex items-center justify-between p-2 border rounded">
-                        <div>
-                          <p className="font-medium">{service.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            ${service.base_price} - {service.duration_minutes} min
-                          </p>
+
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2">Servicios recomendados</h4>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {RECOMMENDED_SERVICES.map((service) => {
+                        const existing = allServices.find((s) => s.name.toLowerCase() === service.name.toLowerCase());
+                        const alreadyAssigned = existing ? salonServices.some((ss) => ss.service_id === existing.id) : false;
+                        const isProcessing = serviceActionId === service.key;
+                        const disabled = !selectedSalon || alreadyAssigned || isProcessing;
+                        const label = !selectedSalon
+                          ? "Selecciona un salón"
+                          : alreadyAssigned
+                          ? "Asignado"
+                          : existing
+                          ? "Asignar"
+                          : "Crear y asignar";
+
+                        return (
+                          <div key={service.key} className="border rounded-lg p-3 bg-muted/30">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-medium text-sm">{service.name}</p>
+                                <p className="text-xs text-muted-foreground">${service.base_price} · {service.duration_minutes} min</p>
+                                <p className="text-xs text-muted-foreground mt-1">{service.description}</p>
+                              </div>
+                              <Button
+                                size="sm"
+                                disabled={disabled}
+                                onClick={() => handleCreateAndAssignService({
+                                  key: service.key,
+                                  name: service.name,
+                                  base_price: service.base_price,
+                                  duration_minutes: service.duration_minutes,
+                                })}
+                              >
+                                {isProcessing ? "Procesando..." : label}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg p-3 bg-muted/20">
+                    <h4 className="text-sm font-semibold mb-2">Crear servicio personalizado</h4>
+                    <form className="grid gap-3" onSubmit={handleCustomServiceSubmit}>
+                      <div className="grid gap-2">
+                        <Label htmlFor="custom-service-name">Nombre</Label>
+                        <Input
+                          id="custom-service-name"
+                          placeholder="Ej: Balayage con nutrición"
+                          value={customService.name}
+                          onChange={(e) => setCustomService((prev) => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid gap-2">
+                          <Label htmlFor="custom-service-price">Precio</Label>
+                          <Input
+                            id="custom-service-price"
+                            type="number"
+                            min="0"
+                            step="100"
+                            placeholder="Ej: 6500"
+                            value={customService.price}
+                            onChange={(e) => setCustomService((prev) => ({ ...prev, price: e.target.value }))}
+                          />
                         </div>
-                        <Button
-                          size="sm"
-                          variant={isAssigned ? "destructive" : "default"}
-                          onClick={async () => {
-                            try {
-                              if (isAssigned) {
-                                const assignment = salonServices.find(ss => ss.service_id === service.id);
-                                if (assignment) {
-                                  await unassignService(assignment.id);
-                                  toast.success(`Servicio "${service.name}" removido`);
-                                }
-                              } else {
-                                await assignService(service.id);
-                                toast.success(`Servicio "${service.name}" asignado`);
-                              }
-                            } catch (error) {
-                              console.error('Error managing service assignment:', error);
-                              toast.error('Error al gestionar el servicio');
-                            }
-                          }}
-                        >
-                          {isAssigned ? 'Remover' : 'Asignar'}
+                        <div className="grid gap-2">
+                          <Label htmlFor="custom-service-duration">Duración (min)</Label>
+                          <Input
+                            id="custom-service-duration"
+                            type="number"
+                            min="15"
+                            step="5"
+                            placeholder="Ej: 45"
+                            value={customService.duration}
+                            onChange={(e) => setCustomService((prev) => ({ ...prev, duration: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button type="submit" size="sm" disabled={serviceActionId === "custom"}>
+                          {serviceActionId === "custom" ? "Creando..." : "Crear y asignar"}
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={resetCustomService}>
+                          Limpiar
                         </Button>
                       </div>
-                    );
-                  })}
-                  {allServices.length === 0 && (
-                    <p className="text-center text-muted-foreground py-4">
-                      No hay servicios disponibles. Crea servicios primero.
-                    </p>
-                  )}
+                    </form>
+                  </div>
+
+                  <div className="pt-2 border-t">
+                    <h4 className="text-sm font-semibold mb-2">Servicios disponibles</h4>
+                    {servicesLoading ? (
+                      <p className="text-sm text-muted-foreground">Cargando servicios...</p>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {allServices.map((service) => {
+                          const isAssigned = salonServices.some(ss => ss.service_id === service.id);
+                          return (
+                            <div key={service.id} className="flex items-center justify-between p-2 border rounded">
+                              <div>
+                                <p className="font-medium text-sm">{service.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  ${service.base_price} · {service.duration_minutes} min
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant={isAssigned ? "destructive" : "default"}
+                                onClick={async () => {
+                                  try {
+                                    if (isAssigned) {
+                                      const assignment = salonServices.find(ss => ss.service_id === service.id);
+                                      if (assignment) {
+                                        await unassignService(assignment.id);
+                                        toast.success(`Servicio "${service.name}" removido`);
+                                      }
+                                    } else {
+                                      await assignService(service.id);
+                                      toast.success(`Servicio "${service.name}" asignado`);
+                                    }
+                                  } catch (error) {
+                                    console.error('Error managing service assignment:', error);
+                                    toast.error('Error al gestionar el servicio');
+                                  }
+                                }}
+                              >
+                                {isAssigned ? 'Remover' : 'Asignar'}
+                              </Button>
+                            </div>
+                          );
+                        })}
+                        {allServices.length === 0 && (
+                          <p className="text-center text-sm text-muted-foreground py-4">
+                            Aún no hay servicios creados para tu organización.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
@@ -391,9 +594,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
           {salonServices.length === 0 ? (
             <EmptyStateServices
               salonName={selectedSalon.name}
-              onCreateService={() => {
-                toast.info("Crea servicios en la sección de configuración primero");
-              }}
+              onCreateService={() => setServiceDialogOpen(true)}
               className="max-w-md mx-auto"
             />
           ) : (

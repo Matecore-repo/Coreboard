@@ -38,6 +38,13 @@ import { useAppointments as useDbAppointments } from "./hooks/useAppointments";
 import { useSalons as useDbSalons } from "./hooks/useSalons";
 import { OnboardingModal } from "./components/OnboardingModal";
 
+interface SalonService {
+  id: string;
+  name: string;
+  price: number;
+  durationMinutes: number;
+}
+
 interface Salon {
   id: string;
   name: string;
@@ -49,14 +56,7 @@ interface Salon {
   email?: string;
   notes?: string;
   openingHours?: string;
-  services?: Service[];
-}
-
-interface Service {
-  id: string;
-  name: string;
-  price: number;
-  durationMinutes: number;
+  services?: SalonService[];
 }
 
 const sampleSalons: Salon[] = [
@@ -625,7 +625,7 @@ export default function App() {
     selectedSalon ?? undefined,
     { enabled: !!session && !!selectedSalon }
   );
-  const { salons: remoteSalons } = useDbSalons(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId });
+  const { salons: remoteSalons, createSalon: createRemoteSalon, updateSalon: updateRemoteSalon, deleteSalon: deleteRemoteSalon } = useDbSalons(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId });
 
   const isDemo = user?.email === 'demo@coreboard.local';
 
@@ -639,7 +639,7 @@ export default function App() {
     const found = effectiveSalons.find(s => s.id === selectedSalon);
     return found?.name || "";
   }, [selectedSalon, effectiveSalons]);
-  const [services, setServices] = useState(() => {
+  const [services, setServices] = useState<SalonService[]>(() => {
     // ejemplo inicial (solo para demo)
     return [
       { id: 's1', name: 'Corte', price: 1200, durationMinutes: 30 },
@@ -889,30 +889,62 @@ export default function App() {
     });
   }, [effectiveAppointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
 
-  const handleAddSalon = useCallback((salonData: Omit<Salon, 'id'>) => {
-    if (isDemo && salons.length >= 1) {
-      toast.error('En modo demo solo se permite 1 peluquería');
+  const handleAddSalon = useCallback(async (salonData: Omit<Salon, 'id'>) => {
+    if (isDemo) {
+      if (salons.length >= 1) {
+        toast.error('En modo demo solo se permite 1 peluquería');
+        return;
+      }
+      const newSalon: Salon = {
+        ...salonData,
+        id: Date.now().toString(),
+      };
+      setSalons(prev => [...prev, newSalon]);
       return;
     }
-    const newSalon: Salon = {
-      ...salonData,
-      id: Date.now().toString(),
-    };
-    setSalons(prev => [...prev, newSalon]);
-  }, [isDemo, salons.length]);
 
-  const handleEditSalon = useCallback((id: string, salonData: Partial<Salon>) => {
-    setSalons(prev => prev.map(salon => 
-      salon.id === id ? { ...salon, ...salonData } : salon
-    ));
-  }, []);
+    if (!currentOrgId) {
+      throw new Error('Organización no seleccionada');
+    }
 
-  const handleDeleteSalon = useCallback((id: string) => {
-    setSalons(prev => prev.filter(salon => salon.id !== id));
+    await createRemoteSalon({
+      org_id: currentOrgId,
+      name: salonData.name,
+      address: salonData.address ?? '',
+      phone: salonData.phone ?? '',
+      active: true,
+    });
+  }, [isDemo, salons.length, currentOrgId, createRemoteSalon]);
+
+  const handleEditSalon = useCallback(async (id: string, salonData: Partial<Salon>) => {
+    if (isDemo) {
+      setSalons(prev => prev.map(salon =>
+        salon.id === id ? { ...salon, ...salonData } : salon
+      ));
+      return;
+    }
+
+    await updateRemoteSalon(id, {
+      name: salonData.name,
+      address: salonData.address,
+      phone: salonData.phone,
+    });
+  }, [isDemo, updateRemoteSalon]);
+
+  const handleDeleteSalon = useCallback(async (id: string) => {
+    if (isDemo) {
+      setSalons(prev => prev.filter(salon => salon.id !== id));
+      if (selectedSalon === id) {
+        setSelectedSalon(null);
+      }
+      return;
+    }
+
+    await deleteRemoteSalon(id);
     if (selectedSalon === id) {
       setSelectedSalon(null);
     }
-  }, [selectedSalon]);
+  }, [isDemo, selectedSalon, deleteRemoteSalon]);
 
   // useAuth consumed at function top; avoid redeclaration
 

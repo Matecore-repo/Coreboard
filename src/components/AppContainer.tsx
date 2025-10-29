@@ -271,8 +271,12 @@ export default function AppContainer() {
               services: s.services || []
             })) || []}
             onAddSalon={async (salon) => {
+              console.log('🟡 onAddSalon llamado con:', salon);
               try {
+                console.log('🟡 currentOrgId:', currentOrgId);
+                console.log('🟡 createSalon disponible:', typeof createSalon);
                 if (currentOrgId) {
+                  console.log('🟡 Llamando createSalon...');
                   const result = await createSalon({
                     org_id: currentOrgId,
                     name: salon.name,
@@ -283,6 +287,7 @@ export default function AppContainer() {
                   console.log('✅ Salón creado:', result);
                 } else {
                   console.error('❌ currentOrgId no disponible');
+                  throw new Error('currentOrgId no disponible');
                 }
               } catch (error) {
                 console.error('❌ Error creando salón:', error);

@@ -63,6 +63,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
     }
     try {
       setLoading(true);
+      console.log('🔵 fetchSalons iniciando para orgId:', orgId);
 
       // Cargar salones (solo los no eliminados)
       const { data: salonsData, error: salonsError } = await supabase
@@ -72,7 +73,11 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
         .is('deleted_at', null)
         .order('name');
 
-      if (salonsError) throw salonsError as any;
+      if (salonsError) {
+        console.error('🔴 Error salonsError:', salonsError);
+        throw salonsError as any;
+      }
+      console.log('🟢 fetchSalons exitoso, salones:', salonsData?.length);
 
       // Cargar servicios de la org
             const { data: servicesData, error: servicesError } = await supabase
@@ -81,13 +86,17 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
               .eq('org_id', orgId)
               .is('deleted_at', null);
 
-      if (servicesError) throw servicesError as any;
+      if (servicesError) {
+        console.error('🔴 Error servicesError:', servicesError);
+        throw servicesError as any;
+      }
 
       const mappedSalons = (salonsData || []).map(s =>
         mapDBToUI(s, (servicesData || []) as DBService[])
       );
       setSalons(mappedSalons);
     } catch (e) {
+      console.error('🔴 fetchSalons ERROR CRÍTICO:', e);
       setError(e instanceof Error ? e : new Error('Unknown error'));
       setSalons([]);
     } finally {
@@ -100,14 +109,21 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
   }, [fetchSalons]);
 
   const createSalon = async (salonData: Omit<DBSalon, 'id'>) => {
+    console.log('🟡 createSalon iniciando con datos:', salonData);
     const { data, error } = await supabase
       .from('salons')
       .insert([salonData])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('🔴 createSalon INSERT ERROR:', error);
+      throw error;
+    }
+    console.log('🟢 createSalon INSERT exitoso:', data);
+    console.log('🟡 createSalon llamando fetchSalons...');
     await fetchSalons();
+    console.log('🟢 createSalon completado');
     return data;
   };
 
