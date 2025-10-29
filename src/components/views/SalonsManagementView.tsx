@@ -127,21 +127,26 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       return;
     }
 
-    const dataToSave: Omit<Salon, "id"> = {
-      ...formData,
-      image:
-        imagePreview ||
-        "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    };
+    try {
+      const dataToSave: Omit<Salon, "id"> = {
+        ...formData,
+        image:
+          imagePreview ||
+          "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+      };
 
-    if (editingSalon) {
-      await onEditSalon(editingSalon.id, dataToSave);
-      toast.success("Peluquería actualizada correctamente");
-    } else {
-      await onAddSalon(dataToSave);
-      toast.success("Peluquería creada correctamente");
+      if (editingSalon) {
+        await onEditSalon(editingSalon.id, dataToSave);
+        toast.success("Peluquería actualizada correctamente");
+      } else {
+        await onAddSalon(dataToSave);
+        toast.success("Peluquería creada correctamente");
+      }
+      setDialogOpen(false);
+    } catch (error) {
+      console.error('❌ Error en handleSave:', error);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
     }
-    setDialogOpen(false);
   }, [formData, imagePreview, editingSalon, onAddSalon, onEditSalon]);
 
   const handleDelete = useCallback(
