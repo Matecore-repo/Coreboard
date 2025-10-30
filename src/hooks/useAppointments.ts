@@ -40,28 +40,44 @@ function mapRowToAppointment(row: any): Appointment {
 }
 
 function mapAppointmentToRow(payload: Partial<Appointment>) {
+  const row: any = {};
+  
+  // Solo incluir campos que están presentes en el payload
+  if (payload.clientName !== undefined) {
+    row.client_name = payload.clientName;
+  }
+  if (payload.service !== undefined) {
+    row.service_id = payload.service || null;
+  }
+  if (payload.status !== undefined) {
+    row.status = payload.status;
+  }
+  if (payload.stylist !== undefined) {
+    row.stylist_id = payload.stylist || null;
+  }
+  if (payload.salonId !== undefined) {
+    row.salon_id = payload.salonId;
+  }
+  if (payload.notes !== undefined) {
+    row.notes = payload.notes || null;
+  }
+  if (payload.created_by !== undefined) {
+    row.created_by = payload.created_by || null;
+  }
+  
   // Construir starts_at correctamente: date + time en formato ISO
-  let startsAt: string | undefined = undefined;
   if (payload.date && payload.time) {
-    // Asegurar formato correcto: YYYY-MM-DDTHH:MM:SS
     const dateStr = payload.date; // Formato: YYYY-MM-DD
     const timeStr = payload.time; // Formato: HH:MM
-    // Crear timestamp ISO en timezone local
     const localDate = new Date(`${dateStr}T${timeStr}:00`);
-    startsAt = localDate.toISOString();
+    row.starts_at = localDate.toISOString();
+  } else if (payload.date !== undefined || payload.time !== undefined) {
+    // Si solo viene date o time, necesitamos obtener el otro del appointment existente
+    // Por ahora, si falta uno, no actualizamos starts_at
+    // Esto se manejará en el componente que llama
   }
-
-  return {
-    client_name: payload.clientName || '',
-    service_id: payload.service || null,
-    starts_at: startsAt,
-    status: payload.status || 'pending',
-    stylist_id: payload.stylist || null,
-    salon_id: payload.salonId,
-    notes: payload.notes || null,
-    created_by: payload.created_by || null,
-    total_amount: 0, // Valor por defecto
-  };
+  
+  return row;
 }
 
 export function useAppointments(salonId?: string, options?: { enabled?: boolean }) {
@@ -156,7 +172,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       created_by: user?.id || null,
     } as any;
     const { data, error } = await supabase
-      .from('appointments')
+      .from('app.appointments')
       .insert([row])
       .select()
       .single();
@@ -168,17 +184,37 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
 
   const updateAppointment = async (id: string, updates: Partial<Appointment>) => {
     if (isDemo) {
-      setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, ...updates } : apt));
+      const updated = appointments.find(apt => apt.id === id);
+      if (updated) {
+        setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, ...updates } : apt));
+        return { ...updated, ...updates };
+      }
       return;
     }
+    
+    // Si solo se está actualizando status, usar RPC directamente
+    if (Object.keys(updates).length === 1 && updates.status) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('update_appointment_status', {
+        p_appointment_id: id,
+        p_status: updates.status
+      });
+      if (rpcError) throw rpcError;
+      await fetchAppointments();
+      return rpcData ? mapRowToAppointment(rpcData) : null;
+    }
+    
+    // Para otros updates, usar mapAppointmentToRow
     const row = mapAppointmentToRow(updates);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('appointments')
       .update(row)
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) throw error;
     await fetchAppointments();
+    return data ? mapRowToAppointment(data) : null;
   };
 
   const deleteAppointment = async (id: string) => {
@@ -225,7 +261,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     } as any;
 
     const { data, error } = await supabase
-      .from('appointments')
+      .from('app.appointments')
       .insert([row])
       .select()
       .single();

@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
 import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { useTheme } from "next-themes";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
 import { AppointmentDialog } from "./components/features/appointments/AppointmentDialog";
@@ -11,6 +13,7 @@ import { useIsMobile } from "./components/ui/use-mobile";
 import { toast } from "sonner";
 import { Toaster as Sonner } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
+import type { User } from "./contexts/AuthContext";
 import ThemeBubble from "./components/ThemeBubble";
 import DemoDataBubble from "./components/DemoDataBubble";
 import DemoWelcomeModal from "./components/DemoWelcomeModal";
@@ -82,6 +85,8 @@ export default function App() {
   // =========================================================================
   const { user, session, signOut, currentRole, currentOrgId, isDemo } = useAuth() as any;
   const [isPending, startTransition] = useTransition();
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [nextViewName, setNextViewName] = useState<string | null>(null);
 
   // =========================================================================
   // ESTADO LOCAL
@@ -116,6 +121,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDemoWelcome, setShowDemoWelcome] = useState(false);
+  const [prevUser, setPrevUser] = useState<User | null>(null);
   const [services, setServices] = useState<SalonService[]>([
     { id: 's1', name: 'Corte', price: 1200, durationMinutes: 30 },
     { id: 's2', name: 'Coloración', price: 3000, durationMinutes: 90 },
@@ -126,7 +132,7 @@ export default function App() {
   // =========================================================================
   // DATOS REMOTOS (Supabase)
   // =========================================================================
-  const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment } = useDbAppointments(
+  const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment, fetchAppointments } = useDbAppointments(
     undefined,
     { enabled: !!session }
   );
@@ -149,6 +155,56 @@ export default function App() {
   useEffect(() => {
     if (isDemo && !demoName) setShowDemoWelcome(true);
   }, [isDemo, demoName]);
+
+  // Eliminar la lógica del welcome screen aquí - ahora se maneja en LoginView
+  // Mostrar toast de bienvenida cuando el usuario ingresa al dashboard
+  const welcomeToastShownRef = useRef(false);
+  useEffect(() => {
+    if (user && !prevUser && !welcomeToastShownRef.current) {
+      // Usuario acaba de hacer login
+      setPrevUser(user);
+      welcomeToastShownRef.current = true;
+      
+      // Esperar a que los appointments se carguen antes de mostrar el toast
+      const showWelcomeToast = () => {
+        const userName = user?.email?.split('@')[0] || 'Usuario';
+        const now = new Date();
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        
+        // Contar turnos de hoy - comparar fechas en formato YYYY-MM-DD
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const todayAppointments = effectiveAppointments.filter(
+          (apt) => {
+            // Asegurar que apt.date esté en formato YYYY-MM-DD
+            const aptDateStr = apt.date || '';
+            return aptDateStr === todayStr && apt.status !== 'cancelled';
+          }
+        );
+        const appointmentsCount = todayAppointments.length;
+        
+        // Mostrar toast completo
+        toast.success(
+          `Bienvenido ${userName}, son las ${hours}:${minutes}, hoy te esperan ${appointmentsCount} turno${appointmentsCount !== 1 ? 's' : ''}`,
+          { duration: 4000 }
+        );
+      };
+      
+      // Esperar un momento para que los appointments se carguen
+      // Si hay appointments disponibles, mostrar inmediatamente
+      // Si no, esperar hasta 2 segundos máximo
+      if (effectiveAppointments.length > 0 || isDemo) {
+        setTimeout(showWelcomeToast, 500);
+      } else {
+        // Esperar un poco más si no hay appointments aún
+        setTimeout(showWelcomeToast, 1500);
+      }
+    } else if (!user) {
+      setPrevUser(null);
+      welcomeToastShownRef.current = false;
+    }
+  }, [user, prevUser, effectiveAppointments, isDemo]);
 
   useEffect(() => {
     const sync = () => setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
@@ -184,9 +240,15 @@ export default function App() {
     return () => window.removeEventListener('demo:create-org', handler as EventListener);
   }, [isDemo]);
 
+  // Sincronizar selectedAppointment cuando cambian los effectiveAppointments
   useEffect(() => {
-    setSelectedAppointment(null);
-  }, [activeNavItem]);
+    if (selectedAppointment) {
+      const updated = effectiveAppointments.find(apt => apt.id === selectedAppointment.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedAppointment)) {
+        setSelectedAppointment(updated);
+      }
+    }
+  }, [effectiveAppointments, selectedAppointment?.id]);
 
   useEffect(() => {
     // Solo mostrar onboarding si:
@@ -233,13 +295,23 @@ export default function App() {
   }, []);
 
   const handleLogout = async () => {
+    // Mostrar toast de despedida antes de cerrar sesión
+    const userName = user?.email?.split('@')[0] || 'Usuario';
+    toast.info(`¡Hasta pronto ${userName}!`);
+    
+    // Esperar un momento antes de cerrar sesión
+    setTimeout(async () => {
     await signOut();
     setActiveNavItem("home");
     setSelectedSalon(null);
     setSelectedAppointment(null);
     setShowQuickActions(false);
     try { localStorage.removeItem(`unsynced:appointments:${user?.id || 'local'}`); } catch {}
-    toast.info("Sesión cerrada correctamente");
+      // Redirigir al login después de cerrar sesión
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }, 500);
   };
 
   const handleSaveAppointment = useCallback(async (appointmentData: Partial<Appointment>) => {
@@ -313,38 +385,79 @@ export default function App() {
 
   const handleCancelAppointment = useCallback(async (id: string) => {
     if (isDemo) {
-      setAppointments((prev) => prev.map((apt) => apt.id === id ? { ...apt, status: "cancelled" as const } : apt));
+      setAppointments((prev) => {
+        const updated = prev.map((apt) => 
+          apt.id === id ? { ...apt, status: "cancelled" as const } : apt
+        );
+        const updatedAppointment = updated.find(apt => apt.id === id);
+        if (updatedAppointment && selectedAppointment?.id === id) {
+          setSelectedAppointment(updatedAppointment);
+        }
+        return updated;
+      });
+      toast.success("Turno cancelado");
     } else {
-      try { await (updateAppointment as any)(id, { status: 'cancelled' as const }); } catch (e) { toast.error('No se pudo cancelar'); return; }
+      try {
+        const updated = await (updateAppointment as any)(id, { status: 'cancelled' as const });
+        if (updated) {
+          setSelectedAppointment(updated);
     }
     toast.success("Turno cancelado");
-  }, [isDemo, updateAppointment]);
-
-  const handleCompleteAppointment = useCallback((id: string) => {
-    setAppointments((prev) =>
-      prev.map((apt) =>
-        apt.id === id ? { ...apt, status: "completed" as const } : apt
-      )
-    );
-    toast.success("Turno completado");
-    setSelectedAppointment(null);
-  }, []);
-
-  const handleDeleteAppointment = useCallback(() => {
-    setAppointments((prev) => {
-      const salonAppointments = !selectedSalon
-        ? prev
-        : prev.filter(apt => apt.salonId === selectedSalon);
-      if (salonAppointments.length === 0) {
-        toast.error("No hay turnos para eliminar");
-        return prev;
+      } catch (e) {
+        console.error('Error cancelling appointment:', e);
+        toast.error('No se pudo cancelar el turno');
       }
-      const lastAppointment = salonAppointments[0];
-      toast.success("Último turno eliminado");
-      return prev.filter(apt => apt.id !== lastAppointment.id);
-    });
-    setShowQuickActions(false);
-  }, [selectedSalon]);
+    }
+  }, [isDemo, updateAppointment, selectedAppointment]);
+
+  const handleCompleteAppointment = useCallback(async (id: string) => {
+    if (isDemo) {
+      setAppointments((prev) => {
+        const updated = prev.map((apt) =>
+        apt.id === id ? { ...apt, status: "completed" as const } : apt
+        );
+        const updatedAppointment = updated.find(apt => apt.id === id);
+        if (updatedAppointment && selectedAppointment?.id === id) {
+          setSelectedAppointment(updatedAppointment);
+        }
+        return updated;
+      });
+    toast.success("Turno completado");
+    } else {
+      try {
+        const updated = await (updateAppointment as any)(id, { status: 'completed' as const });
+        if (updated) {
+          setSelectedAppointment(updated);
+        }
+        toast.success("Turno completado");
+      } catch (error) {
+        console.error('Error completing appointment:', error);
+        toast.error("Error al completar el turno");
+      }
+    }
+  }, [isDemo, updateAppointment, selectedAppointment]);
+
+  const handleDeleteAppointment = useCallback(async () => {
+    if (!selectedAppointment) {
+      toast.error("No hay turno seleccionado para eliminar");
+      return;
+    }
+    
+    if (isDemo) {
+      setAppointments((prev) => prev.filter(apt => apt.id !== selectedAppointment.id));
+      toast.success("Turno eliminado correctamente");
+      setSelectedAppointment(null);
+    } else {
+      try {
+        await deleteAppointment(selectedAppointment.id);
+        toast.success("Turno eliminado correctamente");
+        setSelectedAppointment(null);
+      } catch (error) {
+        console.error('Error deleting appointment:', error);
+        toast.error("Error al eliminar el turno");
+      }
+    }
+  }, [selectedAppointment, isDemo, deleteAppointment]);
 
   const handleUpdateAppointment = useCallback(() => {
     const salonAppointments = !selectedSalon
@@ -464,14 +577,25 @@ export default function App() {
     { id: "settings", label: "Configuración", icon: Settings },
   ];
 
+  const viewNames: Record<string, string> = {
+    home: "Inicio",
+    appointments: "Turnos",
+    clients: "Clientes",
+    profile: "Mi Perfil",
+    organization: "Organización",
+    salons: "Peluquerías",
+    finances: "Finanzas",
+    settings: "Configuración"
+  };
+
   const navItems = useMemo(() => {
     const role = isDemo ? 'demo' : (currentRole ?? 'viewer');
     if (role === 'demo') return allNavItems;
     
-    // Empleados solo pueden ver: Inicio, Turnos, Clientes, Mi Perfil
+    // Empleados pueden ver: Inicio, Turnos, Clientes, Mi Perfil, Organización (solo lectura)
     if (role === 'employee') {
       return allNavItems.filter(it => 
-        ['home', 'appointments', 'clients', 'profile'].includes(it.id)
+        ['home', 'appointments', 'clients', 'profile', 'organization'].includes(it.id)
       );
     }
     
@@ -556,18 +680,7 @@ export default function App() {
           </Suspense>
         );
       case "organization":
-        // Empleados no pueden acceder a organización
-        if (currentRole === 'employee') {
-          return (
-            <div className="pb-20 p-4 md:p-6">
-              <Card className="rounded-2xl">
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground">No tienes permisos para acceder a esta sección.</p>
-                </CardContent>
-              </Card>
-            </div>
-          );
-        }
+        // Empleados pueden ver pero solo en modo lectura (OrganizationView maneja permisos internamente)
         return (
           <Suspense fallback={<LoadingView />}>
             <OrganizationView isDemo={isDemo} />
@@ -673,12 +786,20 @@ export default function App() {
             showQuickActions={showQuickActions}
             isMobile={isMobile}
             onNavItemClick={(itemId) => {
+              if (itemId === activeNavItem) return;
               try { viewPreloadMap[itemId]?.(); } catch {}
+              setNextViewName(viewNames[itemId] || itemId);
+              setIsNavigating(true);
               startTransition(() => {
                 setActiveNavItem(itemId);
                 const url = new URL(window.location.href);
                 url.searchParams.set('view', itemId);
                 window.history.replaceState({}, '', url.toString());
+                // Mínimo 2 segundos para que cargue todo bien
+                setTimeout(() => {
+                  setIsNavigating(false);
+                  setNextViewName(null);
+                }, 2000);
               });
             }}
             onLogout={handleLogout}
@@ -702,8 +823,20 @@ export default function App() {
               showQuickActions={showQuickActions}
               isMobile={isMobile}
               onNavItemClick={(itemId) => {
-                setActiveNavItem(itemId);
-                setMobileMenuOpen(false);
+                if (itemId === activeNavItem) {
+                  setMobileMenuOpen(false);
+                  return;
+                }
+                setNextViewName(viewNames[itemId] || itemId);
+                setIsNavigating(true);
+                startTransition(() => {
+                  setActiveNavItem(itemId);
+                  setMobileMenuOpen(false);
+                  setTimeout(() => {
+                    setIsNavigating(false);
+                    setNextViewName(null);
+                  }, 2000);
+                });
               }}
               onLogout={handleLogout}
               onQuickActionsToggle={() => setShowQuickActions(!showQuickActions)}
@@ -723,9 +856,55 @@ export default function App() {
         )}
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto h-screen">
+        <div className="flex-1 overflow-y-auto h-screen relative">
           <div className="md:hidden h-20" />
           <TransitionBanner />
+          
+          {/* Navigation Overlay */}
+          <AnimatePresence>
+            {isNavigating && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="absolute inset-0 z-50 flex items-center justify-center bg-background/98 backdrop-blur-md"
+              >
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.4 }}
+                  className="text-center space-y-6"
+                >
+                  <motion.div
+                    className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  />
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-muted-foreground text-base font-medium"
+                  >
+                    Cargando vista de {nextViewName}...
+                  </motion.p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Content wrapper with fade animation */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeNavItem}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+              className={isNavigating ? 'pointer-events-none' : ''}
+            >
           { ["appointments", "finances", "clients"].includes(activeNavItem) && (
             <div className="p-4 md:p-6 pb-4 border-b border-border">
               <h2 className="mb-3">Seleccionar Peluquería</h2>
@@ -738,6 +917,8 @@ export default function App() {
           )}
 
           {renderContent()}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
       {/* Floating Quick Actions */}
@@ -784,8 +965,8 @@ export default function App() {
         salons={effectiveSalons}
       />
 
-      {/* Appointment Action Bar */}
-      {activeNavItem === "appointments" && selectedAppointment && (
+      {/* Appointment Action Bar - Mostrar en cualquier sección cuando hay turno seleccionado */}
+      {selectedAppointment && (
         <AppointmentActionBar
         appointment={selectedAppointment}
         onClose={() => setSelectedAppointment(null)}
@@ -814,30 +995,81 @@ export default function App() {
             return;
           }
           if (isDemo) {
-            setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, date: date || apt.date, time: time || apt.time } : apt));
+            setAppointments(prev => {
+              const updated = prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, date: date || apt.date, time: time || apt.time } : apt);
+              const updatedAppointment = updated.find(apt => apt.id === selectedAppointment.id);
+              if (updatedAppointment) {
+                setSelectedAppointment(updatedAppointment);
+              }
+              return updated;
+            });
+            toast.success('Turno reprogramado');
           } else {
-            (async () => { try { await (updateAppointment as any)(selectedAppointment.id, { date, time }); } catch { toast.error('No se pudo reprogramar'); } })();
+            (async () => { 
+              try { 
+                const updated = await (updateAppointment as any)(selectedAppointment.id, { date, time });
+                if (updated) {
+                  setSelectedAppointment(updated);
+                }
+                toast.success('Turno reprogramado'); 
+              } catch (e) {
+                console.error('Error rescheduling appointment:', e);
+                toast.error('No se pudo reprogramar'); 
+              } 
+            })();
           }
-          toast.success('Turno reprogramado');
-          setSelectedAppointment(null);
         }}
         onRestore={(id: string) => {
           if (isDemo) {
-            setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: 'confirmed' as const } : apt));
+            setAppointments(prev => {
+              const updated = prev.map(apt => apt.id === id ? { ...apt, status: 'confirmed' as const } : apt);
+              const updatedAppointment = updated.find(apt => apt.id === id);
+              if (updatedAppointment && selectedAppointment?.id === id) {
+                setSelectedAppointment(updatedAppointment);
+              }
+              return updated;
+            });
             toast.success('Turno restaurado');
-            setSelectedAppointment(null);
           } else {
-            (async () => { try { await (updateAppointment as any)(id, { status: 'confirmed' as const }); toast.success('Turno restaurado'); } catch { toast.error('No se pudo restaurar'); } finally { setSelectedAppointment(null); } })();
+            (async () => { 
+              try { 
+                const updated = await (updateAppointment as any)(id, { status: 'confirmed' as const });
+                if (updated) {
+                  setSelectedAppointment(updated);
+                }
+                toast.success('Turno restaurado'); 
+              } catch (e) {
+                console.error('Error restoring appointment:', e);
+                toast.error('No se pudo restaurar'); 
+              } 
+            })();
           }
         }}
         onSetStatus={(status) => {
           if (!selectedAppointment) return;
           if (isDemo) {
-            setAppointments(prev => prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, status } : apt));
+            setAppointments(prev => {
+              const updated = prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, status } : apt);
+              const updatedAppointment = updated.find(apt => apt.id === selectedAppointment.id);
+              if (updatedAppointment) {
+                setSelectedAppointment(updatedAppointment);
+              }
+              return updated;
+            });
             toast.success('Estado actualizado');
-            setSelectedAppointment(null);
           } else {
-            (async () => { try { await (updateAppointment as any)(selectedAppointment.id, { status }); toast.success('Estado actualizado'); } catch { toast.error('No se pudo actualizar'); } finally { setSelectedAppointment(null); } })();
+            (async () => { 
+              try { 
+                const updated = await (updateAppointment as any)(selectedAppointment.id, { status });
+                if (updated) {
+                  setSelectedAppointment(updated);
+                }
+                toast.success('Estado actualizado'); 
+              } catch (e) {
+                console.error('Error updating status:', e);
+                toast.error('No se pudo actualizar'); 
+              } 
+            })();
           }
         }}
       />

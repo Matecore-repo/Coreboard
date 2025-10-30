@@ -80,9 +80,11 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   const isAdmin = currentRole === 'admin';
   const isOwner = currentRole === 'owner';
+  const isEmployee = currentRole === 'employee';
   const canEdit = isAdmin || isOwner;
   const canCreateTokens = isAdmin || isOwner;
   const canDelete = isOwner;
+  const canViewMembers = true; // Todos los usuarios pueden ver miembros
 
   // ============================================================================
   // FUNCIONES DE CARGA (Memoizadas y optimizadas)
@@ -201,12 +203,14 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setOrgName(org.name || '');
       setOrgTaxId(org.tax_id || '');
 
-      Promise.all([
-        loadMemberships(currentOrgId),
-        loadRegistrationTokens(currentOrgId)
-      ]).catch(err => {
-        console.error('Error loading related data:', err);
-      });
+      // Cargar miembros siempre (todos los usuarios pueden ver la lista)
+      await loadMemberships(currentOrgId);
+      
+      // Cargar tokens solo si tiene permisos para crearlos (owners/admins)
+      const userCanCreateTokens = currentRole === 'admin' || currentRole === 'owner';
+      if (userCanCreateTokens) {
+        await loadRegistrationTokens(currentOrgId);
+      }
 
     } catch (error: any) {
       console.error('Error loading organization:', error);
@@ -218,7 +222,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [currentOrgId, loadMemberships, loadRegistrationTokens]);
+  }, [currentOrgId, loadMemberships, loadRegistrationTokens, currentRole]);
 
   // ============================================================================
   // EFECTO PRINCIPAL

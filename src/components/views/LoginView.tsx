@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { Lock, Mail } from "lucide-react";
 import { Button } from "../ui/button";
 import LoginCTA from "../LoginCTA";
@@ -8,17 +8,28 @@ import { Label } from "../ui/label";
 import NextImage from "next/image";
 import { useAuth } from "../../contexts/AuthContext";
 import ThemeBubble from "../../components/ThemeBubble";
+import { motion, AnimatePresence } from "motion/react";
+import { useRouter } from "next/router";
 
 const salonImagePublic = "/imagenlogin.jpg";
 const salonImageAsset = "/imagenlogin.jpg";
 
 function LoginView() {
-  const { signInAsDemo, signIn, signUp, resetPassword } = useAuth();
+  const { signInAsDemo, signIn, signUp, resetPassword, user, loading } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [secretToken, setSecretToken] = useState("");
   const [currentImage, setCurrentImage] = useState<string>(salonImageAsset);
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Si el usuario ya está autenticado, redirigir al dashboard
+  useEffect(() => {
+    if (user && !isLoggingIn) {
+      router.push('/dashboard');
+    }
+  }, [user, router, isLoggingIn]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -41,8 +52,14 @@ function LoginView() {
         return;
       }
       try {
+        setIsLoggingIn(true);
         await signIn(email, password);
+        // Redirigir al dashboard - el toast de bienvenida se mostrará en App.tsx
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 300);
       } catch (error: any) {
+        setIsLoggingIn(false);
         toast.error(error.message || "Error al iniciar sesión");
       }
       return;
@@ -78,7 +95,12 @@ function LoginView() {
 
   const handleForceLogin = () => {
     if (typeof signInAsDemo === "function") {
+      setIsLoggingIn(true);
       signInAsDemo();
+      // Redirigir al dashboard - el toast de bienvenida se mostrará en App.tsx
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 300);
     } else {
       toast.error("Demo no disponible en este entorno");
     }
@@ -177,8 +199,8 @@ function LoginView() {
                 </button>
               </div>
 
-              <Button type="submit" className="w-full h-12 text-base">
-                {mode === "login"
+              <Button type="submit" className="w-full h-12 text-base" disabled={isLoggingIn}>
+                {isLoggingIn ? "Iniciando sesión..." : mode === "login"
                   ? "Iniciar sesión"
                   : mode === "register"
                   ? "Crear cuenta"

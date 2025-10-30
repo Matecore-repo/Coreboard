@@ -15,7 +15,7 @@ import { Building2 } from 'lucide-react';
 
 const ClientsView: React.FC = () => {
   const { currentOrgId, isDemo } = useAuth();
-  const { clients, loading: hooksLoading, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
+  const { clients, loading: hooksLoading, error: clientsError, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
@@ -54,6 +54,14 @@ const ClientsView: React.FC = () => {
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
     };
   }, [hooksLoading]);
+
+  // Mostrar error si existe
+  useEffect(() => {
+    if (clientsError) {
+      console.error('Error loading clients:', clientsError);
+      toast.error('Error al cargar clientes');
+    }
+  }, [clientsError]);
 
   const handleSave = async () => {
     try {
@@ -129,8 +137,23 @@ const ClientsView: React.FC = () => {
     );
   }
 
-  if (displayLoading) {
+  if (displayLoading && hooksLoading) {
     return <div className="p-6 text-center text-muted-foreground">Cargando clientes...</div>;
+  }
+
+  if (clientsError && !hooksLoading) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive">Error al cargar clientes: {clientsError.message}</p>
+            <Button onClick={() => window.location.reload()} className="mt-4">
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
