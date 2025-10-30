@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from "react";
 import {
   Calendar,
   Home,
@@ -16,7 +16,14 @@ import { AppointmentDialog } from "./components/AppointmentDialog";
 import { AppointmentActionBar } from "./components/AppointmentActionBar";
 import { FloatingQuickActions } from "./components/FloatingQuickActions";
 import { FilterBar } from "./components/FilterBar";
-const HomeView = lazy(() => import("./components/views/HomeView"));
+
+// Lazy load con preload para navegación más rápida
+const HomeView = lazy(() => {
+  const module = import("./components/views/HomeView");
+  (window as any).__preloadedViews = (window as any).__preloadedViews || {};
+  (window as any).__preloadedViews.home = module;
+  return module;
+});
 const ClientsView = lazy(() => import("./components/views/ClientsView"));
 const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
@@ -103,12 +110,12 @@ interface DemoAppointment {
 }
 
 const sampleAppointments: DemoAppointment[] = [
-  // Hoy - 2025-10-08
+  // Hoy - 2025-10-29
   {
     id: "1",
     clientName: "María González",
     service: "Corte y Coloración",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "10:00",
     status: "completed",
     stylist: "María García",
@@ -118,17 +125,37 @@ const sampleAppointments: DemoAppointment[] = [
     id: "2",
     clientName: "Juan Pérez",
     service: "Corte",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "11:30",
-    status: "completed",
+    status: "confirmed",
     stylist: "María García",
     salonId: "1",
   },
   {
     id: "3",
+    clientName: "Ana López",
+    service: "Mechas",
+    date: "2025-10-29",
+    time: "14:00",
+    status: "pending",
+    stylist: "Ana Martínez",
+    salonId: "2",
+  },
+  {
+    id: "4",
+    clientName: "Carlos Ruiz",
+    service: "Barba",
+    date: "2025-10-29",
+    time: "16:00",
+    status: "confirmed",
+    stylist: "Roberto Silva",
+    salonId: "2",
+  },
+  {
+    id: "3",
     clientName: "Laura Martínez",
     service: "Peinado",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "14:00",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -138,7 +165,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "4",
     clientName: "Pedro Rodríguez",
     service: "Barba",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "15:00",
     status: "confirmed",
     stylist: "Roberto Silva",
@@ -148,7 +175,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "5",
     clientName: "Sofía López",
     service: "Mechas",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "16:30",
     status: "pending",
     stylist: "María García",
@@ -158,7 +185,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "6",
     clientName: "Carlos Fernández",
     service: "Tratamiento",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "17:00",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -168,7 +195,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "7",
     clientName: "Ana Torres",
     service: "Coloración",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "18:30",
     status: "pending",
     stylist: "María García",
@@ -178,7 +205,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "8",
     clientName: "Roberto Díaz",
     service: "Corte",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "13:00",
     status: "completed",
     stylist: "Carlos López",
@@ -188,7 +215,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "9",
     clientName: "Lucía Ramírez",
     service: "Brushing",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "12:00",
     status: "completed",
     stylist: "María García",
@@ -198,7 +225,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "10",
     clientName: "Diego Sánchez",
     service: "Corte y Barba",
-    date: "2025-10-08",
+    date: "2025-10-29",
     time: "14:30",
     status: "confirmed",
     stylist: "Roberto Silva",
@@ -209,7 +236,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "11",
     clientName: "Valentina Castro",
     service: "Corte",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "09:00",
     status: "confirmed",
     stylist: "María García",
@@ -219,7 +246,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "12",
     clientName: "Mateo Flores",
     service: "Coloración",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "10:30",
     status: "pending",
     stylist: "Ana Martínez",
@@ -229,7 +256,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "13",
     clientName: "Isabella Romero",
     service: "Tratamiento Capilar",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "11:00",
     status: "confirmed",
     stylist: "María García",
@@ -239,7 +266,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "14",
     clientName: "Sebastián Vargas",
     service: "Corte",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "13:30",
     status: "pending",
     stylist: "Carlos López",
@@ -249,7 +276,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "15",
     clientName: "Camila Herrera",
     service: "Mechas Balayage",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "15:00",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -259,7 +286,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "16",
     clientName: "Nicolás Ruiz",
     service: "Barba",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "16:00",
     status: "pending",
     stylist: "Roberto Silva",
@@ -269,7 +296,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "17",
     clientName: "Martina Campos",
     service: "Alisado",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "17:00",
     status: "confirmed",
     stylist: "María García",
@@ -279,7 +306,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "18",
     clientName: "Lucas Moreno",
     service: "Corte",
-    date: "2025-10-09",
+    date: "2025-10-30",
     time: "18:00",
     status: "pending",
     stylist: "Carlos López",
@@ -290,7 +317,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "19",
     clientName: "Emma Ortiz",
     service: "Peinado de Novia",
-    date: "2025-10-10",
+    date: "2025-10-31",
     time: "09:00",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -300,7 +327,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "20",
     clientName: "Joaquín Medina",
     service: "Corte y Barba",
-    date: "2025-10-10",
+    date: "2025-10-31",
     time: "10:00",
     status: "pending",
     stylist: "Roberto Silva",
@@ -310,7 +337,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "21",
     clientName: "Mía Navarro",
     service: "Coloración Fantasía",
-    date: "2025-10-10",
+    date: "2025-10-31",
     time: "11:30",
     status: "confirmed",
     stylist: "María García",
@@ -320,7 +347,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "22",
     clientName: "Thiago Silva",
     service: "Corte",
-    date: "2025-10-10",
+    date: "2025-10-31",
     time: "14:00",
     status: "pending",
     stylist: "Carlos López",
@@ -330,7 +357,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "23",
     clientName: "Sofía Reyes",
     service: "Permanente",
-    date: "2025-10-10",
+    date: "2025-10-31",
     time: "15:30",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -340,7 +367,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "24",
     clientName: "Benjamín Acosta",
     service: "Tratamiento",
-    date: "2025-10-10",
+    date: "2025-10-31",
     time: "16:00",
     status: "pending",
     stylist: "María García",
@@ -351,7 +378,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "25",
     clientName: "Olivia Mendoza",
     service: "Corte Bob",
-    date: "2025-10-11",
+    date: "2025-11-01",
     time: "10:00",
     status: "confirmed",
     stylist: "María García",
@@ -361,7 +388,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "26",
     clientName: "Santiago Vega",
     service: "Fade",
-    date: "2025-10-11",
+    date: "2025-11-01",
     time: "11:00",
     status: "pending",
     stylist: "Roberto Silva",
@@ -371,7 +398,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "27",
     clientName: "Victoria Rojas",
     service: "Mechas Californianas",
-    date: "2025-10-11",
+    date: "2025-11-01",
     time: "13:00",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -381,7 +408,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "28",
     clientName: "Gabriel Paredes",
     service: "Corte",
-    date: "2025-10-11",
+    date: "2025-11-01",
     time: "15:00",
     status: "pending",
     stylist: "Carlos López",
@@ -391,7 +418,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "29",
     clientName: "Renata Cruz",
     service: "Brushing y Planchado",
-    date: "2025-10-11",
+    date: "2025-11-01",
     time: "16:30",
     status: "confirmed",
     stylist: "María García",
@@ -401,7 +428,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "30",
     clientName: "Maximiliano Ibarra",
     service: "Corte y Barba",
-    date: "2025-10-11",
+    date: "2025-11-01",
     time: "17:30",
     status: "cancelled",
     stylist: "Roberto Silva",
@@ -412,7 +439,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "31",
     clientName: "Catalina Bravo",
     service: "Keratina",
-    date: "2025-10-13",
+    date: "2025-11-03",
     time: "09:30",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -422,7 +449,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "32",
     clientName: "Felipe Guzmán",
     service: "Corte Clásico",
-    date: "2025-10-13",
+    date: "2025-11-03",
     time: "11:00",
     status: "pending",
     stylist: "Carlos López",
@@ -432,7 +459,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "33",
     clientName: "Amanda Ponce",
     service: "Tinte Completo",
-    date: "2025-10-13",
+    date: "2025-11-03",
     time: "14:00",
     status: "confirmed",
     stylist: "María García",
@@ -442,7 +469,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "34",
     clientName: "Emilio Cortés",
     service: "Barba y Cejas",
-    date: "2025-10-13",
+    date: "2025-11-03",
     time: "15:30",
     status: "pending",
     stylist: "Roberto Silva",
@@ -452,7 +479,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "35",
     clientName: "Julieta Núñez",
     service: "Peinado de Fiesta",
-    date: "2025-10-13",
+    date: "2025-11-03",
     time: "17:00",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -463,7 +490,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "36",
     clientName: "Dante Fuentes",
     service: "Corte Moderno",
-    date: "2025-10-15",
+    date: "2025-11-05",
     time: "10:00",
     status: "pending",
     stylist: "Carlos López",
@@ -473,7 +500,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "37",
     clientName: "Agustina Ríos",
     service: "Balayage",
-    date: "2025-10-15",
+    date: "2025-11-05",
     time: "11:30",
     status: "confirmed",
     stylist: "María García",
@@ -483,7 +510,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "38",
     clientName: "Lorenzo Paz",
     service: "Corte y Styling",
-    date: "2025-10-15",
+    date: "2025-11-05",
     time: "14:00",
     status: "pending",
     stylist: "Roberto Silva",
@@ -493,7 +520,7 @@ const sampleAppointments: DemoAppointment[] = [
     id: "39",
     clientName: "Francesca Lara",
     service: "Tratamiento Botox",
-    date: "2025-10-15",
+    date: "2025-11-05",
     time: "15:30",
     status: "confirmed",
     stylist: "Ana Martínez",
@@ -503,65 +530,65 @@ const sampleAppointments: DemoAppointment[] = [
     id: "40",
     clientName: "Manuel Cáceres",
     service: "Corte",
-    date: "2025-10-15",
+    date: "2025-11-05",
     time: "17:00",
     status: "cancelled",
     stylist: "Carlos López",
     salonId: "4",
   },
   // Más turnos - octubre 2025
-  { id: "41", clientName: "Valentina Ortega", service: "Corte", date: "2025-10-08", time: "09:00", status: "completed", stylist: "Laura Fernández", salonId: "1" },
-  { id: "42", clientName: "Santiago Ruiz", service: "Barba", date: "2025-10-08", time: "09:30", status: "completed", stylist: "Roberto Silva", salonId: "2" },
-  { id: "43", clientName: "Camila Torres", service: "Coloración", date: "2025-10-08", time: "10:30", status: "completed", stylist: "Ana Martínez", salonId: "3" },
-  { id: "44", clientName: "Mateo Sosa", service: "Fade", date: "2025-10-08", time: "11:00", status: "completed", stylist: "Diego Romero", salonId: "2" },
-  { id: "45", clientName: "Isabella Morales", service: "Mechas", date: "2025-10-08", time: "12:30", status: "completed", stylist: "Laura Fernández", salonId: "1" },
-  { id: "46", clientName: "Benjamín Castro", service: "Corte Clásico", date: "2025-10-08", time: "13:30", status: "completed", stylist: "Carlos López", salonId: "4" },
-  { id: "47", clientName: "Sofía Vargas", service: "Brushing", date: "2025-10-08", time: "15:30", status: "completed", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "48", clientName: "Lucas Herrera", service: "Corte y Barba", date: "2025-10-08", time: "16:00", status: "completed", stylist: "Diego Romero", salonId: "2" },
-  { id: "49", clientName: "Emma Jiménez", service: "Peinado", date: "2025-10-08", time: "17:30", status: "completed", stylist: "Ana Martínez", salonId: "1" },
-  { id: "50", clientName: "Thiago Molina", service: "Corte Moderno", date: "2025-10-08", time: "18:00", status: "completed", stylist: "Laura Fernández", salonId: "4" },
-  { id: "51", clientName: "Mía Delgado", service: "Keratina", date: "2025-10-09", time: "08:30", status: "confirmed", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "52", clientName: "Joaquín Blanco", service: "Barba y Cejas", date: "2025-10-09", time: "09:30", status: "confirmed", stylist: "Roberto Silva", salonId: "2" },
-  { id: "53", clientName: "Olivia Ramos", service: "Balayage", date: "2025-10-09", time: "12:00", status: "confirmed", stylist: "María García", salonId: "1" },
-  { id: "54", clientName: "Nicolás Vega", service: "Corte", date: "2025-10-09", time: "12:30", status: "pending", stylist: "Diego Romero", salonId: "2" },
-  { id: "55", clientName: "Martina Acosta", service: "Tratamiento Capilar", date: "2025-10-09", time: "14:00", status: "confirmed", stylist: "Laura Fernández", salonId: "4" },
-  { id: "56", clientName: "Dante Moreno", service: "Fade", date: "2025-10-09", time: "14:30", status: "pending", stylist: "Carlos López", salonId: "3" },
-  { id: "57", clientName: "Agustina Suárez", service: "Coloración Fantasía", date: "2025-10-09", time: "16:30", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
-  { id: "58", clientName: "Felipe Rojas", service: "Corte y Styling", date: "2025-10-09", time: "17:30", status: "pending", stylist: "Roberto Silva", salonId: "2" },
-  { id: "59", clientName: "Catalina Méndez", service: "Mechas Californianas", date: "2025-10-09", time: "18:30", status: "confirmed", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "60", clientName: "Lorenzo Navarro", service: "Corte Clásico", date: "2025-10-09", time: "19:00", status: "pending", stylist: "Diego Romero", salonId: "4" },
-  { id: "61", clientName: "Francesca Parra", service: "Peinado de Novia", date: "2025-10-10", time: "08:00", status: "confirmed", stylist: "María García", salonId: "1" },
-  { id: "62", clientName: "Manuel Ríos", service: "Barba", date: "2025-10-10", time: "10:30", status: "pending", stylist: "Roberto Silva", salonId: "2" },
-  { id: "63", clientName: "Amanda Fuentes", service: "Tinte Completo", date: "2025-10-10", time: "12:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
-  { id: "64", clientName: "Emilio Cruz", service: "Corte", date: "2025-10-10", time: "13:00", status: "pending", stylist: "Carlos López", salonId: "4" },
-  { id: "65", clientName: "Julieta Guerrero", service: "Brushing y Planchado", date: "2025-10-10", time: "16:00", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
-  { id: "66", clientName: "Gabriel Peña", service: "Fade", date: "2025-10-10", time: "17:00", status: "confirmed", stylist: "Diego Romero", salonId: "2" },
-  { id: "67", clientName: "Renata Cortés", service: "Permanente", date: "2025-10-10", time: "17:30", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "68", clientName: "Maximiliano Vera", service: "Corte y Barba", date: "2025-10-10", time: "18:30", status: "confirmed", stylist: "Roberto Silva", salonId: "4" },
-  { id: "69", clientName: "Victoria Aguirre", service: "Mechas Balayage", date: "2025-10-11", time: "09:00", status: "confirmed", stylist: "María García", salonId: "1" },
-  { id: "70", clientName: "Dante Sánchez", service: "Corte Moderno", date: "2025-10-11", time: "09:30", status: "pending", stylist: "Carlos López", salonId: "2" },
-  { id: "71", clientName: "Emma Salazar", service: "Tratamiento Botox", date: "2025-10-11", time: "11:30", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
-  { id: "72", clientName: "Sebastián Campos", service: "Barba y Cejas", date: "2025-10-11", time: "12:00", status: "pending", stylist: "Roberto Silva", salonId: "4" },
-  { id: "73", clientName: "Olivia Benítez", service: "Coloración", date: "2025-10-11", time: "14:00", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
-  { id: "74", clientName: "Mateo Figueroa", service: "Corte", date: "2025-10-11", time: "14:30", status: "confirmed", stylist: "Diego Romero", salonId: "2" },
-  { id: "75", clientName: "Isabella Núñez", service: "Alisado", date: "2025-10-11", time: "18:00", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "76", clientName: "Joaquín Reyes", service: "Fade", date: "2025-10-11", time: "18:30", status: "confirmed", stylist: "Carlos López", salonId: "4" },
-  { id: "77", clientName: "Mía Guzmán", service: "Peinado de Fiesta", date: "2025-10-12", time: "10:00", status: "confirmed", stylist: "María García", salonId: "1" },
-  { id: "78", clientName: "Nicolás Molina", service: "Corte Clásico", date: "2025-10-12", time: "11:00", status: "pending", stylist: "Roberto Silva", salonId: "2" },
-  { id: "79", clientName: "Martina Castillo", service: "Mechas", date: "2025-10-12", time: "13:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
-  { id: "80", clientName: "Thiago Morales", service: "Corte y Styling", date: "2025-10-12", time: "14:00", status: "pending", stylist: "Diego Romero", salonId: "4" },
-  { id: "81", clientName: "Sofía Chávez", service: "Keratina", date: "2025-10-12", time: "15:30", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
-  { id: "82", clientName: "Lucas Ramírez", service: "Barba", date: "2025-10-12", time: "16:00", status: "confirmed", stylist: "Roberto Silva", salonId: "2" },
-  { id: "83", clientName: "Camila Vargas", service: "Balayage", date: "2025-10-12", time: "17:00", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "84", clientName: "Benjamín Ortiz", service: "Corte", date: "2025-10-12", time: "17:30", status: "confirmed", stylist: "Carlos López", salonId: "4" },
-  { id: "85", clientName: "Valentina Méndez", service: "Tinte Completo", date: "2025-10-13", time: "08:30", status: "confirmed", stylist: "María García", salonId: "1" },
-  { id: "86", clientName: "Santiago Herrera", service: "Fade", date: "2025-10-13", time: "10:00", status: "pending", stylist: "Diego Romero", salonId: "2" },
-  { id: "87", clientName: "Emma Rojas", service: "Brushing", date: "2025-10-13", time: "12:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
-  { id: "88", clientName: "Mateo Navarro", service: "Corte y Barba", date: "2025-10-13", time: "13:00", status: "pending", stylist: "Roberto Silva", salonId: "4" },
-  { id: "89", clientName: "Isabella Torres", service: "Permanente", date: "2025-10-13", time: "16:00", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
-  { id: "90", clientName: "Joaquín Silva", service: "Corte Moderno", date: "2025-10-13", time: "16:30", status: "confirmed", stylist: "Carlos López", salonId: "2" },
-  { id: "91", clientName: "Olivia Castro", service: "Coloración Fantasía", date: "2025-10-13", time: "18:00", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "92", clientName: "Nicolás Acosta", service: "Barba y Cejas", date: "2025-10-13", time: "18:30", status: "confirmed", stylist: "Diego Romero", salonId: "4" },
+  { id: "41", clientName: "Valentina Ortega", service: "Corte", date: "2025-10-29", time: "09:00", status: "completed", stylist: "Laura Fernández", salonId: "1" },
+  { id: "42", clientName: "Santiago Ruiz", service: "Barba", date: "2025-10-29", time: "09:30", status: "completed", stylist: "Roberto Silva", salonId: "2" },
+  { id: "43", clientName: "Camila Torres", service: "Coloración", date: "2025-10-29", time: "10:30", status: "completed", stylist: "Ana Martínez", salonId: "3" },
+  { id: "44", clientName: "Mateo Sosa", service: "Fade", date: "2025-10-29", time: "11:00", status: "completed", stylist: "Diego Romero", salonId: "2" },
+  { id: "45", clientName: "Isabella Morales", service: "Mechas", date: "2025-10-29", time: "12:30", status: "completed", stylist: "Laura Fernández", salonId: "1" },
+  { id: "46", clientName: "Benjamín Castro", service: "Corte Clásico", date: "2025-10-29", time: "13:30", status: "completed", stylist: "Carlos López", salonId: "4" },
+  { id: "47", clientName: "Sofía Vargas", service: "Brushing", date: "2025-10-29", time: "15:30", status: "completed", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "48", clientName: "Lucas Herrera", service: "Corte y Barba", date: "2025-10-29", time: "16:00", status: "completed", stylist: "Diego Romero", salonId: "2" },
+  { id: "49", clientName: "Emma Jiménez", service: "Peinado", date: "2025-10-29", time: "17:30", status: "completed", stylist: "Ana Martínez", salonId: "1" },
+  { id: "50", clientName: "Thiago Molina", service: "Corte Moderno", date: "2025-10-29", time: "18:00", status: "completed", stylist: "Laura Fernández", salonId: "4" },
+  { id: "51", clientName: "Mía Delgado", service: "Keratina", date: "2025-10-30", time: "08:30", status: "confirmed", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "52", clientName: "Joaquín Blanco", service: "Barba y Cejas", date: "2025-10-30", time: "09:30", status: "confirmed", stylist: "Roberto Silva", salonId: "2" },
+  { id: "53", clientName: "Olivia Ramos", service: "Balayage", date: "2025-10-30", time: "12:00", status: "confirmed", stylist: "María García", salonId: "1" },
+  { id: "54", clientName: "Nicolás Vega", service: "Corte", date: "2025-10-30", time: "12:30", status: "pending", stylist: "Diego Romero", salonId: "2" },
+  { id: "55", clientName: "Martina Acosta", service: "Tratamiento Capilar", date: "2025-10-30", time: "14:00", status: "confirmed", stylist: "Laura Fernández", salonId: "4" },
+  { id: "56", clientName: "Dante Moreno", service: "Fade", date: "2025-10-30", time: "14:30", status: "pending", stylist: "Carlos López", salonId: "3" },
+  { id: "57", clientName: "Agustina Suárez", service: "Coloración Fantasía", date: "2025-10-30", time: "16:30", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
+  { id: "58", clientName: "Felipe Rojas", service: "Corte y Styling", date: "2025-10-30", time: "17:30", status: "pending", stylist: "Roberto Silva", salonId: "2" },
+  { id: "59", clientName: "Catalina Méndez", service: "Mechas Californianas", date: "2025-10-30", time: "18:30", status: "confirmed", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "60", clientName: "Lorenzo Navarro", service: "Corte Clásico", date: "2025-10-30", time: "19:00", status: "pending", stylist: "Diego Romero", salonId: "4" },
+  { id: "61", clientName: "Francesca Parra", service: "Peinado de Novia", date: "2025-10-31", time: "08:00", status: "confirmed", stylist: "María García", salonId: "1" },
+  { id: "62", clientName: "Manuel Ríos", service: "Barba", date: "2025-10-31", time: "10:30", status: "pending", stylist: "Roberto Silva", salonId: "2" },
+  { id: "63", clientName: "Amanda Fuentes", service: "Tinte Completo", date: "2025-10-31", time: "12:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
+  { id: "64", clientName: "Emilio Cruz", service: "Corte", date: "2025-10-31", time: "13:00", status: "pending", stylist: "Carlos López", salonId: "4" },
+  { id: "65", clientName: "Julieta Guerrero", service: "Brushing y Planchado", date: "2025-10-31", time: "16:00", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
+  { id: "66", clientName: "Gabriel Peña", service: "Fade", date: "2025-10-31", time: "17:00", status: "confirmed", stylist: "Diego Romero", salonId: "2" },
+  { id: "67", clientName: "Renata Cortés", service: "Permanente", date: "2025-10-31", time: "17:30", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "68", clientName: "Maximiliano Vera", service: "Corte y Barba", date: "2025-10-31", time: "18:30", status: "confirmed", stylist: "Roberto Silva", salonId: "4" },
+  { id: "69", clientName: "Victoria Aguirre", service: "Mechas Balayage", date: "2025-11-01", time: "09:00", status: "confirmed", stylist: "María García", salonId: "1" },
+  { id: "70", clientName: "Dante Sánchez", service: "Corte Moderno", date: "2025-11-01", time: "09:30", status: "pending", stylist: "Carlos López", salonId: "2" },
+  { id: "71", clientName: "Emma Salazar", service: "Tratamiento Botox", date: "2025-11-01", time: "11:30", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
+  { id: "72", clientName: "Sebastián Campos", service: "Barba y Cejas", date: "2025-11-01", time: "12:00", status: "pending", stylist: "Roberto Silva", salonId: "4" },
+  { id: "73", clientName: "Olivia Benítez", service: "Coloración", date: "2025-11-01", time: "14:00", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
+  { id: "74", clientName: "Mateo Figueroa", service: "Corte", date: "2025-11-01", time: "14:30", status: "confirmed", stylist: "Diego Romero", salonId: "2" },
+  { id: "75", clientName: "Isabella Núñez", service: "Alisado", date: "2025-11-01", time: "18:00", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "76", clientName: "Joaquín Reyes", service: "Fade", date: "2025-11-01", time: "18:30", status: "confirmed", stylist: "Carlos López", salonId: "4" },
+  { id: "77", clientName: "Mía Guzmán", service: "Peinado de Fiesta", date: "2025-11-02", time: "10:00", status: "confirmed", stylist: "María García", salonId: "1" },
+  { id: "78", clientName: "Nicolás Molina", service: "Corte Clásico", date: "2025-11-02", time: "11:00", status: "pending", stylist: "Roberto Silva", salonId: "2" },
+  { id: "79", clientName: "Martina Castillo", service: "Mechas", date: "2025-11-02", time: "13:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
+  { id: "80", clientName: "Thiago Morales", service: "Corte y Styling", date: "2025-11-02", time: "14:00", status: "pending", stylist: "Diego Romero", salonId: "4" },
+  { id: "81", clientName: "Sofía Chávez", service: "Keratina", date: "2025-11-02", time: "15:30", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
+  { id: "82", clientName: "Lucas Ramírez", service: "Barba", date: "2025-11-02", time: "16:00", status: "confirmed", stylist: "Roberto Silva", salonId: "2" },
+  { id: "83", clientName: "Camila Vargas", service: "Balayage", date: "2025-11-02", time: "17:00", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "84", clientName: "Benjamín Ortiz", service: "Corte", date: "2025-11-02", time: "17:30", status: "confirmed", stylist: "Carlos López", salonId: "4" },
+  { id: "85", clientName: "Valentina Méndez", service: "Tinte Completo", date: "2025-11-03", time: "08:30", status: "confirmed", stylist: "María García", salonId: "1" },
+  { id: "86", clientName: "Santiago Herrera", service: "Fade", date: "2025-11-03", time: "10:00", status: "pending", stylist: "Diego Romero", salonId: "2" },
+  { id: "87", clientName: "Emma Rojas", service: "Brushing", date: "2025-11-03", time: "12:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
+  { id: "88", clientName: "Mateo Navarro", service: "Corte y Barba", date: "2025-11-03", time: "13:00", status: "pending", stylist: "Roberto Silva", salonId: "4" },
+  { id: "89", clientName: "Isabella Torres", service: "Permanente", date: "2025-11-03", time: "16:00", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
+  { id: "90", clientName: "Joaquín Silva", service: "Corte Moderno", date: "2025-11-03", time: "16:30", status: "confirmed", stylist: "Carlos López", salonId: "2" },
+  { id: "91", clientName: "Olivia Castro", service: "Coloración Fantasía", date: "2025-11-03", time: "18:00", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "92", clientName: "Nicolás Acosta", service: "Barba y Cejas", date: "2025-11-03", time: "18:30", status: "confirmed", stylist: "Diego Romero", salonId: "4" },
   { id: "93", clientName: "Martina Gómez", service: "Mechas Californianas", date: "2025-10-14", time: "09:00", status: "confirmed", stylist: "María García", salonId: "1" },
   { id: "94", clientName: "Dante Blanco", service: "Corte", date: "2025-10-14", time: "10:00", status: "pending", stylist: "Roberto Silva", salonId: "2" },
   { id: "95", clientName: "Agustina Vega", service: "Tratamiento Capilar", date: "2025-10-14", time: "11:30", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
@@ -570,14 +597,14 @@ const sampleAppointments: DemoAppointment[] = [
   { id: "98", clientName: "Lorenzo Fuentes", service: "Corte Clásico", date: "2025-10-14", time: "15:00", status: "confirmed", stylist: "Diego Romero", salonId: "2" },
   { id: "99", clientName: "Francesca Guerrero", service: "Peinado", date: "2025-10-14", time: "16:30", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
   { id: "100", clientName: "Manuel Peña", service: "Corte y Barba", date: "2025-10-14", time: "17:00", status: "confirmed", stylist: "Roberto Silva", salonId: "4" },
-  { id: "101", clientName: "Amanda Cortés", service: "Balayage", date: "2025-10-15", time: "08:30", status: "pending", stylist: "María García", salonId: "1" },
-  { id: "102", clientName: "Emilio Vera", service: "Barba", date: "2025-10-15", time: "09:00", status: "confirmed", stylist: "Roberto Silva", salonId: "2" },
-  { id: "103", clientName: "Julieta Aguirre", service: "Keratina", date: "2025-10-15", time: "11:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
-  { id: "104", clientName: "Gabriel Sánchez", service: "Corte", date: "2025-10-15", time: "12:00", status: "pending", stylist: "Carlos López", salonId: "4" },
-  { id: "105", clientName: "Renata Salazar", service: "Mechas Balayage", date: "2025-10-15", time: "13:30", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
-  { id: "106", clientName: "Maximiliano Campos", service: "Fade", date: "2025-10-15", time: "16:00", status: "confirmed", stylist: "Diego Romero", salonId: "2" },
-  { id: "107", clientName: "Victoria Benítez", service: "Coloración", date: "2025-10-15", time: "16:30", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
-  { id: "108", clientName: "Sebastián Figueroa", service: "Corte y Styling", date: "2025-10-15", time: "18:00", status: "confirmed", stylist: "Roberto Silva", salonId: "4" },
+  { id: "101", clientName: "Amanda Cortés", service: "Balayage", date: "2025-11-05", time: "08:30", status: "pending", stylist: "María García", salonId: "1" },
+  { id: "102", clientName: "Emilio Vera", service: "Barba", date: "2025-11-05", time: "09:00", status: "confirmed", stylist: "Roberto Silva", salonId: "2" },
+  { id: "103", clientName: "Julieta Aguirre", service: "Keratina", date: "2025-11-05", time: "11:00", status: "confirmed", stylist: "Laura Fernández", salonId: "3" },
+  { id: "104", clientName: "Gabriel Sánchez", service: "Corte", date: "2025-11-05", time: "12:00", status: "pending", stylist: "Carlos López", salonId: "4" },
+  { id: "105", clientName: "Renata Salazar", service: "Mechas Balayage", date: "2025-11-05", time: "13:30", status: "confirmed", stylist: "Ana Martínez", salonId: "1" },
+  { id: "106", clientName: "Maximiliano Campos", service: "Fade", date: "2025-11-05", time: "16:00", status: "confirmed", stylist: "Diego Romero", salonId: "2" },
+  { id: "107", clientName: "Victoria Benítez", service: "Coloración", date: "2025-11-05", time: "16:30", status: "pending", stylist: "Patricia Gómez", salonId: "3" },
+  { id: "108", clientName: "Sebastián Figueroa", service: "Corte y Styling", date: "2025-11-05", time: "18:00", status: "confirmed", stylist: "Roberto Silva", salonId: "4" },
   // Octubre 16-20
   { id: "109", clientName: "Emma Núñez", service: "Peinado de Novia", date: "2025-10-16", time: "09:00", status: "confirmed", stylist: "María García", salonId: "1" },
   { id: "110", clientName: "Mateo Reyes", service: "Corte Clásico", date: "2025-10-16", time: "10:30", status: "pending", stylist: "Carlos López", salonId: "2" },
@@ -613,6 +640,15 @@ export default function App() {
   // Demo/local state
   const [salons, setSalons] = useState<Salon[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  // Fallback local para usuarios reales sin backend: turnos creados pero no sincronizados
+  const [unsyncedAppointments, setUnsyncedAppointments] = useState<Appointment[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const key = `unsynced:appointments:${user?.id || 'local'}`;
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as Appointment[]) : [];
+    } catch { return []; }
+  });
   const [demoName, setDemoName] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try { return localStorage.getItem('demo:name'); } catch { return null; }
@@ -620,13 +656,16 @@ export default function App() {
   const [showDemoWelcome, setShowDemoWelcome] = useState(false);
 
   // Remote data via Supabase (only after login)
+  // NO filtrar por salón en el hook - filtrar en el frontend para mejor UX
   const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment } = useDbAppointments(
-    selectedSalon === 'all' ? undefined : (selectedSalon ?? undefined),
+    undefined, // Cargar todos los turnos
     { enabled: !!session }
   );
   const { salons: remoteSalons, createSalon: createRemoteSalon, updateSalon: updateRemoteSalon, deleteSalon: deleteRemoteSalon } = useDbSalons(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId });
 
-  const effectiveAppointments: Appointment[] = isDemo ? appointments : (remoteAppointments as any);
+  const effectiveAppointments: Appointment[] = isDemo
+    ? appointments
+    : ([...unsyncedAppointments, ...((remoteAppointments as any) || [])] as Appointment[]);
   const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
 
   const selectedSalonName = useMemo(() => {
@@ -733,6 +772,7 @@ export default function App() {
     setSelectedSalon(null);
     setSelectedAppointment(null);
     setShowQuickActions(false);
+    try { localStorage.removeItem(`unsynced:appointments:${user?.id || 'local'}`); } catch {}
     toast.info("Sesión cerrada correctamente");
   };
 
@@ -768,7 +808,7 @@ export default function App() {
         setEditingAppointment(null);
         toast.success("Turno actualizado correctamente");
       } else {
-        const salonToUse = appointmentData.salonId || selectedSalon;
+        const salonToUse = appointmentData.salonId || (selectedSalon !== 'all' ? selectedSalon : null);
         if (!salonToUse) {
           toast.error('Debes seleccionar una peluquería');
           return;
@@ -776,10 +816,41 @@ export default function App() {
         await (createAppointment as any)({ ...appointmentData, salonId: salonToUse });
         toast.success("Turno creado correctamente");
       }
-    } catch (e) {
-      toast.error('No se pudo guardar el turno');
+    } catch (e: any) {
+      // Fallback local: reflejar inmediatamente aunque falle backend
+      console.error('Error al guardar turno:', e);
+      if (!editingAppointment) {
+        const salonToUse = appointmentData.salonId || (selectedSalon !== 'all' ? selectedSalon : null);
+        if (salonToUse) {
+          const localAppointment: Appointment = {
+            id: `local-${Date.now()}`,
+            clientName: appointmentData.clientName || '',
+            service: appointmentData.service || '',
+            date: appointmentData.date || new Date().toISOString().slice(0, 10),
+            time: appointmentData.time || '09:00',
+            status: 'pending',
+            stylist: appointmentData.stylist || '',
+            salonId: salonToUse,
+          };
+          setUnsyncedAppointments(prev => [localAppointment, ...prev]);
+          toast.success('Turno guardado localmente (sincronización pendiente)');
+          // opcional: enfocar calendario en la fecha creada
+          setCalendarFocusDate(localAppointment.date);
+          return;
+        }
+      }
+      toast.error(e?.message || 'No se pudo guardar el turno');
     }
-  }, [isDemo, editingAppointment, selectedSalon]);
+  }, [isDemo, editingAppointment, selectedSalon, createAppointment]);
+
+  // Persistencia local de turnos no sincronizados
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const key = `unsynced:appointments:${user?.id || 'local'}`;
+      localStorage.setItem(key, JSON.stringify(unsyncedAppointments));
+    } catch {}
+  }, [unsyncedAppointments, user?.id]);
 
   const handleEditAppointment = useCallback((appointment: Appointment) => {
     setEditingAppointment(appointment);
@@ -837,8 +908,8 @@ export default function App() {
 
   const filteredAppointments = useMemo(() => {
     return effectiveAppointments.filter((apt) => {
-      // Filter by salon
-      if (selectedSalon && apt.salonId !== selectedSalon) return false;
+      // Filter by salon (incluir todos si es "all" o null)
+      if (selectedSalon && selectedSalon !== 'all' && apt.salonId !== selectedSalon) return false;
 
       // Filter by search query
       if (searchQuery) {
@@ -981,7 +1052,7 @@ export default function App() {
     return (a + (b || '')).toUpperCase();
   };
 
-  const SidebarContent = () => (
+  const SidebarContent = memo(() => (
     <div className="w-full bg-sidebar border-r border-sidebar-border flex flex-col h-full">
       <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
         <Avatar className="h-12 w-12 border-2 border-border">
@@ -1007,7 +1078,7 @@ export default function App() {
                   setMobileMenuOpen(false);
                 }
               }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-[background-color] duration-150 will-change-colors ${
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-[background-color] duration-75 will-change-[background-color] ${
                 activeNavItem === item.id
                   ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted text-sidebar-foreground"
@@ -1022,7 +1093,7 @@ export default function App() {
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-colors text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-colors duration-75 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
         >
           <LogOut className="h-4 w-4" />
           <span>Cerrar Sesión</span>
@@ -1045,139 +1116,150 @@ export default function App() {
         </Button>
       </div>
     </div>
-  );
+  ));
 
-  const renderContent = () => {
-    if (activeNavItem === "home") {
-      return (
-        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <HomeView
-            appointments={effectiveAppointments}
-            selectedSalon={selectedSalon}
-            salons={effectiveSalons}
-            onSelectSalon={handleSelectSalon}
-            onAppointmentClick={handleSelectAppointment}
-            onAddAppointment={() => {
-              setEditingAppointment(null);
-              setDialogOpen(true);
-            }}
-            orgName={user?.memberships?.[0]?.org_id ? 'tu peluquería' : undefined}
-            isNewUser={user?.isNewUser}
-          />
-        </Suspense>
-      );
-    }
-    if (activeNavItem === "finances") {
-      return (
-        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <FinancesView appointments={effectiveAppointments} selectedSalon={selectedSalon} salonName={selectedSalonName} />
-        </Suspense>
-      );
-    }
-    if (activeNavItem === "clients") {
-      return (
-        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <ClientsView />
-        </Suspense>
-      );
-    }
-    if (activeNavItem === "salons") {
-      return (
-        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <SalonsManagementView
-            salons={effectiveSalons}
-            onAddSalon={handleAddSalon}
-            onEditSalon={handleEditSalon}
-            onDeleteSalon={handleDeleteSalon}
-          />
-        </Suspense>
-      );
-    }
-    if (activeNavItem === "organization") {
-      return (
-        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <OrganizationView isDemo={isDemo} />
-        </Suspense>
-      );
-    }
-    if (activeNavItem === "profile") {
-      return (
-        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <ProfileView />
-        </Suspense>
-      );
-    }
-    if (activeNavItem === "settings") {
-      return (
-        <Suspense fallback={<div className="p-6">Cargando vista...</div>}>
-          <SettingsView />
-        </Suspense>
-      );
-    }
+  // Componente de carga optimizado
+  const LoadingView = memo(() => (
+    <div className="flex items-center justify-center p-12">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+  ));
 
-    // appointments view
-    return (
-      <>
-        <FilterBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-          dateFilter={dateFilter}
-          onDateFilterChange={setDateFilter}
-          stylistFilter={stylistFilter}
-          onStylistFilterChange={setStylistFilter}
-        />
+  // Simplificado: solo depende del activeNavItem
+  // Los componentes hijos toman sus props del estado global
+  const renderContent = useCallback(() => {
+    switch (activeNavItem) {
+      case "home":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <HomeView
+              appointments={effectiveAppointments}
+              selectedSalon={selectedSalon}
+              salons={effectiveSalons}
+              onSelectSalon={handleSelectSalon}
+              onAppointmentClick={handleSelectAppointment}
+              onAddAppointment={() => {
+                setEditingAppointment(null);
+                setDialogOpen(true);
+              }}
+              orgName={user?.memberships?.[0]?.org_id ? 'tu peluquería' : undefined}
+              isNewUser={user?.isNewUser}
+            />
+          </Suspense>
+        );
+      
+      case "finances":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <FinancesView appointments={effectiveAppointments} selectedSalon={selectedSalon} salonName={selectedSalonName} />
+          </Suspense>
+        );
+      
+      case "clients":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <ClientsView />
+          </Suspense>
+        );
+      
+      case "salons":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <SalonsManagementView
+              salons={effectiveSalons}
+              onAddSalon={handleAddSalon}
+              onEditSalon={handleEditSalon}
+              onDeleteSalon={handleDeleteSalon}
+            />
+          </Suspense>
+        );
+      
+      case "organization":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <OrganizationView isDemo={isDemo} />
+          </Suspense>
+        );
+      
+      case "profile":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <ProfileView />
+          </Suspense>
+        );
+      
+      case "settings":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <SettingsView />
+          </Suspense>
+        );
+      
+      default:
+        // appointments view
+        return (
+          <>
+            <FilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              dateFilter={dateFilter}
+              onDateFilterChange={setDateFilter}
+              stylistFilter={stylistFilter}
+              onStylistFilterChange={setStylistFilter}
+            />
 
-        <div className="bg-muted/20">
-          <div className="p-4 md:p-6 pb-20">
-            {!selectedSalon ? (
-              <div className="text-center py-16 px-4">
-                <div className="text-muted-foreground mb-2">
-                  Por favor selecciona una peluquería para ver los turnos
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Usa el carrusel superior para elegir una sucursal
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-3">
-                  <h2>Lista de Turnos</h2>
-                  <Button
-                    onClick={() => {
-                      setEditingAppointment(null);
-                      setDialogOpen(true);
-                    }}
-                    className="w-full sm:w-auto"
-                  >
-                    <Zap className="h-4 w-4 mr-2" />
-                    Nuevo Turno
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                {filteredAppointments.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No se encontraron turnos
+            <div className="bg-muted/20">
+              <div className="p-4 md:p-6 pb-20">
+                {!selectedSalon ? (
+                  <div className="text-center py-16 px-4">
+                    <div className="text-muted-foreground mb-2">
+                      Por favor selecciona una peluquería para ver los turnos
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Usa el carrusel superior para elegir una sucursal
+                    </p>
                   </div>
                 ) : (
-                  filteredAppointments.map((appointment) => (
-                    <AppointmentCard
-                      key={appointment.id}
-                      appointment={appointment}
-                      onClick={handleSelectAppointment}
-                      isSelected={selectedAppointment?.id === appointment.id}
-                    />
-                  ))
+                  <>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-3">
+                      <h2>Lista de Turnos</h2>
+                      <Button
+                        onClick={() => {
+                          setEditingAppointment(null);
+                          setDialogOpen(true);
+                        }}
+                        className="w-full sm:w-auto"
+                      >
+                        <Zap className="h-4 w-4 mr-2" />
+                        Nuevo Turno
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                    {filteredAppointments.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No se encontraron turnos
+                      </div>
+                    ) : (
+                      filteredAppointments.map((appointment) => (
+                        <AppointmentCard
+                          key={appointment.id}
+                          appointment={appointment}
+                          onClick={handleSelectAppointment}
+                          isSelected={selectedAppointment?.id === appointment.id}
+                        />
+                      ))
+                    )}
+                    </div>
+                  </>
                 )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </>
-    );
-  };
+              </div>
+            </div>
+          </>
+        );
+    }
+  }, [activeNavItem, effectiveAppointments, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, selectedAppointment]);
 
   // Show onboarding modal for new users
   useEffect(() => {

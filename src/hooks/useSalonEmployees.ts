@@ -67,7 +67,13 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
   }, [salonId, enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     fetchAssignments();
+    
+    // Deshabilitado en producción para mejor performance
+    // Las subscriptions causan re-renders constantes
+    // Los datos se actualizan al volver a la vista
+    /*
     if (subscribed.current) return;
     const subscription = supabase
       .channel('app:salon_employees')
@@ -80,7 +86,8 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
       try { subscription.unsubscribe(); } catch {}
       subscribed.current = false;
     };
-  }, [fetchAssignments]);
+    */
+  }, [fetchAssignments, enabled]);
 
   const assignEmployee = async (employeeId: string) => {
     if (!salonId) throw new Error('Salon ID is required');

@@ -85,7 +85,12 @@ export function useSalonServices(salonId?: string, options?: { enabled?: boolean
   }, [salonId, enabled, isDemo]);
 
   useEffect(() => {
+    if (!enabled || !salonId) return;
     fetchServices();
+    
+    // Deshabilitado en producción para mejor performance
+    // Las subscriptions causan re-renders constantes
+    /*
     if (isDemo || subscribed.current || !salonId) return;
     const subscription = supabase
       .channel(`app:salon_services:salon_id=eq.${salonId}`)
@@ -98,7 +103,8 @@ export function useSalonServices(salonId?: string, options?: { enabled?: boolean
       try { subscription.unsubscribe(); } catch {}
       subscribed.current = false;
     };
-  }, [fetchServices, salonId]);
+    */
+  }, [fetchServices, salonId, enabled, isDemo]);
 
   const assignService = async (serviceId: string, priceOverride?: number, durationOverride?: number) => {
     if (!salonId) throw new Error('Salon ID is required');

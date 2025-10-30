@@ -81,16 +81,39 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   useEffect(() => {
     if (isDemo) {
+      // Cargar datos demo inmediatamente
+      const demoOrg: Organization = {
+        id: 'demo-org-123',
+        name: 'Salón Demo - COREBOARD',
+        tax_id: '00-000000-0',
+        created_at: new Date().toISOString()
+      };
+
+      const demoMembers: Membership[] = [
+        {
+          id: 'demo-member-1',
+          user_id: user?.id || 'demo-user',
+          role: 'owner',
+          is_primary: true,
+          user: { email: user?.email || 'demo@coreboard.local' }
+        },
+      ];
+
+      setOrganization(demoOrg);
+      setOrgName(demoOrg.name);
+      setOrgTaxId(demoOrg.tax_id || '');
+      setMemberships(demoMembers);
+      setInvitations([]);
       setLoading(false);
       return;
     }
 
     if (currentOrgId) {
       loadOrganizationData();
-    } else if (isAdmin) {
+    } else {
       setLoading(false);
     }
-  }, [currentOrgId]);
+  }, [currentOrgId, isDemo, user]);
 
   const loadDemoData = () => {
     const demoOrg: Organization = {

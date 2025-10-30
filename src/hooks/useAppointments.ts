@@ -14,6 +14,8 @@ export interface Appointment {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   stylist: string;
   salonId: string;
+  notes?: string;
+  created_by?: string;
 }
 
 function mapRowToAppointment(row: any): Appointment {
@@ -45,8 +47,8 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
     status: payload.status,
     stylist_id: payload.stylist || null,
     salon_id: payload.salonId,
-    notes: payload.notes,
-    created_by: payload.created_by,
+    notes: payload.notes || null,
+    created_by: payload.created_by || null,
   };
 }
 
@@ -63,7 +65,9 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     try {
       if (isDemo) {
         const data = await demoStore.appointments.list(salonId);
-        setAppointments(data as Appointment[]);
+        // Map demo appointments to the expected format
+        const mapped = (data as any[]).map((item: any) => mapRowToAppointment(item));
+        setAppointments(mapped);
         return;
       }
 
@@ -112,8 +116,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     }
     if (isDemo) {
       const newApt: Appointment = {
-        id: Date.now().toString(),
         ...appointmentData as Appointment,
+        id: Date.now().toString(),
       };
       setAppointments(prev => [newApt, ...prev]);
       return newApt;

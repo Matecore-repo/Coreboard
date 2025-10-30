@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, memo, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -11,19 +11,21 @@ interface CalendarViewProps {
   onAppointmentClick?: (appointment: Appointment) => void;
 }
 
-export function CalendarView({ appointments, selectedSalon, focusDate, onAppointmentClick }: CalendarViewProps) {
+export const CalendarView = memo(function CalendarView({ appointments, selectedSalon, focusDate, onAppointmentClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => {
     if (focusDate) return new Date(focusDate);
     return new Date();
   });
 
   // When focusDate changes, update currentDate to that month
-  if (focusDate) {
-    const f = new Date(focusDate);
-    if (f.getMonth() !== currentDate.getMonth() || f.getFullYear() !== currentDate.getFullYear()) {
-      setCurrentDate(f);
+  useEffect(() => {
+    if (focusDate) {
+      const f = new Date(focusDate);
+      if (f.getMonth() !== currentDate.getMonth() || f.getFullYear() !== currentDate.getFullYear()) {
+        setCurrentDate(f);
+      }
     }
-  }
+  }, [focusDate]);
 
   const daysInMonth = new Date(
     currentDate.getFullYear(),
@@ -55,7 +57,7 @@ export function CalendarView({ appointments, selectedSalon, focusDate, onAppoint
   const getAppointmentsForDay = (day: number) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return appointments.filter(
-      apt => apt.date === dateStr && (selectedSalon === "all" || apt.salonId === selectedSalon)
+      apt => apt.date === dateStr && (!selectedSalon || selectedSalon === "all" || apt.salonId === selectedSalon)
     );
   };
 
@@ -217,4 +219,4 @@ export function CalendarView({ appointments, selectedSalon, focusDate, onAppoint
       </div>
     </div>
   );
-}
+});

@@ -78,7 +78,12 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
   }, [orgId, enabled, isDemo]);
 
   useEffect(() => {
+    if (!enabled) return;
     fetchEmployees();
+    
+    // Deshabilitado en producción para mejor performance
+    // Las subscriptions causan re-renders constantes
+    /*
     if (isDemo || subscribed.current) return;
     const subscription = supabase
       .channel('app:employees')
@@ -91,7 +96,8 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
       try { subscription.unsubscribe(); } catch {}
       subscribed.current = false;
     };
-  }, [fetchEmployees]);
+    */
+  }, [fetchEmployees, enabled, isDemo]);
 
   const createEmployee = async (employeeData: CreateEmployeeData) => {
     if (!orgId || (!isDemo && !isValidUUID(orgId))) {
