@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Users } from "lucide-react";
-import { Appointment } from "./AppointmentCard";
+import { Appointment } from "./features/appointments/AppointmentCard";
 
 interface ClientsPanelProps {
   appointments: Appointment[];

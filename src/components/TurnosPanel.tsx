@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { DollarSign, Clock } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Appointment } from "./AppointmentCard";
+import { Appointment } from "./features/appointments/AppointmentCard";
 
 interface TurnosPanelProps {
   appointments: Appointment[];

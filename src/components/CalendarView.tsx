@@ -2,7 +2,7 @@ import React, { useState, memo, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Appointment } from "./AppointmentCard";
+import { Appointment } from "./features/appointments/AppointmentCard";
 
 interface CalendarViewProps {
   appointments: Appointment[];

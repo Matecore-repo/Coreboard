@@ -20,7 +20,11 @@ export interface Appointment {
 
 function mapRowToAppointment(row: any): Appointment {
   const startsAt = row.starts_at ? new Date(row.starts_at) : new Date();
-  const date = startsAt.toISOString().split('T')[0];
+  // Usar fecha y hora locales para alinear con el calendario del cliente
+  const yyyy = startsAt.getFullYear();
+  const mm = String(startsAt.getMonth() + 1).padStart(2, '0');
+  const dd = String(startsAt.getDate()).padStart(2, '0');
+  const date = `${yyyy}-${mm}-${dd}`;
   const time = startsAt.toTimeString().slice(0, 5);
 
   return {
@@ -36,19 +40,27 @@ function mapRowToAppointment(row: any): Appointment {
 }
 
 function mapAppointmentToRow(payload: Partial<Appointment>) {
-  const startsAt = payload.date && payload.time 
-    ? `${payload.date}T${payload.time}:00`
-    : undefined;
+  // Construir starts_at correctamente: date + time en formato ISO
+  let startsAt: string | undefined = undefined;
+  if (payload.date && payload.time) {
+    // Asegurar formato correcto: YYYY-MM-DDTHH:MM:SS
+    const dateStr = payload.date; // Formato: YYYY-MM-DD
+    const timeStr = payload.time; // Formato: HH:MM
+    // Crear timestamp ISO en timezone local
+    const localDate = new Date(`${dateStr}T${timeStr}:00`);
+    startsAt = localDate.toISOString();
+  }
 
   return {
-    client_name: payload.clientName,
+    client_name: payload.clientName || '',
     service_id: payload.service || null,
     starts_at: startsAt,
-    status: payload.status,
+    status: payload.status || 'pending',
     stylist_id: payload.stylist || null,
     salon_id: payload.salonId,
     notes: payload.notes || null,
     created_by: payload.created_by || null,
+    total_amount: 0, // Valor por defecto
   };
 }
 
@@ -76,9 +88,13 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         return;
       }
 
-      const base = supabase
+      let base = supabase
         .from('appointments')
         .select('id, org_id, salon_id, service_id, stylist_id, client_name, client_phone, client_email, starts_at, status, total_amount, notes, created_by, created_at, updated_at');
+      // Asegurar scoping por organización si está disponible
+      if (currentOrgId) {
+        base = base.eq('org_id', currentOrgId);
+      }
       const { data, error } = salonId ? await base.eq('salon_id', salonId).order('starts_at') : await base.order('starts_at');
       if (error) {
         console.error('Error fetching appointments:', error);
@@ -90,24 +106,36 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     } finally {
       setLoading(false);
     }
-  }, [salonId, enabled, isDemo]);
+  }, [salonId, enabled, isDemo, currentOrgId]);
 
   useEffect(() => {
     if (!enabled) return;
     fetchAppointments();
-    // Commenting out subscriptions temporarily to avoid infinite loops
-    // if (isDemo || subscribed.current) return;
-    // const subscription = supabase
-    //   .channel('app:appointments')
-    //   .on('postgres_changes', { event: '*', schema: 'app', table: 'appointments' }, () => {
-    //     fetchAppointments();
-    //   })
-    //   .subscribe();
-    // subscribed.current = true;
-    // return () => {
-    //   try { subscription.unsubscribe(); } catch {}
-    //   subscribed.current = false;
-    // };
+    if (isDemo || subscribed.current) return;
+    try {
+      const channelPublic = supabase
+        .channel('realtime:public:appointments')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
+          fetchAppointments();
+        })
+        .subscribe();
+
+      const channelApp = supabase
+        .channel('realtime:app:appointments')
+        .on('postgres_changes', { event: '*', schema: 'app', table: 'appointments' }, () => {
+          fetchAppointments();
+        })
+        .subscribe();
+
+      subscribed.current = true;
+      return () => {
+        try { channelPublic.unsubscribe(); } catch {}
+        try { channelApp.unsubscribe(); } catch {}
+        subscribed.current = false;
+      };
+    } catch {
+      // si falla realtime, no rompemos el flujo
+    }
   }, [fetchAppointments, enabled]);
 
   const createAppointment = async (appointmentData: Partial<Appointment>) => {
@@ -167,11 +195,56 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     await fetchAppointments();
   };
 
+  // Versión corregida: permite especificar salonId en el payload
+  const createAppointmentFixed = async (appointmentData: Partial<Appointment>) => {
+    const targetSalonId = (appointmentData.salonId ?? salonId) as string | undefined;
+    if (!targetSalonId || (!isDemo && !isValidUUID(targetSalonId))) {
+      throw new Error('Salón inválido');
+    }
+
+    // Validar campos requeridos
+    if (!appointmentData.clientName || !appointmentData.date || !appointmentData.time) {
+      throw new Error('Faltan campos requeridos: cliente, fecha y hora');
+    }
+
+    if (isDemo) {
+      const newApt: Appointment = {
+        ...appointmentData as Appointment,
+        salonId: targetSalonId,
+        id: Date.now().toString(),
+        status: appointmentData.status || 'pending',
+      };
+      setAppointments(prev => [newApt, ...prev]);
+      return newApt;
+    }
+
+    const row = {
+      ...mapAppointmentToRow({ ...appointmentData, salonId: targetSalonId }),
+      org_id: currentOrgId || null,
+      created_by: user?.id || null,
+    } as any;
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .insert([row])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating appointment:', error);
+      throw new Error(error.message || 'Error al crear el turno');
+    }
+    
+    // Recargar inmediatamente para reflejar en calendario
+    await fetchAppointments();
+    return mapRowToAppointment(data);
+  };
+
   return {
     appointments,
     isLoading: loading,
     fetchAppointments,
-    createAppointment,
+    createAppointment: createAppointmentFixed,
     updateAppointment,
     deleteAppointment,
   };

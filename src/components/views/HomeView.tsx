@@ -1,5 +1,5 @@
 import { DollarSign, Users, Clock, MapPin, Plus } from "lucide-react";
-import { Appointment } from "../AppointmentCard";
+import { Appointment } from "../features/appointments/AppointmentCard";
 import { CalendarView } from "../CalendarView";
 import { SalonCarousel } from "../SalonCarousel";
 import { Button } from "../ui/button";

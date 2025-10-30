@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Appointment } from "./AppointmentCard";
+import { Appointment } from "./features/appointments/AppointmentCard";
 
 export interface Service {
   id: string;

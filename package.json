@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/dev.js",
+    "dev": "node scripts/kill-port.js && next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
-    "start": "node scripts/dev.js",
+    "start": "next start",
     "start:prod": "next start",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",

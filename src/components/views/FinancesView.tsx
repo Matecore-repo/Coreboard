@@ -22,10 +22,10 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { lazy, Suspense } from "react";
 
-const BarChartComponent = lazy(() => import("./FinancesCharts").then(m => ({ default: m.BarChartComponent })));
-const AreaChartComponent = lazy(() => import("./FinancesCharts").then(m => ({ default: m.AreaChartComponent })));
-const PieChartComponent = lazy(() => import("./FinancesCharts").then(m => ({ default: m.PieChartComponent })));
-import { Appointment } from "../AppointmentCard";
+const BarChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.BarChartComponent })));
+const AreaChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.AreaChartComponent })));
+const PieChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.PieChartComponent })));
+import { Appointment } from "../features/appointments/AppointmentCard";
 import { toast } from "sonner";
 
 interface FinancesViewProps {

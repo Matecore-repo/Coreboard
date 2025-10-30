@@ -1,17 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+// ============================================================================
+// COMPONENTE: OrganizationView (REFACTORIZADO - Tokens de Registro)
+// ============================================================================
+// Gestión completa de organizaciones: ver, renombrar, crear tokens de registro y eliminar
+// Layout simplificado consistente con HomeView
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
-import { Users, UserPlus, Settings, Copy, Mail, Shield, Building2 } from 'lucide-react';
-import { generateDemoOrganizationData } from '../../lib/demoData';
+import { Copy, Trash2, Pencil, Save, X, Users, Mail } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -26,14 +32,14 @@ interface Membership {
   user_id: string;
   role: 'admin' | 'owner' | 'employee';
   is_primary: boolean;
-  user: {
+  user?: {
     email: string;
+    full_name?: string;
   };
 }
 
-interface Invitation {
+interface RegistrationToken {
   id: string;
-  email?: string;
   role: 'admin' | 'owner' | 'employee';
   expires_at: string;
   used_at?: string;
@@ -45,43 +51,181 @@ interface OrganizationViewProps {
 }
 
 const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) => {
-  const { user, currentRole, currentOrgId } = useAuth();
+  const { user, currentRole, currentOrgId } = useAuth() as any;
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [tokens, setTokens] = useState<RegistrationToken[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [loadingTokens, setLoadingTokens] = useState(false);
+  
+  // Estados de edición
   const [editingOrg, setEditingOrg] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [orgTaxId, setOrgTaxId] = useState('');
 
-  // Estado para crear invitaciones
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'owner' | 'employee'>('employee');
-  const [creatingInvite, setCreatingInvite] = useState(false);
+  // Estados para tokens de registro
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
+  const [tokenRole, setTokenRole] = useState<'employee'>('employee');
+  const [creatingToken, setCreatingToken] = useState(false);
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+
+  // Estado para eliminar organización
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Refs para evitar cargas múltiples
+  const loadingRef = useRef(false);
+  const loadedOrgIdRef = useRef<string | null>(null);
 
   const isAdmin = currentRole === 'admin';
   const isOwner = currentRole === 'owner';
   const canEdit = isAdmin || isOwner;
-  const canCreateInvites = isAdmin || isOwner;
+  const canCreateTokens = isAdmin || isOwner;
+  const canDelete = isOwner;
 
-  // Track si el componente está montado y si hay una carga en progreso
-  const isMountedRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // ============================================================================
+  // FUNCIONES DE CARGA (Memoizadas y optimizadas)
+  // ============================================================================
 
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-    };
+  const loadMemberships = useCallback(async (orgId: string) => {
+    setLoadingMembers(true);
+    try {
+      const { data: members, error } = await supabase
+        .from('memberships')
+        .select('user_id, role, is_primary')
+        .eq('org_id', orgId)
+        .limit(100);
+
+      if (error) {
+        console.error('Error loading memberships:', error);
+        return;
+      }
+
+      if (members && members.length > 0) {
+        const userIds = members.map(m => m.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', userIds);
+
+        const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
+
+        setMemberships(members.map((m: any) => ({
+          ...m,
+          user: {
+            email: profileMap.get(m.user_id) || `Usuario ${m.user_id.substring(0, 8)}`,
+          }
+        })));
+      } else {
+        setMemberships([]);
+      }
+    } catch (error) {
+      console.error('Error loading memberships:', error);
+    } finally {
+      setLoadingMembers(false);
+    }
   }, []);
+
+  const loadRegistrationTokens = useCallback(async (orgId: string) => {
+    setLoadingTokens(true);
+    try {
+      const { data: inviteTokens, error } = await supabase
+        .from('invitations')
+        .select('id, role, expires_at, used_at, created_at')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error('Error loading registration tokens:', error);
+        return;
+      }
+
+      // Mapear invitations a RegistrationToken
+      setTokens((inviteTokens || []).map(inv => ({
+        id: inv.id,
+        role: inv.role as 'admin' | 'owner' | 'employee',
+        expires_at: inv.expires_at,
+        used_at: inv.used_at || undefined,
+        created_at: inv.created_at
+      })));
+    } catch (error) {
+      console.error('Error loading registration tokens:', error);
+    } finally {
+      setLoadingTokens(false);
+    }
+  }, []);
+
+  const loadOrganizationData = useCallback(async () => {
+    if (!currentOrgId) {
+      setLoading(false);
+      setOrganization(null);
+      return;
+    }
+
+    if (loadingRef.current || loadedOrgIdRef.current === currentOrgId) {
+      return;
+    }
+
+    loadingRef.current = true;
+    loadedOrgIdRef.current = currentOrgId;
+    setLoading(true);
+
+    try {
+      const orgPromise = supabase
+        .from('orgs')
+        .select('id, name, tax_id, created_at')
+        .eq('id', currentOrgId)
+        .single();
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout al cargar organización')), 10000)
+      );
+
+      const result = await Promise.race([
+        orgPromise,
+        timeoutPromise
+      ]) as any;
+
+      if (result.error) {
+        throw new Error(result.error.message || 'Error al cargar la organización');
+      }
+
+      const org = result.data;
+      if (!org) {
+        throw new Error('Organización no encontrada');
+      }
+
+      setOrganization(org);
+      setOrgName(org.name || '');
+      setOrgTaxId(org.tax_id || '');
+
+      Promise.all([
+        loadMemberships(currentOrgId),
+        loadRegistrationTokens(currentOrgId)
+      ]).catch(err => {
+        console.error('Error loading related data:', err);
+      });
+
+    } catch (error: any) {
+      console.error('Error loading organization:', error);
+      const errorMsg = error.message || 'Error al cargar la organización. Verifica tu conexión.';
+      toast.error(errorMsg);
+      setOrganization(null);
+      loadedOrgIdRef.current = null;
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
+  }, [currentOrgId, loadMemberships, loadRegistrationTokens]);
+
+  // ============================================================================
+  // EFECTO PRINCIPAL
+  // ============================================================================
 
   useEffect(() => {
     if (isDemo) {
-      // Cargar datos demo inmediatamente
       const demoOrg: Organization = {
         id: 'demo-org-123',
         name: 'Salón Demo - COREBOARD',
@@ -89,276 +233,141 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         created_at: new Date().toISOString()
       };
 
-      const demoMembers: Membership[] = [
-        {
-          id: 'demo-member-1',
-          user_id: user?.id || 'demo-user',
-          role: 'owner',
-          is_primary: true,
-          user: { email: user?.email || 'demo@coreboard.local' }
-        },
-      ];
-
-      setOrganization(demoOrg);
-      setOrgName(demoOrg.name);
-      setOrgTaxId(demoOrg.tax_id || '');
-      setMemberships(demoMembers);
-      setInvitations([]);
-      setLoading(false);
-      return;
-    }
-
-    if (currentOrgId) {
-      loadOrganizationData();
-    } else {
-      setLoading(false);
-    }
-  }, [currentOrgId, isDemo, user]);
-
-  const loadDemoData = () => {
-    const demoOrg: Organization = {
-      id: 'demo-org-123',
-      name: 'Salón Demo - COREBOARD',
-      tax_id: '00-000000-0',
-      created_at: new Date().toISOString()
-    };
-
-    const demoMembers: Membership[] = [
-      {
+      const demoMembers: Membership[] = [{
         id: 'demo-member-1',
         user_id: user?.id || 'demo-user',
         role: 'owner',
         is_primary: true,
         user: { email: user?.email || 'demo@coreboard.local' }
-      },
-    ];
+      }];
 
-    if (isMountedRef.current) {
       setOrganization(demoOrg);
       setOrgName(demoOrg.name);
       setOrgTaxId(demoOrg.tax_id || '');
       setMemberships(demoMembers);
-      setInvitations([]);
-    }
-  };
-
-  useEffect(() => {
-    if (isDemo && typeof window !== 'undefined') {
-      (window as any).__loadOrganizationDemoData = loadDemoData;
-    }
-  }, [loadDemoData, isDemo]);
-
-  const loadOrganizationData = async () => {
-    if (!currentOrgId) {
+      setTokens([]);
       setLoading(false);
+      loadedOrgIdRef.current = 'demo-org-123';
       return;
     }
 
-    // Cancelar cualquier carga anterior
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    if (currentOrgId && loadedOrgIdRef.current !== currentOrgId && !loadingRef.current) {
+      loadOrganizationData();
+    } else if (!currentOrgId) {
+      setLoading(false);
+      setOrganization(null);
+      loadedOrgIdRef.current = null;
     }
+  }, [currentOrgId, isDemo, loadOrganizationData]);
 
-    // Crear nuevo abort controller
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-
-    if (!isMountedRef.current) return;
-    setLoading(true);
-
-    // Timeout de 10 segundos para evitar loading infinito
-    loadTimeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current) {
-        console.warn('Loading timeout - mostrando estado parcial');
-        setLoading(false);
-      }
-    }, 10000);
-
-    try {
-      let retries = 0;
-      const maxRetries = 2;
-
-      while (retries < maxRetries && !signal.aborted) {
-        try {
-          await loadOrgData(currentOrgId);
-          break;
-        } catch (error) {
-          retries++;
-          if (retries < maxRetries && !signal.aborted) {
-            await new Promise(resolve => setTimeout(resolve, 300 * retries));
-          } else if (retries >= maxRetries) {
-            throw error;
-          }
-        }
-      }
-    } catch (error) {
-      if (!signal.aborted && isMountedRef.current) {
-        console.error('Error loading organization data:', error);
-        // Cargar datos parciales
-        try {
-          const { data: org } = await supabase
-            .from('orgs')
-            .select('*')
-            .eq('id', currentOrgId)
-            .single();
-          if (org && isMountedRef.current) {
-            setOrganization(org);
-            setOrgName(org.name);
-            setOrgTaxId(org.tax_id || '');
-          }
-        } catch (fallbackError) {
-          console.error('Fallback error:', fallbackError);
-        }
-      }
-    } finally {
-      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-    }
-  };
-
-  const loadOrgData = async (orgId: string) => {
-    // Cargar organización
-    const { data: org, error: orgError } = await supabase
-      .from('orgs')
-      .select('*')
-      .eq('id', orgId)
-      .single();
-
-    if (orgError) throw orgError;
-
-    if (!isMountedRef.current) return;
-    setOrganization(org);
-    setOrgName(org.name);
-    setOrgTaxId(org.tax_id || '');
-
-    // Cargar miembros (con fallback si falla por RLS)
-    const { data: members, error: membersError } = await supabase
-      .from('memberships')
-      .select('user_id, role, is_primary')
-      .eq('org_id', orgId);
-
-    let membershipsWithEmails: Membership[] = [];
-    if (members && members.length > 0) {
-      membershipsWithEmails = await Promise.all(
-        members.map(async (member) => {
-          return {
-            ...member,
-            user: { email: `Usuario ${member.user_id.substring(0, 8)}` }
-          };
-        })
-      );
-    }
-
-    if (isMountedRef.current) {
-      setMemberships(membershipsWithEmails);
-    }
-
-    // Cargar invitaciones activas (solo si puede verlas)
-    if (canCreateInvites) {
-      try {
-        const now = new Date().toISOString();
-        const { data: invites, error: invitesError } = await supabase
-          .from('invitations')
-          .select('*')
-          .eq('organization_id', orgId)
-          .is('used_at', null)
-          .gt('expires_at', now)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (invitesError) {
-          console.warn('Error cargando invitaciones:', invitesError);
-          if (isMountedRef.current) setInvitations([]);
-        } else {
-          if (isMountedRef.current) setInvitations(invites || []);
-        }
-      } catch (err) {
-        console.warn('Exception loading invitations:', err);
-        if (isMountedRef.current) setInvitations([]);
-      }
-    } else {
-      if (isMountedRef.current) setInvitations([]);
-    }
-  };
+  // ============================================================================
+  // FUNCIONES DE ACCIÓN
+  // ============================================================================
 
   const updateOrganization = async () => {
-    if (!organization || !canEdit) return;
+    if (!organization || !canEdit || !orgName.trim()) {
+      toast.error('El nombre es requerido');
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from('orgs')
         .update({
-          name: orgName,
-          tax_id: orgTaxId || null
+          name: orgName.trim(),
+          tax_id: orgTaxId.trim() || null,
+          updated_at: new Date().toISOString()
         })
         .eq('id', organization.id);
 
       if (error) throw error;
 
-      setOrganization({ ...organization, name: orgName, tax_id: orgTaxId });
+      setOrganization({ ...organization, name: orgName.trim(), tax_id: orgTaxId.trim() });
       setEditingOrg(false);
-      toast.success('Organización actualizada');
-    } catch (error) {
+      toast.success('Organización actualizada correctamente');
+    } catch (error: any) {
       console.error('Error updating organization:', error);
-      toast.error('Error al actualizar la organización');
+      toast.error(error.message || 'Error al actualizar la organización');
     }
   };
 
-  const createInvitation = async () => {
-    if (!currentOrgId || !canCreateInvites) return;
+  const createRegistrationToken = async () => {
+    if (!currentOrgId || !canCreateTokens) return;
 
     try {
-      setCreatingInvite(true);
+      setCreatingToken(true);
 
-      // Generar token único
-      const token = `INVITE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Generar token seguro para registro
+      const token = `REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.random().toString(36).substr(2, 9)}`;
 
       if (isDemo) {
-        // En modo demo, crear invitación mockeada
-        const mockInvitation: Invitation = {
+        const mockToken: RegistrationToken = {
           id: `mock-${Date.now()}`,
-          email: inviteEmail || undefined,
-          role: inviteRole,
+          role: tokenRole,
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           created_at: new Date().toISOString()
         };
 
-        // Añadir a la lista de invitaciones
-        setInvitations([mockInvitation, ...invitations]);
-        
-        // Mostrar token generado
+        setTokens(prev => [mockToken, ...prev]);
         setGeneratedToken(token);
-        toast.success('Invitación creada (modo demo)');
+        toast.success('Token de registro creado (modo demo)');
       } else {
-        // Usar RPC para crear invitación con hash
         const { data, error } = await supabase.rpc('create_invitation', {
           p_organization_id: currentOrgId,
-          p_email: inviteEmail || null,
-          p_role: inviteRole,
+          p_email: null, // No requiere email para tokens de registro
+          p_role: tokenRole,
           p_token: token,
           p_expires_days: 7
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error('RPC error:', error);
+          throw error;
+        }
 
-        // Recargar invitaciones
-        await loadOrgData(currentOrgId);
-
-        // Mostrar token generado
+        await loadRegistrationTokens(currentOrgId);
         setGeneratedToken(token);
-        toast.success('Invitación creada exitosamente');
+        toast.success('Token de registro creado exitosamente');
       }
 
-      setInviteEmail('');
-      setInviteRole('employee');
-
-    } catch (error) {
-      console.error('Error creating invitation:', error);
-      toast.error('Error al crear la invitación');
+      setTokenRole('employee');
+    } catch (error: any) {
+      console.error('Error creating registration token:', error);
+      toast.error(error.message || 'Error al crear el token de registro');
     } finally {
-      setCreatingInvite(false);
+      setCreatingToken(false);
+    }
+  };
+
+  const deleteOrganization = async () => {
+    if (!organization || !canDelete) return;
+
+    try {
+      setDeleting(true);
+
+      if (isDemo) {
+        toast.success('Organización eliminada (modo demo)');
+        setOrganization(null);
+        setDeleteDialogOpen(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('orgs')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', organization.id);
+
+      if (error) throw error;
+
+      toast.success('Organización eliminada correctamente');
+      setDeleteDialogOpen(false);
+      setOrganization(null);
+      loadedOrgIdRef.current = null;
+    } catch (error: any) {
+      console.error('Error deleting organization:', error);
+      toast.error(error.message || 'Error al eliminar la organización');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -367,37 +376,17 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     toast.success('Copiado al portapapeles');
   };
 
+  // ============================================================================
+  // RENDERIZADO
+  // ============================================================================
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (isAdmin && !currentOrgId) {
-    return (
-      <div className="w-full min-h-screen bg-background animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div className="w-full max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-          <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-bold">Panel de Administración</h1>
+      <div className="pb-20">
+        <div className="p-4 md:p-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Selecciona una Organización</CardTitle>
-              <CardDescription>
-                Como administrador, puedes gestionar todas las organizaciones del sistema.
-                Selecciona una organización para ver sus detalles y miembros.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Funcionalidad completa próximamente. Por ahora, únete a una organización específica.
-              </p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     );
@@ -405,10 +394,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   if (!organization) {
     return (
-      <div className="w-full min-h-screen bg-background animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div className="w-full max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-          <h1 className="text-2xl font-bold">Organización</h1>
-          <Card>
+      <div className="pb-20">
+        <div className="p-4 md:p-6">
+          <h2 className="mb-4">Organización</h2>
+          <Card className="rounded-2xl">
             <CardContent className="pt-6">
               <p className="text-muted-foreground">No tienes una organización asignada.</p>
             </CardContent>
@@ -419,266 +408,323 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   }
 
   return (
-    <div className="w-full min-h-screen bg-background animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="w-full max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Building2 className="h-6 w-6 text-primary flex-shrink-0" />
-            <h1 className="text-2xl font-bold truncate">Organización</h1>
+    <div className="pb-20">
+      <div className="p-4 md:p-6 space-y-4">
+        {/* Header - Simplificado como HomeView */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h2>Organización</h2>
           </div>
-
-        {canCreateInvites && (
-          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Invitar Miembro
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Crear Invitación</DialogTitle>
-                <DialogDescription>
-                  Crea un token de invitación para agregar un nuevo miembro a la organización.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="invite-email">Email (opcional)</Label>
-                  <Input
-                    id="invite-email"
-                    type="email"
-                    placeholder="usuario@ejemplo.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Si no especificas email, cualquiera puede usar el token.
-                  </p>
-                </div>
-
-                <div>
-                  <Label htmlFor="invite-role">Rol</Label>
-                  <Select value={inviteRole} onValueChange={(value: 'owner' | 'employee') => setInviteRole(value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Empleado</SelectItem>
-                      <SelectItem value="owner">Propietario</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {generatedToken && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <h4 className="font-medium text-green-800 mb-2">Token Generado</h4>
-                    <div className="flex items-center space-x-2">
-                      <code className="flex-1 p-2 bg-white border rounded text-sm font-mono">
-                        {generatedToken}
-                      </code>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyToClipboard(generatedToken)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-sm text-green-600 mt-2">
-                      Comparte este token con la persona que quieres invitar.
-                      Expira en 7 días.
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setInviteDialogOpen(false);
-                      setGeneratedToken(null);
-                      setInviteEmail('');
-                    }}
-                  >
-                    Cancelar
+          <div className="flex gap-2">
+            {canCreateTokens && (
+              <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    Crear Token de Registro
                   </Button>
-                  <Button onClick={createInvitation} disabled={creatingInvite}>
-                    {creatingInvite ? 'Creando...' : 'Crear Invitación'}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Crear Token de Registro</DialogTitle>
+                    <DialogDescription>
+                      Genera un token que permite crear una cuenta directamente como parte de esta organización.
+                    </DialogDescription>
+                  </DialogHeader>
 
-      <Tabs defaultValue="info" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="info">Información</TabsTrigger>
-          <TabsTrigger value="members">Miembros</TabsTrigger>
-          {canCreateInvites && <TabsTrigger value="invitations">Invitaciones</TabsTrigger>}
-        </TabsList>
-
-        <TabsContent value="info" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Información de la Organización</CardTitle>
-                  <CardDescription>
-                    Gestiona la información básica de tu organización
-                  </CardDescription>
-                </div>
-                {canEdit && !editingOrg && (
-                  <Button variant="outline" onClick={() => setEditingOrg(true)}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Editar
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {editingOrg ? (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="org-name">Nombre de la Organización</Label>
-                    <Input
-                      id="org-name"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      placeholder="Mi Organización"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="org-tax-id">CUIT/CUIL (opcional)</Label>
-                    <Input
-                      id="org-tax-id"
-                      value={orgTaxId}
-                      onChange={(e) => setOrgTaxId(e.target.value)}
-                      placeholder="XX-XXXXXXXX-X"
-                    />
-                  </div>
-                  <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setEditingOrg(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={updateOrganization}>
-                      Guardar Cambios
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div>
-                    <Label className="text-sm font-medium">Nombre</Label>
-                    <p className="text-lg">{organization.name}</p>
-                  </div>
-                  {organization.tax_id && (
+                  <div className="space-y-4">
                     <div>
-                      <Label className="text-sm font-medium">CUIT/CUIL</Label>
-                      <p>{organization.tax_id}</p>
+                      <Label htmlFor="token-role">Rol</Label>
+                      <Select value={tokenRole} onValueChange={(value: 'employee') => setTokenRole(value)}>
+                        <SelectTrigger id="token-role">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="employee">Empleado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Los usuarios que se registren con este token tendrán rol de empleado.
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <Label className="text-sm font-medium">Creada</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(organization.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="members" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Miembros de la Organización</CardTitle>
-              <CardDescription>
-                {memberships.length} miembro{memberships.length !== 1 ? 's' : ''} en total
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {memberships.map((membership) => (
-                  <div key={membership.user_id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Users className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{membership.user.email}</p>
+                    {generatedToken && (
+                      <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                        <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Token Generado</h4>
                         <div className="flex items-center space-x-2">
-                          <Badge variant={
-                            membership.role === 'admin' ? 'default' :
-                            membership.role === 'owner' ? 'secondary' : 'outline'
-                          }>
-                            {membership.role}
-                          </Badge>
-                          {membership.is_primary && (
-                            <Badge variant="outline">Principal</Badge>
-                          )}
+                          <code className="flex-1 p-2 bg-white dark:bg-gray-900 border rounded text-sm font-mono break-all">
+                            {generatedToken}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => copyToClipboard(generatedToken)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
+                        <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                          Comparte este token con quien quieres que se registre. Al crear su cuenta, deberá ingresar este token en el campo "Token secreto".
+                        </p>
                       </div>
-                    </div>
+                    )}
+
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setTokenDialogOpen(false);
+                          setGeneratedToken(null);
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button onClick={createRegistrationToken} disabled={creatingToken}>
+                        {creatingToken ? 'Creando...' : 'Crear Token'}
+                      </Button>
+                    </DialogFooter>
                   </div>
-                ))}
+                </DialogContent>
+              </Dialog>
+            )}
 
-                {memberships.length === 0 && (
-                  <p className="text-muted-foreground text-center py-8">
-                    No hay miembros en esta organización
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {canDelete && (
+              <Button
+                variant="destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </Button>
+            )}
+          </div>
+        </div>
 
-        {canCreateInvites && (
-          <TabsContent value="invitations" className="space-y-4">
-            <Card>
+        {/* Tabs */}
+        <Tabs defaultValue="info" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="info">Información</TabsTrigger>
+            <TabsTrigger value="members">
+              Miembros {loadingMembers ? '(...)' : `(${memberships.length})`}
+            </TabsTrigger>
+            {canCreateTokens && (
+              <TabsTrigger value="tokens">
+                Tokens de Registro {loadingTokens ? '(...)' : `(${tokens.length})`}
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          {/* Tab: Información */}
+          <TabsContent value="info" className="space-y-4">
+            <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle>Invitaciones Pendientes</CardTitle>
-                <CardDescription>
-                  Gestiona las invitaciones enviadas a nuevos miembros
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {invitations.map((invitation) => (
-                    <div key={invitation.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <Mail className="h-8 w-8 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">
-                            {invitation.email || 'Sin email específico'}
-                          </p>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline">{invitation.role}</Badge>
-                            <span className="text-sm text-muted-foreground">
-                              Expira: {new Date(invitation.expires_at).toLocaleDateString()}
-                            </span>
-                            {invitation.used_at && (
-                              <Badge variant="secondary">Usada</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Información de la Organización</CardTitle>
+                    <CardDescription>
+                      Gestiona la información básica de tu organización
+                    </CardDescription>
+                  </div>
+                  {canEdit && (
+                    <div className="flex gap-2">
+                      {editingOrg ? (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => {
+                            setEditingOrg(false);
+                            setOrgName(organization.name);
+                            setOrgTaxId(organization.tax_id || '');
+                          }}>
+                            <X className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                          <Button size="sm" onClick={updateOrganization}>
+                            <Save className="h-4 w-4 mr-2" />
+                            Guardar
+                          </Button>
+                        </>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => setEditingOrg(true)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </Button>
+                      )}
                     </div>
-                  ))}
-
-                  {invitations.length === 0 && (
-                    <p className="text-muted-foreground text-center py-8">
-                      No hay invitaciones pendientes
-                    </p>
                   )}
                 </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {editingOrg ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="org-name">Nombre de la Organización *</Label>
+                      <Input
+                        id="org-name"
+                        value={orgName}
+                        onChange={(e) => setOrgName(e.target.value)}
+                        placeholder="Mi Organización"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="org-tax-id">CUIT/CUIL (opcional)</Label>
+                      <Input
+                        id="org-tax-id"
+                        value={orgTaxId}
+                        onChange={(e) => setOrgTaxId(e.target.value)}
+                        placeholder="XX-XXXXXXXX-X"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Nombre</Label>
+                      <p className="text-lg font-medium">{organization.name}</p>
+                    </div>
+                    {organization.tax_id && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">CUIT/CUIL</Label>
+                        <p className="text-lg font-medium">{organization.tax_id}</p>
+                      </div>
+                    )}
+                    <div className="space-y-2 md:col-span-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Creada</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(organization.created_at).toLocaleDateString('es-AR', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
-        )}
-      </Tabs>
+
+          {/* Tab: Miembros */}
+          <TabsContent value="members" className="space-y-4">
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <CardTitle>Miembros de la Organización</CardTitle>
+                <CardDescription>
+                  {memberships.length} miembro{memberships.length !== 1 ? 's' : ''} en total
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingMembers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {memberships.map((membership) => (
+                      <div key={membership.user_id} className="flex items-center justify-between p-4 border border-border rounded-2xl bg-card">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Users className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}</p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge variant={
+                                membership.role === 'admin' ? 'default' :
+                                membership.role === 'owner' ? 'secondary' : 'outline'
+                              }>
+                                {membership.role}
+                              </Badge>
+                              {membership.is_primary && (
+                                <Badge variant="outline">Principal</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {memberships.length === 0 && (
+                      <p className="text-muted-foreground text-center py-8">
+                        No hay miembros en esta organización
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Tokens de Registro */}
+          {canCreateTokens && (
+            <TabsContent value="tokens" className="space-y-4">
+              <Card className="rounded-2xl">
+                <CardHeader>
+                  <CardTitle>Tokens de Registro</CardTitle>
+                  <CardDescription>
+                    Tokens que permiten crear cuentas directamente como parte de esta organización
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingTokens ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {tokens.map((token) => (
+                        <div key={token.id} className="flex items-center justify-between p-4 border border-border rounded-2xl bg-card">
+                          <div className="flex items-center space-x-3">
+                            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                              <Mail className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Token de {token.role}</p>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <Badge variant="outline">{token.role}</Badge>
+                                <span className="text-sm text-muted-foreground">
+                                  Expira: {new Date(token.expires_at).toLocaleDateString()}
+                                </span>
+                                {token.used_at && (
+                                  <Badge variant="secondary">Usado</Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {tokens.length === 0 && (
+                        <p className="text-muted-foreground text-center py-8">
+                          No hay tokens de registro creados
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
+
+        {/* Dialog de confirmación para eliminar */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar organización?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción no se puede deshacer. Se eliminará la organización "{organization.name}" y todos sus datos asociados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={deleteOrganization}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deleting}
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

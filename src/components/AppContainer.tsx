@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useMemo, useState } from "react";
+import React, { Suspense, useCallback, useMemo, useState, lazy, memo, useTransition, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useSalons } from "../hooks/useSalons";
 import { OnboardingModal } from "./OnboardingModal";
@@ -35,13 +35,14 @@ import {
   Wallet,
 } from "lucide-react";
 
-import HomeView from "./views/HomeView";
-import ClientsView from "./views/ClientsView";
-import FinancesView from "./views/FinancesView";
-import SettingsView from "./views/SettingsView";
-import SalonsManagementView from "./views/SalonsManagementView";
-import EmployeesView from "./views/EmployeesView";
-import OrganizationView from "./views/OrganizationView";
+// Lazy load views
+const HomeView = lazy(() => import("./views/HomeView"));
+const ClientsView = lazy(() => import("./sections/ClientsView"));
+const FinancesView = lazy(() => import("./views/FinancesView"));
+const SettingsView = lazy(() => import("./views/SettingsView"));
+const SalonsManagementView = lazy(() => import("./views/SalonsManagementView"));
+const EmployeesView = lazy(() => import("./sections/EmployeesView"));
+const OrganizationView = lazy(() => import("./views/OrganizationView"));
 
 const isDemoModeEnv = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
@@ -70,7 +71,45 @@ const NAV_ITEMS: NavItem[] = [
   { id: "settings", label: "Configuracion", icon: Settings },
 ];
 
-function NavigationMenu({
+const NavigationMenuItem = memo(function NavigationMenuItem({
+  item,
+  isActive,
+  onSelect,
+}: {
+  item: NavItem;
+  isActive: boolean;
+  onSelect: (view: ViewKey) => void;
+}) {
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleClick = useCallback(() => {
+    onSelect(item.id);
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [isMobile, item.id, onSelect, setOpenMobile]);
+
+  const handleMouseEnter = useCallback(() => {
+    preloadView(item.id);
+  }, [item.id]);
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        isActive={isActive}
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        tooltip={item.label}
+        aria-label={item.label}
+      >
+        <item.icon className="h-4 w-4" />
+        <span>{item.label}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+});
+
+const NavigationMenu = memo(function NavigationMenu({
   activeView,
   onSelect,
 }: {
@@ -89,38 +128,55 @@ function NavigationMenu({
       ))}
     </SidebarMenu>
   );
-}
+});
 
-function NavigationMenuItem({
-  item,
-  isActive,
-  onSelect,
-}: {
-  item: NavItem;
-  isActive: boolean;
-  onSelect: (view: ViewKey) => void;
-}) {
-  const { isMobile, setOpenMobile } = useSidebar();
+// Suspense fallback
+const ViewLoadingFallback = () => (
+  <div className="flex items-center justify-center py-12">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
+      <p className="text-sm text-muted-foreground">Cargando vista...</p>
+    </div>
+  </div>
+);
 
-  const handleClick = useCallback(() => {
-    onSelect(item.id);
-    if (isMobile) {
-      setOpenMobile(false);
+// Error Boundary para vistas
+class ViewErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('View rendering error:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <p className="text-sm text-red-500 mb-2">Error al cargar la vista</p>
+            <button
+              onClick={() => this.setState({ hasError: false })}
+              className="text-xs text-primary hover:underline"
+            >
+              Reintentar
+            </button>
+          </div>
+        </div>
+      );
     }
-  }, [isMobile, item.id, onSelect, setOpenMobile]);
 
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        isActive={isActive}
-        onClick={handleClick}
-        tooltip={item.label}
-      >
-        <item.icon className="h-4 w-4" />
-        <span>{item.label}</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  );
+    return this.props.children;
+  }
 }
 
 export default function AppContainer() {
@@ -133,10 +189,42 @@ export default function AppContainer() {
     isDemo,
   } = useAuth();
   const { salons, createSalon, updateSalon, deleteSalon } = useSalons(currentOrgId ?? undefined);
-  const [activeView, setActiveView] = useState("home");
+  const [activeView, setActiveView] = useState<ViewKey>("home");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDemoWelcome, setShowDemoWelcome] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  // Sincronizar con URL (?view=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view') as ViewKey | null;
+    if (viewParam && NAV_ITEMS.some(n => n.id === viewParam)) {
+      setActiveView(viewParam);
+    }
+    const onPopState = () => {
+      const sp = new URLSearchParams(window.location.search);
+      const vp = sp.get('view') as ViewKey | null;
+      if (vp && NAV_ITEMS.some(n => n.id === vp)) {
+        setActiveView(vp);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // Memoize normalized salons
+  const normalizedSalons = useMemo(() => 
+    (salons || []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      address: s.address || '',
+      image: s.image || '/imagenlogin.jpg',
+      staff: s.staff || [],
+      services: s.services || [],
+    })), 
+    [salons]
+  );
 
   const currentNavigationView: ViewKey = useMemo(() => {
     const match = NAV_ITEMS.find((item) => item.id === activeView);
@@ -149,7 +237,15 @@ export default function AppContainer() {
   );
 
   const handleSelectView = useCallback((view: ViewKey) => {
-    setActiveView(view);
+    // Preload y transición sin bloquear
+    preloadView(view);
+    startTransition(() => {
+      setActiveView(view);
+      // Actualizar query param sin recargar
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', view);
+      window.history.replaceState({}, '', url.toString());
+    });
   }, []);
 
   const handleSelectSalon = useCallback((id: string, _name: string) => {
@@ -187,14 +283,98 @@ export default function AppContainer() {
     setShowDemoWelcome(false);
   };
 
-  const normalizedSalons = (salons || []).map((s) => ({
-    id: s.id,
-    name: s.name,
-    address: s.address || '',
-    image: s.image || '/imagenlogin.jpg',
-    staff: s.staff || [],
-    services: s.services || [],
-  }));
+  // Memoize salon handlers
+  const salonHandlers = useMemo(() => ({
+    onAddSalon: async (salon: any) => {
+      try {
+        if (currentOrgId) {
+          await createSalon({
+            org_id: currentOrgId,
+            name: salon.name,
+            address: salon.address,
+            phone: salon.phone || '',
+            active: true
+          });
+        } else {
+          throw new Error('currentOrgId no disponible');
+        }
+      } catch (error) {
+        throw error;
+      }
+    },
+    onEditSalon: async (id: string, updates: any) => {
+      try {
+        await updateSalon(id, {
+          name: updates.name,
+          address: updates.address,
+          phone: updates.phone
+        });
+      } catch (error) {
+        console.error('❌ Error editando salón:', error);
+        throw error;
+      }
+    },
+    onDeleteSalon: async (id: string) => {
+      try {
+        await deleteSalon(id);
+      } catch (error) {
+        console.error('❌ Error eliminando salón:', error);
+        throw error;
+      }
+    }
+  }), [currentOrgId, createSalon, updateSalon, deleteSalon]);
+
+  // Memoize view props
+  const viewProps = useMemo(() => ({
+    home: {
+      appointments: [],
+      selectedSalon,
+      salons: normalizedSalons,
+      onSelectSalon: handleSelectSalon,
+      onAppointmentClick: () => {},
+      onAddAppointment: () => setActiveView("clients"),
+      orgName: "Tu Peluqueria",
+      isNewUser: !currentOrgId,
+    },
+    finances: {
+      appointments: [],
+      selectedSalon,
+    }
+  }), [selectedSalon, normalizedSalons, handleSelectSalon, currentOrgId]);
+
+  const renderContent = useCallback(() => {
+    switch (activeView) {
+      case "home":
+        return (
+          <HomeView {...viewProps.home} />
+        );
+      case "clients":
+        return (
+          <ClientsView />
+        );
+      case "employees":
+        return <EmployeesView />;
+      case "salons":
+        return (
+          <SalonsManagementView
+            salons={normalizedSalons}
+            {...salonHandlers}
+          />
+        );
+      case "organization":
+        return <OrganizationView isDemo={isDemo} />;
+      case "finances":
+        return (
+          <FinancesView {...viewProps.finances} />
+        );
+      case "settings":
+        return <SettingsView />;
+      default:
+        return (
+          <HomeView {...viewProps.home} />
+        );
+    }
+  }, [activeView, viewProps, normalizedSalons, salonHandlers, isDemo]);
 
   if (!user) {
     return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
@@ -211,94 +391,6 @@ export default function AppContainer() {
       </>
     );
   }
-
-  const renderContent = () => {
-    switch (activeView) {
-      case "home":
-        return (
-          <HomeView
-            appointments={[]}
-            selectedSalon={selectedSalon}
-            salons={normalizedSalons}
-            onSelectSalon={handleSelectSalon}
-            onAppointmentClick={() => {}}
-            onAddAppointment={() => setActiveView("appointments")}
-            orgName="Tu Peluqueria"
-            isNewUser={!currentOrgId}
-          />
-        );
-      case "clients":
-        return (
-          <ClientsView />
-        );
-      case "employees":
-        return <EmployeesView />;
-      case "salons":
-        return (
-          <SalonsManagementView
-            salons={normalizedSalons}
-            onAddSalon={async (salon) => {
-              try {
-                if (currentOrgId) {
-                  await createSalon({
-                    org_id: currentOrgId,
-                    name: salon.name,
-                    address: salon.address,
-                    phone: salon.phone || '',
-                    active: true
-                  });
-                } else {
-                  throw new Error('currentOrgId no disponible');
-                }
-              } catch (error) {
-                throw error;
-              }
-            }}
-            onEditSalon={async (id, updates) => {
-              try {
-                await updateSalon(id, {
-                  name: updates.name,
-                  address: updates.address,
-                  phone: updates.phone
-                });
-              } catch (error) {
-                console.error('❌ Error editando salón:', error);
-                throw error;
-              }
-            }}
-            onDeleteSalon={async (id) => {
-              try {
-                await deleteSalon(id);
-              } catch (error) {
-                console.error('❌ Error eliminando salón:', error);
-                throw error;
-              }
-            }}
-          />
-        );
-      case "organization":
-        return <OrganizationView isDemo={isDemo} />;
-      case "finances":
-        return (
-          <FinancesView appointments={[]} selectedSalon={selectedSalon} />
-        );
-      case "settings":
-        return <SettingsView />;
-      default:
-        return (
-          <HomeView
-            appointments={[]}
-            selectedSalon={selectedSalon}
-            salons={normalizedSalons}
-            onSelectSalon={handleSelectSalon}
-            onAppointmentClick={() => {}}
-            onAddAppointment={() => {}}
-            orgName="Tu Peluqueria"
-            isNewUser={!currentOrgId}
-          />
-        );
-    }
-  };
 
   return (
     <SidebarProvider>
@@ -365,8 +457,13 @@ export default function AppContainer() {
           </header>
           <main className="flex-1 py-6 lg:py-8">
             <div className="mx-auto flex w-full flex-col gap-6 px-4 sm:px-6 lg:px-8 max-w-[1320px] xl:max-w-[1380px] 2xl:max-w-[1440px]">
-              <Suspense fallback={<div className="flex items-center justify-center py-12">Cargando...</div>}>
-                {renderContent()}
+              {isPending && (
+                <div className="text-xs text-muted-foreground">Cambiando vista...</div>
+              )}
+              <Suspense fallback={<ViewLoadingFallback />}>
+                <ViewErrorBoundary>
+                  {renderContent()}
+                </ViewErrorBoundary>
               </Suspense>
             </div>
           </main>
@@ -395,4 +492,19 @@ export default function AppContainer() {
       </div>
     </SidebarProvider>
   );
+}
+
+// Preload views function
+function preloadView(view: ViewKey) {
+  const viewMap: Record<ViewKey, () => Promise<any>> = {
+    home: () => import("./views/HomeView"),
+    clients: () => import("./sections/ClientsView"),
+    employees: () => import("./sections/EmployeesView"),
+    salons: () => import("./views/SalonsManagementView"),
+    organization: () => import("./views/OrganizationView"),
+    finances: () => import("./views/FinancesView"),
+    settings: () => import("./views/SettingsView"),
+  };
+
+  viewMap[view]?.().catch(err => console.warn(`Failed to preload ${view}:`, err));
 }

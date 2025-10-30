@@ -1,448 +1,732 @@
-﻿﻿import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import supabase from '../lib/supabase';
-import { useRouter } from 'next/router';
-import { DEMO_ORG_ID, DEMO_USER_EMAIL, DEMO_USER_ID, DEMO_FEATURE_FLAG } from '../demo/constants';
+﻿﻿// ============================================================================
+// IMPORTS - Importaciones necesarias para la autenticación
+// ============================================================================
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+// ^ createContext: crea el contexto para compartir autenticación en toda la app
+// ^ useContext: hook para acceder al contexto desde cualquier componente
+// ^ useEffect: hook para ejecutar efectos secundarios (restaurar sesión, etc)
+// ^ useState: hook para manejar estado local (usuario, sesión, loading)
+// ^ useCallback: hook para memorizar funciones callback
 
-// Demo mode: si está activado, no hacer requests reales
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+// ^ Session: tipo que representa una sesión de autenticación de Supabase
+// ^ SupabaseUser: tipo que representa un usuario de Supabase
+
+import supabase from '../lib/supabase';
+// ^ Cliente de Supabase inicializado para hacer queries a la BD
+
+import { useRouter } from 'next/router';
+// ^ Hook de Next.js para navegar entre páginas (redireccionamientos)
+
+import { DEMO_ORG_ID, DEMO_USER_EMAIL, DEMO_USER_ID, DEMO_FEATURE_FLAG } from '../demo/constants';
+// ^ Constantes de demostración para usar la app sin autenticación real
+
+// ============================================================================
+// FLAG DE MODO DEMO
+// ============================================================================
+// Indica si la aplicación se ejecuta en modo demostración
+// Si es true, no hace requests reales a Supabase
+// Se controla desde variables de entorno
 const isDemoModeFlag = DEMO_FEATURE_FLAG;
 
-// Gestión segura de localStorage
+// ============================================================================
+// UTILIDAD PARA ACCESO SEGURO A LOCALSTORAGE
+// ============================================================================
+// Evita errores si localStorage no está disponible (SSR, navegador sin soporte, etc)
 const safeLocalStorage = {
+  // Obtener un valor de localStorage de forma segura
   getItem: (key: string): string | null => {
+    // Verificar que estamos en el navegador (no en servidor)
     if (typeof window === 'undefined') return null;
     try {
+      // Intentar obtener el valor
       return localStorage.getItem(key);
     } catch (e) {
+      // Si hay error (localStorage deshabilitado, etc), retornar null
       return null;
     }
   },
+
+  // Guardar un valor en localStorage de forma segura
   setItem: (key: string, value: string): void => {
+    // Verificar que estamos en el navegador (no en servidor)
     if (typeof window === 'undefined') return;
     try {
+      // Intentar guardar el valor
       localStorage.setItem(key, value);
     } catch (e) {
-      // localStorage no disponible
+      // Si hay error (localStorage lleno, deshabilitado, etc), ignorar silenciosamente
     }
   },
+
+  // Eliminar un valor de localStorage de forma segura
   removeItem: (key: string): void => {
+    // Verificar que estamos en el navegador (no en servidor)
     if (typeof window === 'undefined') return;
     try {
+      // Intentar eliminar el valor
       localStorage.removeItem(key);
     } catch (e) {
-      // localStorage no disponible
+      // Si hay error, ignorar silenciosamente
     }
   }
 };
 
+// ============================================================================
+// TIPOS Y INTERFACES
+// ============================================================================
+
+// Tipo que define la estructura de una membresía de usuario en una organización
 export type Membership = {
-  org_id: string;
-  role: 'owner' | 'admin' | 'employee' | 'viewer';
-  is_primary?: boolean;
+  org_id: string;                                    // ID de la organización
+  role: 'owner' | 'admin' | 'employee' | 'viewer'; // Rol del usuario en esa org
+  is_primary?: boolean;                             // Si es la organización principal
 };
 
+// Tipo que define la estructura del usuario en el contexto de autenticación
 export type User = {
-  id: string;
-  email?: string | null;
-  memberships: Membership[];
-  current_org_id?: string;
-  isNewUser?: boolean;
+  id: string;                     // ID único del usuario
+  email?: string | null;          // Email del usuario
+  memberships: Membership[];       // Lista de organizaciones a las que pertenece
+  current_org_id?: string;        // ID de la organización actualmente seleccionada
+  isNewUser?: boolean;            // Flag para saber si es un usuario nuevo
 };
 
+// Tipo que define todos los valores disponibles en el contexto de autenticación
 type AuthContextValue = {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  isDemo: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, signupToken?: string) => Promise<void>;
-  signInAsDemo: () => void;
-  signOut: () => Promise<void>;
-  switchOrganization: (org_id: string) => void;
-  currentOrgId: string | null;
-  currentRole: string | null;
-  createOrganization: (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => Promise<void>;
-  sendMagicLink: (email: string) => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
-  updatePassword: (newPassword: string) => Promise<void>;
-  claimInvitation: (token: string) => Promise<{ organization_id: string; role: string }>;
+  user: User | null;                                                           // Usuario actual (null si no está autenticado)
+  session: Session | null;                                                     // Sesión de Supabase actual
+  loading: boolean;                                                            // Flag para saber si se está cargando (restaurando sesión)
+  isDemo: boolean;                                                             // Flag que indica si se está en modo demostración
+  signIn: (email: string, password: string) => Promise<void>;                 // Función para iniciar sesión
+  signUp: (email: string, password: string, signupToken?: string) => Promise<void>; // Función para registrarse
+  signInAsDemo: () => void;                                                    // Función para iniciar sesión como demostración
+  signOut: () => Promise<void>;                                                // Función para cerrar sesión
+  switchOrganization: (org_id: string) => void;                               // Función para cambiar de organización
+  currentOrgId: string | null;                                                 // ID de la organización actual
+  currentRole: string | null;                                                  // Rol del usuario en la organización actual
+  createOrganization: (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }) => Promise<void>; // Función para crear nueva organización
+  sendMagicLink: (email: string) => Promise<void>;                            // Función para enviar link mágico para iniciar sesión
+  resetPassword: (email: string) => Promise<void>;                            // Función para solicitar recuperación de contraseña
+  updatePassword: (newPassword: string) => Promise<void>;                     // Función para actualizar contraseña
+  claimInvitation: (token: string) => Promise<{ organization_id: string; role: string }>; // Función para reclamar una invitación a una org
 };
 
+// Crear el contexto de autenticación que será compartido en toda la aplicación
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// ============================================================================
+// CONSTANTES DE ALMACENAMIENTO
+// ============================================================================
+// Claves que usamos para guardar datos en localStorage
+// Esto centraliza los nombres para evitar errores de tipeo
 const STORAGE_KEYS = {
-  session: 'sb-session',
-  currentOrg: 'sb-current-org',
-  selectedSalon: 'sb-selected-salon',
+  session: 'sb-session',           // Llave para guardar la sesión actual
+  currentOrg: 'sb-current-org',     // Llave para guardar la org actualmente seleccionada
+  selectedSalon: 'sb-selected-salon', // Llave para guardar el salón actualmente seleccionado
 } as const;
 
+// ============================================================================
+// PROVEEDOR DE AUTENTICACIÓN - AuthProvider
+// ============================================================================
+// Componente que envuelve toda la aplicación para proporcionar contexto de autenticación
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // =========================================================================
+  // ESTADO LOCAL DEL PROVEEDOR
+  // =========================================================================
+  
+  // Estado: usuario actualmente autenticado (null si no está logueado)
   const [user, setUser] = useState<User | null>(null);
+  
+  // Estado: sesión de Supabase actual (contiene token JWT, etc)
   const [session, setSession] = useState<Session | null>(null);
+  
+  // Estado: indica si estamos cargando (restaurando sesión al cargar la página)
   const [loading, setLoading] = useState(true);
+  
+  // Hook de Next.js para navegar entre páginas
   const router = useRouter();
+  
+  // Calcular si el usuario actual es el usuario de demo
   const isDemoUser = user?.id === DEMO_USER_ID;
+  
+  // Calcular si estamos en modo demo (ya sea por flag o porque es el usuario demo)
   const isDemo = isDemoModeFlag || isDemoUser;
 
-  // Obtener membresías del usuario
+  // =========================================================================
+  // FUNCIÓN: fetchUserMemberships
+  // =========================================================================
+  // Obtiene las membresías (organizaciones) del usuario desde la base de datos
+  // Esto define a qué organizaciones pertenece el usuario y qué roles tiene
   const fetchUserMemberships = useCallback(async (userId: string, authUser: SupabaseUser): Promise<string | null> => {
-    // En modo demo, no hacer queries reales
+    // En modo demo, no hacer queries reales a la BD, solo devolver null
     if (isDemoModeFlag) {
       return null;
     }
 
     try {
-      // Obtener perfil del usuario para current_org_id guardado
+      // Obtener el perfil del usuario para ver si tiene una org favorita guardada
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('raw_app_meta_data')
-        .eq('id', userId)
-        .single();
+        .from('profiles')              // Tabla de perfiles de usuarios
+        .select('raw_app_meta_data')   // Campo que contiene metadata como current_org_id
+        .eq('id', userId)               // Filtrar por ID del usuario
+        .single();                      // Esperar un solo resultado
 
+      // Obtener todas las membresías (organizaciones) del usuario
       const { data: memberships, error } = await supabase
-        .from('memberships')
-        .select('org_id, role, is_primary')
-        .eq('user_id', userId);
+        .from('memberships')            // Tabla de relación usuario-organización
+        .select('org_id, role, is_primary') // Campos que queremos obtener
+        .eq('user_id', userId);         // Filtrar por ID del usuario
 
+      // Si hay error al obtener membresías
       if (error) {
+        // Loguear el error
         console.error('Error al obtener membresías:', error);
+        // Crear un usuario sin membresías (usuario nuevo)
         setUser({
           id: authUser.id,
           email: authUser.email,
           memberships: [],
-          isNewUser: true
+          isNewUser: true  // Marcar como usuario nuevo
         });
         return null;
       }
 
+      // Determinar si es un usuario nuevo (no tiene membresías)
       const isNewUser = !memberships || memberships.length === 0;
+      
+      // Buscar la membresía primaria (si existe) o usar la primera
       const primaryOrg = memberships?.find(m => m.is_primary) || memberships?.[0];
 
-      // Usar current_org_id guardado, o primary org, o primera membresía
+      // Determinar cuál debe ser la organización actual:
+      // 1. Usar la que estaba guardada en el perfil (current_org_id)
+      // 2. Si no, usar la organización primaria
+      // 3. Si no, usar la primera membresía
       const savedOrgId = profile?.raw_app_meta_data?.current_org_id;
       const currentOrgId = savedOrgId || primaryOrg?.org_id;
 
+      // Construir el objeto de usuario con toda la información
       const userData: User = {
-        id: authUser.id,
-        email: authUser.email,
-        memberships: memberships || [],
-        current_org_id: currentOrgId,
-        isNewUser,
+        id: authUser.id,                  // ID del usuario
+        email: authUser.email,            // Email del usuario
+        memberships: memberships || [],   // Lista de orgs a las que pertenece
+        current_org_id: currentOrgId,     // Org actualmente seleccionada
+        isNewUser,                        // Flag de usuario nuevo
       };
 
+      // Guardar el usuario en el estado
       setUser(userData);
+      
+      // Guardar la org actual en localStorage para persistencia
       if (currentOrgId) {
         safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, currentOrgId);
       } else {
         safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
       }
+      
+      // Retornar la org actual
       return currentOrgId || null;
     } catch (e) {
+      // Si hay error general
       console.error('Error al construir contexto de usuario:', e);
+      // Limpiar el estado
       setUser(null);
       safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
       return null;
     }
   }, []);
 
+  // =========================================================================
+  // FUNCIÓN: handleSignedOut
+  // =========================================================================
+  // Limpia toda la sesión y redirige al login
   const handleSignedOut = useCallback(() => {
-    safeLocalStorage.removeItem(STORAGE_KEYS.session);
-    safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
-    safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
-    setUser(null);
-    setSession(null);
+    // Limpiar datos de localStorage
+    safeLocalStorage.removeItem(STORAGE_KEYS.session);      // Eliminar sesión
+    safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);   // Eliminar org actual
+    safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon); // Eliminar salón actual
+    
+    // Limpiar estado
+    setUser(null);        // No hay usuario
+    setSession(null);     // No hay sesión
+    
+    // Redirigir a login
     router.push('/login');
   }, [router]);
 
+  // =========================================================================
+  // FUNCIÓN: handleSignedIn
+  // =========================================================================
+  // Maneja el evento cuando un usuario inicia sesión correctamente
   const handleSignedIn = useCallback(async (newSession: Session | null) => {
+    // Si no hay sesión válida, tratar como signed out
     if (!newSession?.user) {
       handleSignedOut();
       return;
     }
 
+    // Guardar la sesión en estado
     setSession(newSession);
+    
+    // Guardar la sesión en localStorage para persistencia
     safeLocalStorage.setItem(STORAGE_KEYS.session, JSON.stringify(newSession));
+    
+    // Obtener las membresías (organizaciones) del usuario
     await fetchUserMemberships(newSession.user.id, newSession.user as SupabaseUser);
+    
+    // Redirigir al dashboard
     router.push('/dashboard');
   }, [handleSignedOut, router, fetchUserMemberships]);
 
-  // Restaurar sesión y escuchar cambios de autenticación
+  // =========================================================================
+  // EFECTO: Restaurar sesión y escuchar cambios de autenticación
+  // =========================================================================
+  // Este efecto se ejecuta cuando el componente se monta
+  // Se encarga de:
+  // 1. Restaurar la sesión si la app se refresca
+  // 2. Escuchar cambios de autenticación en Supabase
   useEffect(() => {
+    // Flag para evitar actualizar estado en componente desmontado
     let isMounted = true;
+    
+    // Función async para restaurar la sesión
     const restoreSession = async () => {
-      // En modo demo, no restaurar sesiones reales
+      // ===================================================================
+      // PASO 1: Intentar restaurar usuario demo del localStorage
+      // ===================================================================
+      // Si la app se cierra y se abre de nuevo, el usuario demo sigue logueado
+      const storedSession = safeLocalStorage.getItem(STORAGE_KEYS.session);
+      if (storedSession) {
+        try {
+          // Parsear el JSON guardado
+          const parsedSession = JSON.parse(storedSession);
+          // Si es la sesión del usuario demo
+          if (parsedSession?.user?.id === DEMO_USER_ID) {
+            // Es una sesión de demo guardada, restaurarla
+            const currentOrg = safeLocalStorage.getItem(STORAGE_KEYS.currentOrg) || DEMO_ORG_ID;
+            if (isMounted) {
+              setUser({
+                id: DEMO_USER_ID,
+                email: DEMO_USER_EMAIL,
+                memberships: [{ org_id: currentOrg, role: 'owner' }],
+                current_org_id: currentOrg,
+              });
+              setSession(null);         // Demo no tiene sesión real
+              setLoading(false);        // Fin de la carga
+            }
+            return;  // Salir, no hacer más cosas
+          }
+        } catch (e) {
+          // Si no es JSON válido, continuar con la lógica normal (ignorar error)
+        }
+      }
+
+      // ===================================================================
+      // PASO 2: En modo demo, no restaurar sesiones reales
+      // ===================================================================
       if (isDemoModeFlag) {
-        setLoading(false);
-        return;
+        if (isMounted) setLoading(false);  // Fin de la carga
+        return;  // Salir
       }
 
       try {
+        // =================================================================
+        // PASO 3: Obtener la sesión actual de Supabase
+        // =================================================================
         const { data: { session: activeSession } } = await supabase.auth.getSession();
 
         if (isMounted && activeSession?.user) {
+          // Si hay sesión válida, usarla
           await handleSignedIn(activeSession);
         } else if (isMounted) {
+          // Si no hay sesión, limpiar estado
           setUser(null);
           setSession(null);
         }
       } catch (e) {
+        // Error al obtener la sesión
         console.error('Error al restaurar sesión:', e);
       } finally {
+        // Siempre marcar que terminó la carga
         if (isMounted) setLoading(false);
       }
     };
 
+    // Ejecutar la función de restauración
     restoreSession();
 
-    // Escuchar cambios de autenticación (solo si no es demo mode)
+    // =====================================================================
+    // Escuchar cambios en el estado de autenticación de Supabase
+    // =====================================================================
+    // Supabase nos avisa cuando:
+    // - Usuario inicia sesión (SIGNED_IN)
+    // - Usuario cierra sesión (SIGNED_OUT)
+    // - Token se refresca (TOKEN_REFRESHED)
     const { data: listener } = isDemoModeFlag
-      ? ({ subscription: { unsubscribe: () => {} } } as any)
-      : supabase.auth.onAuthStateChange(async (event, newSession) => {
+      ? // En modo demo, crear un listener dummy (que no hace nada)
+        ({ subscription: { unsubscribe: () => {} } } as any)
+      : // En modo real, escuchar cambios reales de Supabase
+        supabase.auth.onAuthStateChange(async (event, newSession) => {
+          // Si el componente se desmontó, no hacer nada
           if (!isMounted) return;
+          
+          // Si el usuario cerró sesión
           if (event === 'SIGNED_OUT') {
             handleSignedOut();
-          } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          } 
+          // Si el usuario inició sesión o el token se refrescó
+          else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             await handleSignedIn(newSession ?? null);
           }
         });
 
+    // =====================================================================
+    // LIMPIEZA: cuando el componente se desmonta
+    // =====================================================================
     return () => {
+      // Marcar el componente como desmontado
       isMounted = false;
+      // Desuscribirse de los cambios de autenticación
       listener?.subscription?.unsubscribe?.();
     };
   }, [handleSignedIn, handleSignedOut]);
 
+  // =========================================================================
+  // FUNCIÓN: signIn
+  // =========================================================================
+  // Inicia sesión con email y contraseña
   const signIn = async (email: string, password: string): Promise<void> => {
+    // En modo demo, no permitir iniciar sesión real
     if (isDemoModeFlag) {
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
     try {
+      // Mostrar estado de carga
       setLoading(true);
+      
+      // Llamar a Supabase para iniciar sesión
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
+      // Si hay error, lanzarlo
       if (error) {
         throw error;
       }
 
+      // Si no hay sesión en la respuesta, error
       if (!data.session) {
         throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
       }
 
-      // onAuthStateChange se encargará del resto
+      // El evento 'SIGNED_IN' de onAuthStateChange se encargará del resto
     } finally {
+      // Siempre terminar la carga
       setLoading(false);
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: signUp
+  // =========================================================================
+  // Registra un nuevo usuario con email y contraseña
   const signUp = async (email: string, password: string, signupToken?: string): Promise<void> => {
+    // En modo demo, no permitir registrarse real
     if (isDemoModeFlag) {
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
     try {
+      // Mostrar estado de carga
       setLoading(true);
 
+      // Llamar a Supabase para crear nuevo usuario
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          // URL a la que redirigir después de confirmar email
           emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
+          // Si hay un token de invitación, incluirlo en los datos
           data: signupToken ? { invite_token: signupToken } : undefined,
         },
       });
 
+      // Si hay error, lanzarlo
       if (error) {
         throw error;
       }
 
-      // Si hay sesión inmediata y token, intentar claim inmediatamente
+      // ===================================================================
+      // Si hay sesión inmediata y token de invitación
+      // ===================================================================
       if (data.session && signupToken) {
         try {
-          await supabase.rpc('claim_invitation', { p_token: signupToken });
-        } catch (claimError) {
-          // Claim falló, pero el usuario ya se creó. Podrá intentar claim después.
-          console.warn('Claim automático falló, el usuario podrá reclamar manualmente:', claimError);
-        }
-      }
+          // Reclamar la invitación automáticamente
+          const { data: claimData, error: claimError } = await supabase.rpc('claim_invitation', { p_token: signupToken });
+          
+          if (claimError) {
+            throw claimError;
+          }
 
-      // TEMPORAL: Si no hay token, crear una membresía básica para testing
-      if (data.session && !signupToken) {
-        try {
-          // Verificar si ya existe una membresía para este usuario
-          const { data: existingMembership } = await supabase
-            .from('memberships')
-            .select('id')
-            .eq('user_id', data.session.user.id)
-            .single();
-
-          if (!existingMembership) {
-            // Crear una organización de prueba si no existe
-            const { data: org, error: orgError } = await supabase
-              .from('orgs')
-              .insert({ name: 'Test Organization' })
-              .select()
-              .single();
-
-            if (!orgError && org) {
-              // Crear membresía como owner
+          // Si el claim fue exitoso, refrescar las membresías del usuario
+          if (claimData && data.session.user) {
+            // Esperar un momento para que la BD procese la inserción
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Refrescar las membresías para actualizar el estado del usuario
+            await fetchUserMemberships(data.session.user.id, data.session.user);
+            
+            // Si hay organización_id, establecerla como current_org_id
+            if (claimData.organization_id) {
               await supabase
-                .from('memberships')
-                .insert({
-                  org_id: org.id,
-                  user_id: data.session.user.id,
-                  role: 'owner',
-                  is_primary: true,
-                });
-
-              // Crear un salón de prueba
-              await supabase
-                .from('salons')
-                .insert({
-                  org_id: org.id,
-                  name: 'Test Salon',
-                  address: 'Test Address',
-                });
+                .from('profiles')
+                .update({ raw_app_meta_data: { current_org_id: claimData.organization_id } })
+                .eq('id', data.session.user.id);
+              
+              // Actualizar el usuario en memoria también
+              setUser(prev => prev ? {
+                ...prev,
+                current_org_id: claimData.organization_id,
+                isNewUser: false // Ya no es usuario nuevo, tiene membresía
+              } : null);
             }
           }
-        } catch (setupError) {
-          console.warn('Error creando setup inicial:', setupError);
+        } catch (claimError) {
+          // Si falla el claim, lanzar error para que el usuario sepa
+          console.error('Error reclamando invitación:', claimError);
+          throw new Error('No se pudo reclamar la invitación. Verifica que el token sea válido.');
         }
       }
+
+      // ===================================================================
+      // Si no hay token, el usuario debe crear su propia organización
+      // a través del onboarding modal (no crear automáticamente)
+      // ===================================================================
     } finally {
+      // Siempre terminar la carga
       setLoading(false);
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: signInAsDemo
+  // =========================================================================
+  // Inicia sesión como usuario de demostración (sin usar Supabase)
   const signInAsDemo = () => {
+    // Crear usuario demo en memoria
     setUser({
       id: DEMO_USER_ID,
       email: DEMO_USER_EMAIL,
       memberships: [{ org_id: DEMO_ORG_ID, role: 'owner' }],
       current_org_id: DEMO_ORG_ID,
     });
+    
+    // No hay sesión real en demo
     setSession(null);
+    
+    // Guardar en localStorage para que persista al refrescar
     safeLocalStorage.setItem(STORAGE_KEYS.session, JSON.stringify({ user: { id: DEMO_USER_ID, email: DEMO_USER_EMAIL } }));
     safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, DEMO_ORG_ID);
     safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+    
+    // Redirigir al dashboard
     router.push('/dashboard');
   };
 
+  // =========================================================================
+  // FUNCIÓN: signOut
+  // =========================================================================
+  // Cierra sesión del usuario actual
   const signOut = async (): Promise<void> => {
+    // Si es modo demo o usuario demo, solo limpiar (no hacer signout en Supabase)
     if (isDemoModeFlag || isDemoUser) {
       handleSignedOut();
       return;
     }
 
     try {
+      // Llamar a Supabase para cerrar sesión (invalida token)
       await supabase.auth.signOut();
+      // Limpiar estado local
       handleSignedOut();
     } catch (error) {
+      // Si hay error en Supabase, igual limpiar localmente
       console.error('Error al cerrar sesión:', error);
       handleSignedOut();
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: sendMagicLink
+  // =========================================================================
+  // Envía un link mágico al email para iniciar sesión sin contraseña
   const sendMagicLink = async (email: string): Promise<void> => {
     try {
+      // Llamar a Supabase para enviar OTP (One Time Password) por email
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
+          // URL a la que redirigir después de hacer clic en el link
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
+      // Si hay error, lanzarlo
       if (error) {
         throw error;
       }
     } catch (error: any) {
+      // Lanzar el error para que se maneje en el componente
       throw error;
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: resetPassword
+  // =========================================================================
+  // Envía email para recuperar/resetear contraseña
   const resetPassword = async (email: string): Promise<void> => {
     try {
+      // Determinar la URL de redirección (donde aterrizará el usuario al resetear)
       const redirect = typeof window !== 'undefined' ? `${window.location.origin}/auth/reset-password` : undefined;
+      
+      // Llamar a Supabase para enviar email de reset
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirect });
 
+      // Si hay error, lanzarlo
       if (error) {
         throw error;
       }
     } catch (e: any) {
+      // Lanzar el error para que se maneje en el componente
       throw e;
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: updatePassword
+  // =========================================================================
+  // Actualiza la contraseña del usuario autenticado
   const updatePassword = async (newPassword: string): Promise<void> => {
     try {
+      // Llamar a Supabase para actualizar la contraseña
       const { error } = await supabase.auth.updateUser({ password: newPassword });
 
+      // Si hay error, lanzarlo
       if (error) {
         throw error;
       }
     } catch (e: any) {
+      // Lanzar el error para que se maneje en el componente
       throw e;
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: claimInvitation
+  // =========================================================================
+  // Reclama una invitación a una organización usando un token
   const claimInvitation = async (token: string): Promise<{ organization_id: string; role: string }> => {
+    // En modo demo, no permitir reclamar invitaciones reales
     if (isDemoModeFlag) {
       throw new Error('Modo demo: no se pueden reclamar invitaciones reales');
     }
 
     try {
+      // Llamar a función RPC en Supabase para reclamar la invitación
       const { data, error } = await supabase.rpc('claim_invitation', { p_token: token });
 
+      // Si hay error, lanzarlo
       if (error) {
         throw error;
       }
 
-      // Refrescar memberships después del claim
+      // ===================================================================
+      // Refrescar memberships después de reclamar
+      // ===================================================================
       if (session?.user) {
+        // Esperar un momento para que la BD procese la inserción
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Obtener las membresías actualizadas
         await fetchUserMemberships(session.user.id, session.user);
 
-        // Si se reclamó una invitación y se obtuvo una organización, guardarla como current_org_id
+        // Si se reclamó una invitación y se obtuvo una nueva org
         if (data.organization_id) {
+          // Guardar esa org como la current_org_id en el perfil del usuario
           await supabase
             .from('profiles')
             .update({ raw_app_meta_data: { current_org_id: data.organization_id } })
             .eq('id', session.user.id);
+          
+          // Actualizar el usuario en memoria para que no sea considerado nuevo
+          setUser(prev => prev ? {
+            ...prev,
+            current_org_id: data.organization_id,
+            isNewUser: false // Ya tiene membresía, no es nuevo
+          } : null);
         }
       }
 
+      // Retornar los datos de la invitación reclamada
       return data;
     } catch (e: any) {
+      // Lanzar el error para que se maneje en el componente
       throw e;
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: switchOrganization
+  // =========================================================================
+  // Cambia la organización actualmente seleccionada
   const switchOrganization = async (org_id: string) => {
+    // Solo funciona si hay un usuario autenticado
     if (user) {
+      // En modo demo, solo guardar en localStorage (no en BD)
       if (isDemo) {
+        // Guardar la nueva org en localStorage
         safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, org_id);
+        // Actualizar el usuario en memoria
         setUser({ ...user, current_org_id: org_id });
+        // Limpiar salón seleccionado al cambiar de org
         safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
         return;
       }
-      // Guardar en BD para que persista
+      
+      // En modo real, guardar en la BD para que persista
+      // Actualizar el perfil del usuario con la nueva org actual
       await supabase
         .from('profiles')
         .update({ raw_app_meta_data: { current_org_id: org_id } })
         .eq('id', user.id);
 
+      // Guardar también en localStorage
       safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, org_id);
+      // Actualizar el usuario en memoria
       setUser({ ...user, current_org_id: org_id });
+      // Limpiar salón seleccionado al cambiar de org
       safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
     }
   };
 
+  // =========================================================================
+  // FUNCIÓN: createOrganization
+  // =========================================================================
+  // Crea una nueva organización con salón
   const createOrganization = async (orgData: { name: string; salonName: string; salonAddress?: string; salonPhone?: string }): Promise<void> => {
+    // Verificar que hay usuario autenticado
     if (!user) throw new Error('Usuario no autenticado');
 
+    // Determinar si estamos en modo demo
     const isDemoUserMode = user.email === DEMO_USER_EMAIL || !session || isDemoModeFlag;
+    
     if (isDemoUserMode) {
+      // En modo demo, solo actualizar estado local
       setUser(prev => (prev ? { ...prev, isNewUser: false } : prev));
       safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, DEMO_ORG_ID);
+      
+      // Disparar un evento personalizado que la app de demo escucha
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('demo:create-org', {
@@ -458,27 +742,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      // Mostrar estado de carga
       setLoading(true);
 
+      // ===================================================================
+      // PASO 1: Crear la organización
+      // ===================================================================
       const { data: org, error: orgError } = await supabase
         .from('orgs')
-        .insert({ name: orgData.name })
-        .select()
-        .single();
+        .insert({ name: orgData.name })  // Insertar con el nombre
+        .select()                         // Devolver los datos insertados
+        .single();                        // Esperar un solo resultado
 
+      // Si hay error al crear org
       if (orgError) throw orgError;
 
+      // ===================================================================
+      // PASO 2: Crear membresía del usuario en esa org como owner
+      // ===================================================================
       const { error: membershipError } = await supabase
         .from('memberships')
         .insert({
           org_id: org.id,
           user_id: user.id,
-          role: 'owner',
-          is_primary: true,
+          role: 'owner',           // El usuario es propietario
+          is_primary: true,        // Es su org principal
         });
 
+      // Si hay error al crear membresía
       if (membershipError) throw membershipError;
 
+      // ===================================================================
+      // PASO 3: Crear salón de prueba en esa org
+      // ===================================================================
       const { error: salonError } = await supabase
         .from('salons')
         .insert({
@@ -488,44 +784,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phone: orgData.salonPhone,
         });
 
+      // Si hay error al crear salón
       if (salonError) throw salonError;
 
+      // ===================================================================
+      // PASO 4: Refrescar memberships del usuario en el contexto
+      // ===================================================================
       await fetchUserMemberships(user.id, { id: user.id, email: user.email } as SupabaseUser);
     } finally {
+      // Siempre terminar la carga
       setLoading(false);
     }
   };
 
+  // =========================================================================
+  // CALCULAR VALORES DERIVADOS
+  // =========================================================================
+  
+  // ID de la organización actualmente seleccionada (null si no hay)
   const currentOrgId = user?.current_org_id || null;
+  
+  // Rol del usuario en la organización actual (null si no hay)
   const currentRole = user?.memberships?.find(m => m.org_id === currentOrgId)?.role || null;
 
+  // =========================================================================
+  // RETORNAR PROVEEDOR CON CONTEXTO
+  // =========================================================================
+  // Envolver el contenido de la app con el contexto y todos los valores
   return (
     <AuthContext.Provider value={{
-      user,
-      session,
-      loading,
-      isDemo,
-      signIn,
-      signUp,
-      signInAsDemo,
-      signOut,
-      switchOrganization,
-      currentOrgId,
-      currentRole,
-      createOrganization,
-      sendMagicLink,
-      resetPassword,
-      updatePassword,
-      claimInvitation
+      user,                    // Usuario actual
+      session,                 // Sesión de Supabase
+      loading,                 // Flag de carga
+      isDemo,                  // Flag de modo demo
+      signIn,                  // Función para iniciar sesión
+      signUp,                  // Función para registrarse
+      signInAsDemo,            // Función para iniciar sesión como demo
+      signOut,                 // Función para cerrar sesión
+      switchOrganization,      // Función para cambiar org
+      currentOrgId,            // ID de org actual
+      currentRole,             // Rol en org actual
+      createOrganization,      // Función para crear org
+      sendMagicLink,           // Función para enviar link mágico
+      resetPassword,           // Función para resetear contraseña
+      updatePassword,          // Función para actualizar contraseña
+      claimInvitation          // Función para reclamar invitación
     }}>
+      {/* Renderizar los componentes hijos con acceso al contexto */}
       {children}
     </AuthContext.Provider>
   );
 };
 
+// ============================================================================
+// HOOK: useAuth
+// ============================================================================
+// Hook personalizado para acceder al contexto de autenticación desde cualquier componente
+// Uso: const { user, signIn, signOut } = useAuth();
 export const useAuth = () => {
+  // Obtener el contexto actual
   const ctx = useContext(AuthContext);
+  
+  // Si no hay contexto, significa que se está usando fuera de AuthProvider
   if (!ctx) throw new Error('useAuth debe usarse dentro de AuthProvider');
+  
+  // Devolver el contexto
   return ctx;
 };
 
