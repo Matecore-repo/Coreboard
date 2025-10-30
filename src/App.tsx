@@ -85,8 +85,6 @@ export default function App() {
   // =========================================================================
   const { user, session, signOut, currentRole, currentOrgId, isDemo } = useAuth() as any;
   const [isPending, startTransition] = useTransition();
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [nextViewName, setNextViewName] = useState<string | null>(null);
 
   // =========================================================================
   // ESTADO LOCAL
@@ -764,10 +762,6 @@ export default function App() {
     }
   }, [activeNavItem, effectiveAppointments, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, selectedAppointment, currentRole]);
 
-  const TransitionBanner = () => (
-    isPending ? <div className="px-4 py-1 text-xs text-muted-foreground">Cambiando vista...</div> : null
-  );
-
   // =========================================================================
   // RENDERIZADO PRINCIPAL
   // =========================================================================
@@ -788,18 +782,11 @@ export default function App() {
             onNavItemClick={(itemId) => {
               if (itemId === activeNavItem) return;
               try { viewPreloadMap[itemId]?.(); } catch {}
-              setNextViewName(viewNames[itemId] || itemId);
-              setIsNavigating(true);
               startTransition(() => {
                 setActiveNavItem(itemId);
                 const url = new URL(window.location.href);
                 url.searchParams.set('view', itemId);
                 window.history.replaceState({}, '', url.toString());
-                // Mínimo 2 segundos para que cargue todo bien
-                setTimeout(() => {
-                  setIsNavigating(false);
-                  setNextViewName(null);
-                }, 2000);
               });
             }}
             onLogout={handleLogout}
@@ -827,15 +814,9 @@ export default function App() {
                   setMobileMenuOpen(false);
                   return;
                 }
-                setNextViewName(viewNames[itemId] || itemId);
-                setIsNavigating(true);
                 startTransition(() => {
                   setActiveNavItem(itemId);
                   setMobileMenuOpen(false);
-                  setTimeout(() => {
-                    setIsNavigating(false);
-                    setNextViewName(null);
-                  }, 2000);
                 });
               }}
               onLogout={handleLogout}
@@ -858,52 +839,20 @@ export default function App() {
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto h-screen relative">
           <div className="md:hidden h-20" />
-          <TransitionBanner />
-          
-          {/* Navigation Overlay */}
-          <AnimatePresence>
-            {isNavigating && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="absolute inset-0 z-50 flex items-center justify-center bg-background/98 backdrop-blur-md"
-              >
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.4 }}
-                  className="text-center space-y-6"
-                >
-                  <motion.div
-                    className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  />
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-muted-foreground text-base font-medium"
-                  >
-                    Cargando vista de {nextViewName}...
-                  </motion.p>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* Content wrapper with fade animation */}
+          {/* Content wrapper with modern fade animation */}
           <AnimatePresence mode="wait">
             <motion.div
               key={activeNavItem}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-              className={isNavigating ? 'pointer-events-none' : ''}
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ 
+                duration: 0.25, 
+                ease: [0.4, 0, 0.2, 1],
+                opacity: { duration: 0.2 }
+              }}
+              className="h-full"
             >
           { ["appointments", "finances", "clients"].includes(activeNavItem) && (
             <div className="p-4 md:p-6 pb-4 border-b border-border">

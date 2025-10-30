@@ -14,7 +14,7 @@ import { EmptyState } from '../ui/empty-state';
 import { Building2 } from 'lucide-react';
 
 const ClientsView: React.FC = () => {
-  const { currentOrgId, isDemo } = useAuth();
+  const { currentOrgId, isDemo, currentRole } = useAuth();
   const { clients, loading: hooksLoading, error: clientsError, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -105,7 +105,15 @@ const ClientsView: React.FC = () => {
     setDialogOpen(true);
   };
 
+  const canDelete = currentRole === 'owner' || currentRole === 'admin';
+  const canCreate = currentRole !== 'viewer';
+
   const handleDelete = async (id: string) => {
+    if (!canDelete) {
+      toast.error('No tienes permisos para eliminar clientes');
+      return;
+    }
+    
     if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return;
 
     try {
@@ -169,7 +177,7 @@ const ClientsView: React.FC = () => {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={handleNew}>
+                <Button onClick={handleNew} disabled={!canCreate}>
                   <Plus className="w-4 h-4 mr-2" />
                   Nuevo Cliente
                 </Button>
@@ -216,7 +224,7 @@ const ClientsView: React.FC = () => {
                   <Button variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleSave}>
+                  <Button onClick={handleSave} disabled={!canCreate}>
                     {editingClient ? 'Actualizar' : 'Crear'}
                   </Button>
                 </div>
@@ -249,16 +257,19 @@ const ClientsView: React.FC = () => {
                       size="sm"
                       variant="outline"
                       onClick={() => handleEdit(client)}
+                      disabled={currentRole === 'viewer'}
                     >
                       <Edit3 className="w-4 h-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDelete(client.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {canDelete && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDelete(client.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
