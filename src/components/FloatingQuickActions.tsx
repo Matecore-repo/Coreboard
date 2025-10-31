@@ -1,4 +1,4 @@
-import { Plus, Trash2, Edit, X } from "lucide-react";
+import { Plus, Trash2, Edit, X, DollarSign, Receipt, TrendingUp } from "lucide-react";
 import { Button } from "./ui/button";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect, useRef } from "react";
@@ -9,6 +9,9 @@ interface FloatingQuickActionsProps {
   onAddAppointment: () => void;
   onDeleteAppointment: () => void;
   onUpdateAppointment: () => void;
+  onRegisterPayment?: () => void;
+  onRegisterExpense?: () => void;
+  onViewFinances?: () => void;
 }
 
 export function FloatingQuickActions({
@@ -17,6 +20,9 @@ export function FloatingQuickActions({
   onAddAppointment,
   onDeleteAppointment,
   onUpdateAppointment,
+  onRegisterPayment,
+  onRegisterExpense,
+  onViewFinances,
 }: FloatingQuickActionsProps) {
   const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -136,10 +142,76 @@ export function FloatingQuickActions({
                 </Button>
               </motion.div>
 
+              {onRegisterPayment && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.25 }}
+                >
+                  <Button
+                    onClick={() => {
+                      onRegisterPayment();
+                      onClose();
+                    }}
+                    variant="outline"
+                    className="rounded-full h-9 px-3 sm:px-4 border-green-500 text-green-600 hover:bg-green-50"
+                    size="sm"
+                    aria-label="Registrar pago"
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    {!isMobile && <span className="ml-2">Pago</span>}
+                  </Button>
+                </motion.div>
+              )}
+
+              {onRegisterExpense && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <Button
+                    onClick={() => {
+                      onRegisterExpense();
+                      onClose();
+                    }}
+                    variant="outline"
+                    className="rounded-full h-9 px-3 sm:px-4 border-red-500 text-red-600 hover:bg-red-50"
+                    size="sm"
+                    aria-label="Registrar gasto"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    {!isMobile && <span className="ml-2">Gasto</span>}
+                  </Button>
+                </motion.div>
+              )}
+
+              {onViewFinances && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.35 }}
+                >
+                  <Button
+                    onClick={() => {
+                      onViewFinances();
+                      onClose();
+                    }}
+                    variant="outline"
+                    className="rounded-full h-9 px-3 sm:px-4 border-blue-500 text-blue-600 hover:bg-blue-50"
+                    size="sm"
+                    aria-label="Ver finanzas"
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                    {!isMobile && <span className="ml-2">Finanzas</span>}
+                  </Button>
+                </motion.div>
+              )}
+
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ delay: 0.25 }}
+                transition={{ delay: 0.4 }}
               >
                 <Button
                   onClick={onClose}

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "next-themes";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
+import { appointmentsStore, pendingTodayCountSelector } from './stores/appointments';
 import { AppointmentDialog } from "./components/features/appointments/AppointmentDialog";
 import { AppointmentActionBar } from "./components/features/appointments/AppointmentActionBar";
 import { FloatingQuickActions } from "./components/FloatingQuickActions";
@@ -251,20 +252,20 @@ export default function App() {
   }, [effectiveAppointments, selectedAppointment?.id]);
 
   useEffect(() => {
-    // Solo mostrar onboarding si:
-    // 1. El usuario no tiene membresías (isNewUser)
-    // 2. NO es un empleado (empleados ya tienen organización asignada)
-    // 3. No está en modo demo
-    const shouldShowOnboarding = user?.isNewUser && 
-                                 !showOnboarding && 
-                                 (!user.memberships || user.memberships.length === 0) &&
+    // Solo mostrar onboarding si NO hay membresía aún ni org seleccionada.
+    // Previene flicker cuando el usuario reclamó invitación y ya tiene org.
+    const noMemberships = !user?.memberships || user.memberships.length === 0;
+    const shouldShowOnboarding = !!user?.isNewUser &&
+                                 !showOnboarding &&
+                                 noMemberships &&
                                  currentRole !== 'employee' &&
-                                 !isDemo;
-    
+                                 !isDemo &&
+                                 !currentOrgId; // si ya hay org, no mostrar
+
     if (shouldShowOnboarding) {
       setShowOnboarding(true);
     }
-  }, [user?.isNewUser, user?.memberships, currentRole, showOnboarding, isDemo]);
+  }, [user?.isNewUser, user?.memberships, currentRole, showOnboarding, isDemo, currentOrgId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -395,12 +396,14 @@ export default function App() {
         }
         return updated;
       });
+      try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'cancelled' as any); } catch {}
       toast.success("Turno cancelado");
     } else {
       try {
         const updated = await (updateAppointment as any)(id, { status: 'cancelled' as const });
         if (updated) {
           setSelectedAppointment(updated);
+          try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'cancelled' as any); } catch {}
     }
     toast.success("Turno cancelado");
       } catch (e) {
@@ -422,12 +425,14 @@ export default function App() {
         }
         return updated;
       });
+      try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'completed' as any); } catch {}
     toast.success("Turno completado");
     } else {
       try {
         const updated = await (updateAppointment as any)(id, { status: 'completed' as const });
         if (updated) {
           setSelectedAppointment(updated);
+          try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'completed' as any); } catch {}
         }
         toast.success("Turno completado");
       } catch (error) {
@@ -566,9 +571,10 @@ export default function App() {
   // =========================================================================
   // DEFINICIONES DE NAVEGACIÓN
   // =========================================================================
+  const pendingToday = pendingTodayCountSelector(appointmentsStore.appointments as any, selectedSalon);
   const allNavItems = [
     { id: "home", label: "Inicio", icon: Home },
-    { id: "appointments", label: "Turnos", icon: Calendar },
+    { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
     { id: "clients", label: "Clientes", icon: Users },
     { id: "profile", label: "Mi Perfil", icon: UserCog },
     { id: "organization", label: "Organización", icon: Building2 },
@@ -931,6 +937,30 @@ export default function App() {
         }}
         onDeleteAppointment={handleDeleteAppointment}
         onUpdateAppointment={handleUpdateAppointment}
+        onRegisterPayment={() => {
+          toast.info('Funcionalidad de registro de pago próximamente');
+        }}
+        onRegisterExpense={() => {
+          toast.info('Funcionalidad de registro de gasto próximamente');
+        }}
+        onViewFinances={() => {
+          if (activeNavItem !== 'finances') {
+            try { viewPreloadMap['finances']?.(); } catch {}
+            setNextViewName(viewNames['finances'] || 'Finanzas');
+            setIsNavigating(true);
+            startTransition(() => {
+              setActiveNavItem('finances');
+              const url = new URL(window.location.href);
+              url.searchParams.set('view', 'finances');
+              window.history.replaceState({}, '', url.toString());
+              setTimeout(() => {
+                setIsNavigating(false);
+                setNextViewName(null);
+              }, 2000);
+            });
+          }
+          setShowQuickActions(false);
+        }}
       />
 
       {/* Floating Theme Bubble */}
@@ -1056,6 +1086,7 @@ export default function App() {
               }
               return updated;
             });
+            (async () => { try { (await import('./stores/appointments')).appointmentsStore.updateStatus(selectedAppointment.id, status as any); } catch {} })();
             toast.success('Estado actualizado');
           } else {
             (async () => { 
@@ -1063,6 +1094,9 @@ export default function App() {
                 const updated = await (updateAppointment as any)(selectedAppointment.id, { status });
                 if (updated) {
                   setSelectedAppointment(updated);
+                  // Refrescar lista de appointments para asegurar sincronización
+                  await fetchAppointments();
+                  try { (await import('./stores/appointments')).appointmentsStore.updateStatus(selectedAppointment.id, status as any); } catch {}
                 }
                 toast.success('Estado actualizado'); 
               } catch (e) {

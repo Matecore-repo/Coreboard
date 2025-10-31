@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Appointment as FullAppointment } from '../types';
 import { demoStore } from '../demo/store';
 import { isValidUUID } from '../lib/uuid';
+import { appointmentsStore } from '../stores/appointments';
 
 export interface Appointment {
   id: string;
@@ -153,6 +154,14 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       // si falla realtime, no rompemos el flujo
     }
   }, [fetchAppointments, enabled]);
+
+  // Sincronizar estado local al store global
+  useEffect(() => {
+    try {
+      // map 1:1 ya que las props coinciden con AppointmentLite
+      appointmentsStore.setAll(appointments as any);
+    } catch {}
+  }, [appointments]);
 
   const createAppointment = async (appointmentData: Partial<Appointment>) => {
     if (!salonId || (!isDemo && !isValidUUID(salonId))) {

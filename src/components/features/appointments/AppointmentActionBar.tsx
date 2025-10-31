@@ -68,14 +68,14 @@ export function AppointmentActionBar({
   const fullCustomActions = [
     {
       label: "Completar",
-      onClick: () => { if (!completeDisabled) onComplete(); },
+      onClick: () => { if (!completeDisabled && onSetStatus) onSetStatus('completed'); },
       variant: "ghost" as const,
       icon: <CheckCircle className="h-3.5 w-3.5" />,
       disabled: completeDisabled,
     },
     {
       label: "Cancelar",
-      onClick: () => { if (!cancelDisabled) onCancel(); },
+      onClick: () => { if (!cancelDisabled && onSetStatus) onSetStatus('cancelled'); },
       variant: "ghost" as const,
       icon: <XCircle className="h-3.5 w-3.5" />,
       disabled: cancelDisabled,

@@ -1,203 +1,557 @@
-import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import React, { useMemo } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Textarea } from "../ui/textarea";
-import { toast } from "sonner";
-import { useServices } from "../../hooks/useServices";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Switch } from "../ui/switch";
+import { Badge } from "../ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { Separator } from "../ui/separator";
 import { useAuth } from "../../contexts/AuthContext";
-import { Trash2, Edit3, Plus } from "lucide-react";
 
-export function SettingsView() {
-  const { currentOrgId } = useAuth();
-  const { services, createService, updateService, deleteService, isLoading } = useServices(currentOrgId ?? undefined);
-  
-  const [isCreating, setIsCreating] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    base_price: 0,
-    duration_minutes: 30,
-  });
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const DISABLED_CLASS =
+  "opacity-50 pointer-events-none cursor-not-allowed";
+const noop = () => {};
 
-  const handleAddNew = () => {
-    setFormData({ name: "", base_price: 0, duration_minutes: 30 });
-    setIsCreating(true);
-    setEditingId(null);
+type GeneralSettings = {
+  brandName: string;
+  timezone: string;
+  currency: string;
+  language: string;
+  autoAssignStylist: boolean;
+  showPricesOnKiosk: boolean;
+};
+
+type NotificationSettings = {
+  emailDailySummary: boolean;
+  emailSameDayReminder: boolean;
+  smsReminders: boolean;
+  pushLowStock: boolean;
+};
+
+type SecuritySettings = {
+  enforce2fa: boolean;
+  sessionTimeoutMinutes: number;
+  alertNewDevices: boolean;
+  autoLockInactivity: boolean;
+  requireStrongPasswords: boolean;
+};
+
+type IntegrationSettings = {
+  googleCalendar: boolean;
+  whatsappBusiness: boolean;
+  metaAds: boolean;
+  hubspot: boolean;
+};
+
+const createGeneralDefaults = (email?: string | null): GeneralSettings => {
+  const rawName = email?.split("@")[0] ?? "";
+  const formatted =
+    rawName.trim().length > 0
+      ? rawName.replace(/[\W_]+/g, " ").replace(/\s+/g, " ").trim()
+      : "Mi negocio";
+
+  return {
+    brandName: formatted || "Mi negocio",
+    timezone: "America/Argentina/Buenos_Aires",
+    currency: "ARS",
+    language: "es-AR",
+    autoAssignStylist: IS_PRODUCTION,
+    showPricesOnKiosk: true,
   };
+};
 
-  const handleEdit = (service: any) => {
-    setFormData({
-      name: service.name,
-      base_price: service.base_price,
-      duration_minutes: service.duration_minutes,
-    });
-    setEditingId(service.id);
-    setIsCreating(false);
-  };
+const createNotificationDefaults = (): NotificationSettings => ({
+  emailDailySummary: true,
+  emailSameDayReminder: true,
+  smsReminders: IS_PRODUCTION,
+  pushLowStock: IS_PRODUCTION,
+});
 
-  const handleSave = async () => {
-    if (!formData.name.trim()) {
-      toast.error("El nombre del servicio es requerido");
-      return;
-    }
-    
-    if (!currentOrgId) {
-      toast.error("Organización no seleccionada");
-      return;
-    }
+const createSecurityDefaults = (): SecuritySettings => ({
+  enforce2fa: IS_PRODUCTION,
+  sessionTimeoutMinutes: IS_PRODUCTION ? 15 : 45,
+  alertNewDevices: true,
+  autoLockInactivity: IS_PRODUCTION,
+  requireStrongPasswords: true,
+});
 
-    try {
-      if (editingId) {
-        await updateService(editingId, formData);
-        toast.success("Servicio actualizado");
-      } else {
-        await createService({
-          name: formData.name,
-          base_price: formData.base_price,
-          duration_minutes: formData.duration_minutes,
-          active: true,
-          org_id: currentOrgId || '',
-        } as any);
-        toast.success("Servicio creado");
-      }
-      setFormData({ name: "", base_price: 0, duration_minutes: 30 });
-      setIsCreating(false);
-      setEditingId(null);
-    } catch (error) {
-      toast.error("Error al guardar servicio");
-      console.error(error);
-    }
-  };
+const createIntegrationDefaults = (): IntegrationSettings => ({
+  googleCalendar: true,
+  whatsappBusiness: IS_PRODUCTION,
+  metaAds: false,
+  hubspot: false,
+});
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("¿Estás seguro de que quieres eliminar este servicio?")) return;
-    
-    try {
-      await deleteService(id);
-      toast.success("Servicio eliminado");
-    } catch (error) {
-      toast.error("Error al eliminar servicio");
-      console.error(error);
-    }
-  };
+export default function SettingsView() {
+  const { isDemo, currentOrgId, user } = useAuth();
 
-  const handleCancel = () => {
-    setFormData({ name: "", base_price: 0, duration_minutes: 30 });
-    setIsCreating(false);
-    setEditingId(null);
-  };
+  const generalSettings = useMemo(
+    () => createGeneralDefaults(user?.email),
+    [user?.email],
+  );
+  const notificationSettings = useMemo(createNotificationDefaults, []);
+  const securitySettings = useMemo(createSecurityDefaults, []);
+  const integrationSettings = useMemo(createIntegrationDefaults, []);
 
   return (
-    <div className="space-y-6 p-4">
-      <Card>
+    <>
+      <div className="space-y-6 p-4 pb-32 md:p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Configuración de la aplicación
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Visualiza qué ajustes estarán disponibles cuando lancemos la consola
+              de producción.
+            </p>
+          </div>
+          <Badge variant={IS_PRODUCTION ? "default" : "secondary"}>
+            Entorno: {IS_PRODUCTION ? "Producción" : "Previsualización"}
+          </Badge>
+        </div>
+      </div>
+
+      {isDemo && (
+        <Alert>
+          <AlertTitle>Modo demostración activo</AlertTitle>
+          <AlertDescription>
+            Algunas opciones se muestran solo como vista previa. Las acciones
+            reales se habilitarán cuando tu organización esté migrada a
+            producción.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!isDemo && !currentOrgId && (
+        <Alert variant="destructive">
+          <AlertTitle>Sin organización seleccionada</AlertTitle>
+          <AlertDescription>
+            Vincula una organización para habilitar ajustes críticos en
+            producción. Mientras tanto, todos los cambios permanecen
+            deshabilitados.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card className={DISABLED_CLASS}>
         <CardHeader>
-          <CardTitle>Servicios</CardTitle>
-          <CardDescription>Administra los servicios disponibles en tu organización</CardDescription>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>Preferencias generales</CardTitle>
+            <Badge variant="outline">En desarrollo</Badge>
+          </div>
+          <CardDescription>
+            Define la identidad de tu marca y reglas globales. Estas opciones se
+            habilitarán cuando concluyamos la integración con el backend.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          
-          {isLoading ? (
-            <p className="text-muted-foreground">Cargando servicios...</p>
-          ) : services.length === 0 ? (
-            <div className="text-center py-6">
-              <p className="text-muted-foreground mb-4">No hay servicios creados</p>
-              <Button onClick={handleAddNew}>+ Crear primer servicio</Button>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className={`space-y-2 ${DISABLED_CLASS}`}>
+              <Label htmlFor="brandName">Nombre comercial</Label>
+              <Input
+                id="brandName"
+                value={generalSettings.brandName}
+                readOnly
+                disabled
+                placeholder="Ej: Core Studio Palermo"
+              />
             </div>
-          ) : (
-            <div className="space-y-2">
-              {services.map((service) => (
-                <div key={service.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{service.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      ${service.base_price} - {service.duration_minutes} min
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEdit(service)}
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDelete(service.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+            <div className={`space-y-2 ${DISABLED_CLASS}`}>
+              <Label htmlFor="language">Idioma por defecto</Label>
+              <Select
+                value={generalSettings.language}
+                onValueChange={noop}
+                disabled
+              >
+                <SelectTrigger id="language" disabled>
+                  <SelectValue placeholder="Selecciona un idioma" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="es-AR">Español (Argentina)</SelectItem>
+                  <SelectItem value="es-CL">Español (Chile)</SelectItem>
+                  <SelectItem value="en-US">Inglés</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-
-          {/* Formulario de creación/edición */}
-          {(isCreating || editingId) && (
-            <div className="border-t pt-4 mt-4">
-              <h4 className="font-semibold mb-3">
-                {editingId ? "Editar Servicio" : "Nuevo Servicio"}
-              </h4>
-              <div className="space-y-3">
-                <div>
-                  <Label>Nombre del servicio</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ej: Corte, Teñido, Manicure"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Precio base ($)</Label>
-                    <Input
-                      type="number"
-                      value={formData.base_price}
-                      onChange={(e) => setFormData({ ...formData, base_price: Number(e.target.value) })}
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Duración (minutos)</Label>
-                    <Input
-                      type="number"
-                      value={formData.duration_minutes}
-                      onChange={(e) => setFormData({ ...formData, duration_minutes: Number(e.target.value) })}
-                      min="5"
-                      step="5"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={handleSave}>
-                    {editingId ? "Actualizar" : "Crear"}
-                  </Button>
-                  <Button variant="outline" onClick={handleCancel}>
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
+            <div className={`space-y-2 ${DISABLED_CLASS}`}>
+              <Label htmlFor="timezone">Zona horaria</Label>
+              <Select
+                value={generalSettings.timezone}
+                onValueChange={noop}
+                disabled
+              >
+                <SelectTrigger id="timezone" disabled>
+                  <SelectValue placeholder="Selecciona zona horaria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="America/Argentina/Buenos_Aires">
+                    Buenos Aires (GMT-3)
+                  </SelectItem>
+                  <SelectItem value="America/Santiago">
+                    Santiago (GMT-3)
+                  </SelectItem>
+                  <SelectItem value="America/Mexico_City">
+                    Ciudad de México (GMT-6)
+                  </SelectItem>
+                  <SelectItem value="America/Bogota">
+                    Bogotá (GMT-5)
+                  </SelectItem>
+                  <SelectItem value="Europe/Madrid">
+                    Madrid (GMT+1)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-
-          {!isCreating && !editingId && services.length > 0 && (
-            <Button onClick={handleAddNew} variant="outline" className="w-full">
-              <Plus className="w-4 h-4 mr-2" />
-              Agregar servicio
-            </Button>
-          )}
+            <div className={`space-y-2 ${DISABLED_CLASS}`}>
+              <Label htmlFor="currency">Moneda principal</Label>
+              <Select
+                value={generalSettings.currency}
+                onValueChange={noop}
+                disabled
+              >
+                <SelectTrigger id="currency" disabled>
+                  <SelectValue placeholder="Selecciona moneda" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ARS">Peso argentino (ARS)</SelectItem>
+                  <SelectItem value="CLP">Peso chileno (CLP)</SelectItem>
+                  <SelectItem value="USD">Dólar estadounidense (USD)</SelectItem>
+                  <SelectItem value="EUR">Euro (EUR)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Separator />
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                Optimizar la agenda automáticamente
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Coreboard asignará el estilista con mejor disponibilidad.
+              </p>
+            </div>
+            <Switch
+              checked={generalSettings.autoAssignStylist}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar asignación automática de estilista"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                Mostrar precios en kiosco / pantalla cliente
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Ideal para puntos de venta: muestra tarifas actualizadas en
+                tiempo real.
+              </p>
+            </div>
+            <Switch
+              checked={generalSettings.showPricesOnKiosk}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Mostrar precios en kiosco"
+            />
+          </div>
         </CardContent>
       </Card>
-    </div>
+
+      <Card className={DISABLED_CLASS}>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>Notificaciones</CardTitle>
+            <Badge variant="outline">En desarrollo</Badge>
+          </div>
+          <CardDescription>
+            Mantén a tu equipo y clientes informados. Las integraciones de correo
+            y SMS se activarán más adelante.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">Resumen diario por email</p>
+              <p className="text-xs text-muted-foreground">
+                Envía un resumen de turnos confirmados y tareas pendientes cada
+                mañana.
+              </p>
+            </div>
+            <Switch
+              checked={notificationSettings.emailDailySummary}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar resumen diario por email"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">
+                Recordatorio por email el mismo día
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Notifica a los clientes horas antes del turno para reducir
+                ausencias.
+              </p>
+            </div>
+            <Switch
+              checked={notificationSettings.emailSameDayReminder}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar recordatorio por email"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">Recordatorios por SMS / WhatsApp</p>
+              <p className="text-xs text-muted-foreground">
+                Requiere saldo de mensajería y aprobaciones regulatorias.
+              </p>
+            </div>
+            <Switch
+              checked={notificationSettings.smsReminders}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar recordatorios por SMS"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">Alertas de stock bajo</p>
+              <p className="text-xs text-muted-foreground">
+                Recibe notificaciones push cuando un producto necesite
+                reposición.
+              </p>
+            </div>
+            <Switch
+              checked={notificationSettings.pushLowStock}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar alertas de stock bajo"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className={DISABLED_CLASS}>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>Seguridad y cumplimiento</CardTitle>
+            <Badge variant="outline">En desarrollo</Badge>
+          </div>
+          <CardDescription>
+            Establece políticas robustas para proteger datos y accesos. El
+            backend validará todas estas opciones una vez que la ruta esté
+            disponible.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">
+                Forzar doble factor de autenticación
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Recomendado para producción: solicita 2FA a todo el equipo.
+              </p>
+            </div>
+            <Switch
+              checked={securitySettings.enforce2fa}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Forzar doble factor de autenticación"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">
+                Tiempo de expiración de sesión (minutos)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Reduce la ventana de riesgo en dispositivos compartidos.
+              </p>
+            </div>
+            <Input
+              type="number"
+              min={10}
+              max={240}
+              value={securitySettings.sessionTimeoutMinutes}
+              readOnly
+              disabled
+              className="w-24 text-right"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">Alertar nuevos dispositivos</p>
+              <p className="text-xs text-muted-foreground">
+                Notifica por email cuando alguien inicia sesión desde un equipo
+                desconocido.
+              </p>
+            </div>
+            <Switch
+              checked={securitySettings.alertNewDevices}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Alertar nuevos dispositivos"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">
+                Bloqueo automático por inactividad
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Protege la aplicación cuando se deja abierta en recepción o caja.
+              </p>
+            </div>
+            <Switch
+              checked={securitySettings.autoLockInactivity}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Bloqueo automático por inactividad"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">
+                Exigir contraseñas robustas
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Obliga a usar mayúsculas, números y longitud mínima.
+              </p>
+            </div>
+            <Switch
+              checked={securitySettings.requireStrongPasswords}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Exigir contraseñas robustas"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className={DISABLED_CLASS}>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>Integraciones</CardTitle>
+            <Badge variant="outline">En desarrollo</Badge>
+          </div>
+          <CardDescription>
+            Conecta herramientas clave para automatizar la operación. Estamos
+            preparando los conectores oficiales para producción.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">Google Calendar</p>
+              <p className="text-xs text-muted-foreground">
+                Sincroniza turnos automáticamente con agendas personales.
+              </p>
+            </div>
+            <Switch
+              checked={integrationSettings.googleCalendar}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar integración con Google Calendar"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">WhatsApp Business API</p>
+              <p className="text-xs text-muted-foreground">
+                Activa campañas de seguimiento y confirmaciones automáticas.
+              </p>
+            </div>
+            <Switch
+              checked={integrationSettings.whatsappBusiness}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar integración con WhatsApp Business"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">Meta Ads / Facebook Pixel</p>
+              <p className="text-xs text-muted-foreground">
+                Traza conversiones de campañas para medir reservas generadas.
+              </p>
+            </div>
+            <Switch
+              checked={integrationSettings.metaAds}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar Meta Ads"
+            />
+          </div>
+          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
+            <div>
+              <p className="text-sm font-medium">HubSpot CRM</p>
+              <p className="text-xs text-muted-foreground">
+                Envía nuevos clientes a tu pipeline comercial automáticamente.
+              </p>
+            </div>
+            <Switch
+              checked={integrationSettings.hubspot}
+              onCheckedChange={noop}
+              disabled
+              aria-label="Activar integración con HubSpot"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>Apariencia</CardTitle>
+            <Badge>Cargado</Badge>
+          </div>
+          <CardDescription>
+            El cambio de tema está activo. Usa el botón flotante (☀️ / 🌙) en la
+            esquina inferior derecha para alternar entre modos claro y oscuro.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Estamos ajustando el layout para que la burbuja de tema no se
+            superponga con otros componentes. Mientras tanto, los accesos
+            deshabilitados se muestran en gris para indicar que aún no están
+            disponibles.
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <Button
+          variant="outline"
+          disabled
+          className={DISABLED_CLASS}
+        >
+          Restaurar valores por defecto
+        </Button>
+        <Button disabled className={DISABLED_CLASS}>
+          Guardar cambios
+        </Button>
+      </div>
+    </>
   );
 }
-
-export default SettingsView;

@@ -528,3 +528,107 @@ begin
   );
 end;
 $$;
+
+-- Function to automatically create payment when appointment is completed
+create or replace function app.generate_payment_on_complete()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_appointment_total numeric;
+  v_payment_exists boolean;
+begin
+  -- Solo generar pago cuando turno se completa y no había estado completado antes
+  if new.status = 'completed' and (old.status is null or old.status != 'completed') then
+    -- Verificar si ya existe un pago para este appointment
+    select exists(
+      select 1 from app.payments
+      where appointment_id = new.id
+    ) into v_payment_exists;
+    
+    -- Si no existe pago, crear uno automáticamente
+    if not v_payment_exists then
+      -- Obtener total_amount del appointment
+      v_appointment_total := coalesce(new.total_amount, 0);
+      
+      -- Solo crear pago si hay un monto mayor a cero
+      if v_appointment_total > 0 then
+        insert into app.payments (
+          org_id,
+          appointment_id,
+          amount,
+          payment_method,
+          processed_at,
+          created_by,
+          notes
+        ) values (
+          new.org_id,
+          new.id,
+          v_appointment_total,
+          'cash', -- método por defecto
+          now(),
+          new.created_by,
+          'Pago automático al completar turno'
+        );
+      end if;
+    end if;
+  end if;
+  
+  return new;
+end;
+$$;
+
+-- Trigger para crear pagos automáticamente
+create trigger generate_payment_on_complete_trigger
+  after update on app.appointments
+  for each row
+  execute function app.generate_payment_on_complete();
+
+-- RPC Function for updating appointment status
+create or replace function public.update_appointment_status(
+  p_appointment_id uuid,
+  p_status text
+)
+returns json
+language plpgsql
+security definer
+as $$
+declare
+  v_appointment app.appointments%rowtype;
+  v_status_enum appointment_status;
+begin
+  -- Validar y convertir status a enum
+  if p_status not in ('pending', 'confirmed', 'completed', 'cancelled', 'no_show') then
+    raise exception 'Invalid status: %', p_status;
+  end if;
+  
+  -- Cast el texto al enum
+  v_status_enum := p_status::appointment_status;
+  
+  -- Actualizar appointment
+  update app.appointments
+  set status = v_status_enum,
+      updated_at = now()
+  where id = p_appointment_id
+    and org_id = auth.org_id()
+  returning * into v_appointment;
+  
+  -- Verificar que se actualizó
+  if not found then
+    raise exception 'Appointment not found or access denied';
+  end if;
+  
+  -- Retornar appointment actualizado
+  return json_build_object(
+    'id', v_appointment.id,
+    'org_id', v_appointment.org_id,
+    'salon_id', v_appointment.salon_id,
+    'client_id', v_appointment.client_id,
+    'employee_id', v_appointment.employee_id,
+    'status', v_appointment.status::text,
+    'total_amount', v_appointment.total_amount,
+    'starts_at', v_appointment.starts_at,
+    'updated_at', v_appointment.updated_at
+  );
+end;
+$$;

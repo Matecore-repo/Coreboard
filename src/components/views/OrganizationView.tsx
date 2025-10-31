@@ -175,26 +175,35 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     setLoading(true);
 
     try {
-      const orgPromise = supabase
+      // Abort controller con timeout suave para evitar bloqueos prolongados
+      const controller = new AbortController();
+      const abortTimer = setTimeout(() => controller.abort(), 12000);
+
+      // Cargar organización (request principal)
+      const orgResult: any = await (supabase
         .from('orgs')
         .select('id, name, tax_id, created_at')
         .eq('id', currentOrgId)
-        .single();
+        // @ts-ignore: abortSignal está disponible en supabase-js v2
+        .abortSignal ? (supabase
+          .from('orgs')
+          .select('id, name, tax_id, created_at')
+          .eq('id', currentOrgId)
+          // @ts-ignore
+          .abortSignal(controller.signal)
+          .single()) : (supabase
+          .from('orgs')
+          .select('id, name, tax_id, created_at')
+          .eq('id', currentOrgId)
+          .single()));
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout al cargar organización')), 10000)
-      );
+      clearTimeout(abortTimer);
 
-      const result = await Promise.race([
-        orgPromise,
-        timeoutPromise
-      ]) as any;
-
-      if (result.error) {
-        throw new Error(result.error.message || 'Error al cargar la organización');
+      if (orgResult.error) {
+        throw new Error(orgResult.error.message || 'Error al cargar la organización');
       }
 
-      const org = result.data;
+      const org = orgResult.data;
       if (!org) {
         throw new Error('Organización no encontrada');
       }
@@ -203,14 +212,17 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setOrgName(org.name || '');
       setOrgTaxId(org.tax_id || '');
 
-      // Cargar miembros siempre (todos los usuarios pueden ver la lista)
-      await loadMemberships(currentOrgId);
-      
-      // Cargar tokens solo si tiene permisos para crearlos (owners/admins)
+      // Cargas secundarias en paralelo con tolerancia a fallos
       const userCanCreateTokens = currentRole === 'admin' || currentRole === 'owner';
-      if (userCanCreateTokens) {
-        await loadRegistrationTokens(currentOrgId);
-      }
+      const parallelLoads: Promise<any>[] = [loadMemberships(currentOrgId)];
+      if (userCanCreateTokens) parallelLoads.push(loadRegistrationTokens(currentOrgId));
+
+      const results = await Promise.allSettled(parallelLoads);
+      results.forEach((r) => {
+        if (r.status === 'rejected') {
+          console.warn('Carga parcial fallida en Organización:', r.reason);
+        }
+      });
 
     } catch (error: any) {
       console.error('Error loading organization:', error);
@@ -375,9 +387,41 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copiado al portapapeles');
+  const copyToClipboard = async (text: string) => {
+    try {
+      // Verificar si navigator.clipboard está disponible (requiere HTTPS o localhost)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast.success('Copiado al portapapeles');
+      } else {
+        // Método de fallback para navegadores sin Clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) {
+            toast.success('Copiado al portapapeles');
+          } else {
+            throw new Error('Fallback copy failed');
+          }
+        } catch (err) {
+          // Si falla, mostrar el token para que el usuario lo copie manualmente
+          toast.error('No se pudo copiar automáticamente. El token se muestra a continuación.');
+          alert(`Token: ${text}\n\nCopia este token manualmente.`);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error copying to clipboard:', error);
+      toast.error('No se pudo copiar al portapapeles. Intenta copiarlo manualmente.');
+    }
   };
 
   // ============================================================================

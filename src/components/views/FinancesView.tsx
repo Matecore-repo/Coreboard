@@ -26,6 +26,8 @@ const BarChartComponent = lazy(() => import("../features/finances/FinancesCharts
 const AreaChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.AreaChartComponent })));
 const PieChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.PieChartComponent })));
 import { Appointment } from "../features/appointments/AppointmentCard";
+import { usePayments } from "../../hooks/usePayments";
+import { useAuth } from "../../contexts/AuthContext";
 import { toast } from "sonner";
 
 interface FinancesViewProps {
@@ -90,6 +92,9 @@ const COLORS = [
 ];
 
 export default function FinancesView({ appointments, selectedSalon, salonName }: FinancesViewProps) {
+  const { session, isDemo } = useAuth();
+  const { payments } = usePayments({ enabled: !!session });
+  
   // Calcular ingresos solo de turnos completados
   const completedAppointments = useMemo(() => {
     return appointments
@@ -97,15 +102,52 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [appointments, selectedSalon]);
 
-  // Calcular total de ingresos
+  // Crear mapa de pagos por appointment_id para acceso rápido
+  const paymentsByAppointment = useMemo(() => {
+    const map: Record<string, number> = {};
+    payments.forEach(payment => {
+      if (payment.appointmentId) {
+        map[payment.appointmentId] = (map[payment.appointmentId] || 0) + payment.amount;
+      }
+    });
+    return map;
+  }, [payments]);
+
+  // Calcular total de ingresos desde pagos reales
   const totalRevenue = useMemo(() => {
+    if (!isDemo && payments.length > 0) {
+      // Usar pagos reales si están disponibles
+      return payments.reduce((sum, payment) => sum + payment.amount, 0);
+    }
+    // Fallback a precios hardcodeados solo para demo
     return completedAppointments.reduce((sum, apt) => {
       return sum + (servicePrices[apt.service] || 0);
     }, 0);
-  }, [completedAppointments]);
+  }, [payments, completedAppointments, isDemo]);
 
   // Calcular ingresos por servicio
   const revenueByService = useMemo(() => {
+    if (!isDemo && payments.length > 0) {
+      // Agrupar pagos por servicio del appointment relacionado
+      const serviceMap: Record<string, { revenue: number; count: number }> = {};
+      payments.forEach(payment => {
+        if (payment.appointmentId) {
+          const apt = appointments.find(a => a.id === payment.appointmentId);
+          if (apt) {
+            const serviceName = apt.service;
+            if (!serviceMap[serviceName]) {
+              serviceMap[serviceName] = { revenue: 0, count: 0 };
+            }
+            serviceMap[serviceName].revenue += payment.amount;
+            serviceMap[serviceName].count += 1;
+          }
+        }
+      });
+      return Object.entries(serviceMap)
+        .map(([name, data]) => ({ name, revenue: data.revenue, count: data.count }))
+        .sort((a, b) => b.revenue - a.revenue);
+    }
+    // Fallback para demo
     const map: Record<string, number> = {};
     completedAppointments.forEach(apt => {
       map[apt.service] = (map[apt.service] || 0) + (servicePrices[apt.service] || 0);
@@ -113,10 +155,21 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
     return Object.entries(map)
       .map(([name, revenue]) => ({ name, revenue, count: completedAppointments.filter(a => a.service === name).length }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [completedAppointments]);
+  }, [payments, appointments, completedAppointments, isDemo]);
 
   // Ingresos por día
   const revenueByDay = useMemo(() => {
+    if (!isDemo && payments.length > 0) {
+      const map: Record<string, number> = {};
+      payments.forEach(payment => {
+        const dateKey = payment.date;
+        map[dateKey] = (map[dateKey] || 0) + payment.amount;
+      });
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, revenue]) => ({ date, revenue }));
+    }
+    // Fallback para demo
     const map: Record<string, number> = {};
     completedAppointments.forEach(apt => {
       map[apt.date] = (map[apt.date] || 0) + (servicePrices[apt.service] || 0);
@@ -124,7 +177,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
     return Object.entries(map)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, revenue]) => ({ date, revenue }));
-  }, [completedAppointments]);
+  }, [payments, completedAppointments, isDemo]);
 
   const totalExpenses = Object.values(monthlyExpenses).reduce((a, b) => a + b, 0);
   const netProfit = totalRevenue - totalExpenses;
@@ -194,15 +247,20 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
             </CardHeader>
             <CardContent>
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {completedAppointments.map(apt => (
-                  <div key={apt.id} className="flex justify-between items-center p-2 bg-muted/20 rounded">
-                    <div>
-                      <p className="font-medium text-sm">{apt.clientName}</p>
-                      <p className="text-xs text-muted-foreground">{apt.service} - {apt.date}</p>
+                {completedAppointments.map(apt => {
+                  const paymentAmount = isDemo 
+                    ? (servicePrices[apt.service] || 0)
+                    : (paymentsByAppointment[apt.id] || 0);
+                  return (
+                    <div key={apt.id} className="flex justify-between items-center p-2 bg-muted/20 rounded">
+                      <div>
+                        <p className="font-medium text-sm">{apt.clientName}</p>
+                        <p className="text-xs text-muted-foreground">{apt.service} - {apt.date}</p>
+                      </div>
+                      <p className="font-semibold">${paymentAmount.toLocaleString()}</p>
                     </div>
-                    <p className="font-semibold">${(servicePrices[apt.service] || 0).toLocaleString()}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
