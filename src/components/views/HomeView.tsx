@@ -109,9 +109,9 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
         />
       </Section>
 
-      <Section>
+      <div className="mt-4 md:mt-5">
         {/* Header con métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 md:mb-5">
         {/* Peluquería Asignada */}
         <div className="bg-card border border-border/60 dark:border-border/40 rounded-2xl p-3">
           <div className="flex items-center gap-2">
@@ -140,16 +140,18 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
 
           {/* Servicios: movidos al módulo de Peluquerías */}
         </Suspense>
-      </div>
+        </div>
 
         {/* Calendario */}
-        <CalendarView 
+        <div className="px-0 md:px-0">
+          <CalendarView 
           appointments={appointments} 
           selectedSalon={selectedSalon}
           focusDate={null}
-          onAppointmentClick={onAppointmentClick}
-        />
-      </Section>
+            onAppointmentClick={onAppointmentClick}
+          />
+        </div>
+      </div>
 
       {/* Invite Employee Modal */}
       <InviteEmployeeModal 

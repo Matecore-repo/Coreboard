@@ -17,12 +17,12 @@ export function Section({
   ...props 
 }: SectionProps) {
   return (
-    <section className={cn("space-y-4 md:space-y-6", className)} {...props}>
+    <section className={cn("space-y-4 md:space-y-5", className)} {...props}>
       {(title || action) && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           {title && (
             <div>
-              <h2 className="text-xl md:text-2xl font-semibold leading-none mb-1">
+              <h2 className="text-xl md:text-2xl font-semibold leading-none">
                 {title}
               </h2>
               {description && (

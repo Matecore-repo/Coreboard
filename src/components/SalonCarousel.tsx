@@ -23,8 +23,16 @@ export function SalonCarousel({
   const hasSelection = selectedSalon !== null && selectedSalon !== undefined;
   
   return (
-    <div className="relative px-4">
-      <Carousel className="w-full" opts={{ align: 'start', containScroll: 'trimSnaps', loop: false }}>
+    <div className="relative -mx-4 md:-mx-6">
+      <Carousel 
+        className="w-full" 
+        opts={{ 
+          align: 'start', 
+          containScroll: 'trimSnaps', 
+          loop: false,
+          duration: 20,
+        }}
+      >
         <CarouselContent className="-ml-3">
           {/* Virtual card for All salons */}
           <CarouselItem key="all" className="pl-3 md:basis-1/2 lg:basis-1/3">
@@ -50,8 +58,8 @@ export function SalonCarousel({
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="left-2" />
-        <CarouselNext className="right-2" />
+        <CarouselPrevious className="left-2 md:left-4 h-8 w-8" />
+        <CarouselNext className="right-2 md:right-4 h-8 w-8" />
       </Carousel>
     </div>
   );

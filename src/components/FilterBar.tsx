@@ -30,7 +30,7 @@ export function FilterBar({
   onStylistFilterChange,
 }: FilterBarProps) {
   return (
-    <div className="px-4 md:px-6 py-4 border-b border-border">
+    <div className="pb-4 border-b border-border">
       <div className="flex gap-2 md:gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -37,7 +37,7 @@ import {
 
 // Lazy load views
 const HomeView = lazy(() => import("./views/HomeView"));
-const ClientsView = lazy(() => import("./sections/ClientsView"));
+const ClientsView = lazy(() => import("./sections/ClientsView").then(module => ({ default: (module as any).default })));
 const FinancesView = lazy(() => import("./views/FinancesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./views/SalonsManagementView"));

@@ -34,7 +34,7 @@ const HomeView = lazy(() => {
   (window as any).__preloadedViews.home = module;
   return module;
 });
-const ClientsView = lazy(() => import("./components/sections/ClientsView"));
+const ClientsView = lazy(() => import("./components/sections/ClientsView").then(module => ({ default: (module as any).default })));
 const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
@@ -718,34 +718,36 @@ export default function App() {
         );
       default:
         return (
-          <>
-            <FilterBar
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              dateFilter={dateFilter}
-              onDateFilterChange={setDateFilter}
-              stylistFilter={stylistFilter}
-              onStylistFilterChange={setStylistFilter}
-            />
-            <div className="bg-muted/20">
-              <div className="p-4 md:p-6 pb-20">
-                {!selectedSalon ? (
-                  <div className="text-center py-16 px-4">
-                    <div className="text-muted-foreground mb-2">
-                      Por favor selecciona una peluquería para ver los turnos
+            <>
+              <div className="px-4 md:px-6 pt-5 pb-4">
+                <FilterBar
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  dateFilter={dateFilter}
+                  onDateFilterChange={setDateFilter}
+                  stylistFilter={stylistFilter}
+                  onStylistFilterChange={setStylistFilter}
+                />
+              </div>
+              <div className="bg-muted/20">
+                <div className="p-4 md:p-6 pb-20">
+                  {!selectedSalon ? (
+                    <div className="text-center py-16 px-4">
+                      <div className="text-muted-foreground mb-2">
+                        Por favor selecciona una peluquería para ver los turnos
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Usa el carrusel superior para elegir una sucursal
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Usa el carrusel superior para elegir una sucursal
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-3">
-                      <h2>Lista de Turnos</h2>
-                    </div>
-                    <div className="space-y-3">
+                  ) : (
+                    <>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
+                        <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
+                      </div>
+                      <div className="space-y-2 md:space-y-3">
                     {filteredAppointments.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         No se encontraron turnos
@@ -866,54 +868,18 @@ export default function App() {
           <div className="md:hidden h-20" />
           <TransitionBanner />
           
-          {/* Navigation Overlay */}
-          <AnimatePresence>
-            {isNavigating && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="absolute inset-0 z-50 flex items-center justify-center bg-background/98 backdrop-blur-md"
-              >
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.4 }}
-                  className="text-center space-y-6"
-                >
-                  <motion.div
-                    className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  />
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-muted-foreground text-base font-medium"
-                  >
-                    Cargando vista de {nextViewName}...
-                  </motion.p>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* Content wrapper with fade animation */}
           <AnimatePresence mode="wait">
             <motion.div
               key={activeNavItem}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-              className={isNavigating ? 'pointer-events-none' : ''}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
             >
           { ["appointments", "finances", "clients"].includes(activeNavItem) && (
-            <div className="p-4 md:p-6 pb-4 border-b border-border">
-              <h2 className="mb-3">Seleccionar Peluquería</h2>
+            <div className="px-4 md:px-6 pt-5 pb-4 border-b border-border">
+              <h2 className="mb-4 text-xl md:text-2xl">Seleccionar Peluquería</h2>
               <SalonCarousel 
                 salons={effectiveSalons}
                 selectedSalon={selectedSalon}

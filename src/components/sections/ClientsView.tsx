@@ -157,23 +157,21 @@ const ClientsView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Gestión de Clientes</CardTitle>
-              <CardDescription>
-                {clients.length} {clients.length === 1 ? 'cliente registrado' : 'clientes registrados'}
-              </CardDescription>
-            </div>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={handleNew}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nuevo Cliente
-                </Button>
-              </DialogTrigger>
+    <div className="pb-20 px-4 md:px-6 pt-5 max-w-screen-2xl mx-auto">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
+        <div>
+          <h2 className="text-xl md:text-2xl mb-1">Gestión de Clientes</h2>
+          <p className="text-sm text-muted-foreground">
+            {clients.length} {clients.length === 1 ? 'cliente registrado' : 'clientes registrados'}
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={handleNew}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Cliente
+            </Button>
+          </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
@@ -222,29 +220,31 @@ const ClientsView: React.FC = () => {
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
-        </CardHeader>
+        </div>
 
-        <CardContent>
-          {clients.length === 0 ? (
-            <EmptyStateClients
-              onAddClient={handleNew}
-              onImportClients={() => toast.info('Importar clientes próximamente')}
-              onSyncContacts={() => toast.info('Sincronizar contactos próximamente')}
-            />
-          ) : (
-            <div className="space-y-2">
-              {clients.map((client) => (
-                <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{client.full_name}</p>
-                    <p className="text-sm text-muted-foreground">
+      {clients.length === 0 ? (
+        <div className="mt-4">
+          <EmptyStateClients
+            onAddClient={handleNew}
+            onImportClients={() => toast.info('Importar clientes próximamente')}
+            onSyncContacts={() => toast.info('Sincronizar contactos próximamente')}
+          />
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3 md:space-y-4">
+          {clients.map((client) => (
+            <Card key={client.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{client.full_name}</p>
+                    <p className="text-sm text-muted-foreground truncate">
                       {client.phone && <span>{client.phone}</span>}
                       {client.phone && client.email && <span> • </span>}
                       {client.email && <span>{client.email}</span>}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 ml-4 flex-shrink-0">
                     <Button
                       size="sm"
                       variant="outline"
@@ -261,11 +261,11 @@ const ClientsView: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

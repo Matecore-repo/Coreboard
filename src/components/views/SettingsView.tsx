@@ -122,29 +122,30 @@ export default function SettingsView() {
         }
       >
 
-      {isDemo && (
-        <Alert>
-          <AlertTitle>Modo demostración activo</AlertTitle>
-          <AlertDescription>
-            Algunas opciones se muestran solo como vista previa. Las acciones
-            reales se habilitarán cuando tu organización esté migrada a
-            producción.
-          </AlertDescription>
-        </Alert>
-      )}
+      <div className="space-y-4 md:space-y-5">
+        {isDemo && (
+          <Alert>
+            <AlertTitle>Modo demostración activo</AlertTitle>
+            <AlertDescription>
+              Algunas opciones se muestran solo como vista previa. Las acciones
+              reales se habilitarán cuando tu organización esté migrada a
+              producción.
+            </AlertDescription>
+          </Alert>
+        )}
 
-      {!isDemo && !currentOrgId && (
-        <Alert variant="destructive">
-          <AlertTitle>Sin organización seleccionada</AlertTitle>
-          <AlertDescription>
-            Vincula una organización para habilitar ajustes críticos en
-            producción. Mientras tanto, todos los cambios permanecen
-            deshabilitados.
-          </AlertDescription>
-        </Alert>
-      )}
+        {!isDemo && !currentOrgId && (
+          <Alert variant="destructive">
+            <AlertTitle>Sin organización seleccionada</AlertTitle>
+            <AlertDescription>
+              Vincula una organización para habilitar ajustes críticos en
+              producción. Mientras tanto, todos los cambios permanecen
+              deshabilitados.
+            </AlertDescription>
+          </Alert>
+        )}
 
-      <Card className={DISABLED_CLASS}>
+        <Card className={DISABLED_CLASS}>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle>Preferencias generales</CardTitle>
@@ -534,6 +535,7 @@ export default function SettingsView() {
           </p>
         </CardContent>
       </Card>
+      </div>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button
