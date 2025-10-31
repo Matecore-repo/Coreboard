@@ -17,7 +17,7 @@ export default function MyApp({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
       <Head>
-        <link rel="icon" href="/Icono.svg" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
       <Component {...pageProps} />
     </AuthProvider>

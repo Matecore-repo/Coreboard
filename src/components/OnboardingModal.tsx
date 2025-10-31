@@ -75,7 +75,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-[min(92vw,600px)] max-h-[90vh] overflow-hidden rounded-2xl p-0">
+      <DialogContent className="w-[min(92vw,600px)] max-h-[90vh] overflow-y-auto rounded-2xl p-0">
         <form onSubmit={handleSubmit} className="relative flex h-full flex-col">
           <DialogHeader className="border-b border-border px-6 py-5">
             <div className="flex items-center justify-between gap-4">

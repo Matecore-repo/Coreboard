@@ -1,7 +1,7 @@
 ﻿﻿// ============================================================================
 // IMPORTS - Importaciones necesarias para la autenticación
 // ============================================================================
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 // ^ createContext: crea el contexto para compartir autenticación en toda la app
 // ^ useContext: hook para acceder al contexto desde cualquier componente
 // ^ useEffect: hook para ejecutar efectos secundarios (restaurar sesión, etc)
@@ -127,6 +127,22 @@ const STORAGE_KEYS = {
 } as const;
 
 // ============================================================================
+// HELPER: withTimeout
+// ============================================================================
+// Envuelve una promise con un timeout para evitar que se quede bloqueada indefinidamente
+// Si la promise no resuelve en el tiempo especificado, lanza un error
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Request timeout after ${timeoutMs}ms`));
+      }, timeoutMs);
+    })
+  ]);
+}
+
+// ============================================================================
 // PROVEEDOR DE AUTENTICACIÓN - AuthProvider
 // ============================================================================
 // Componente que envuelve toda la aplicación para proporcionar contexto de autenticación
@@ -144,14 +160,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Estado: indica si estamos cargando (restaurando sesión al cargar la página)
   const [loading, setLoading] = useState(true);
   
+  // Ref para user para usar en listeners sin dependencias
+  const userRef = useRef<User | null>(null);
+  
   // Hook de Next.js para navegar entre páginas
   const router = useRouter();
   
-  // Calcular si el usuario actual es el usuario de demo
-  const isDemoUser = user?.id === DEMO_USER_ID;
+  // Actualizar ref cuando user cambie
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
   
   // Calcular si estamos en modo demo (ya sea por flag o porque es el usuario demo)
-  const isDemo = isDemoModeFlag || isDemoUser;
+  const isDemo = useMemo(() => {
+    const isDemoUser = user?.id === DEMO_USER_ID;
+    return isDemoModeFlag || isDemoUser;
+  }, [user?.id]);
 
   // =========================================================================
   // FUNCIÓN: fetchUserMemberships
@@ -166,17 +190,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       // Obtener el perfil del usuario para ver si tiene una org favorita guardada
-      const { data: profile } = await supabase
-        .from('profiles')              // Tabla de perfiles de usuarios
-        .select('raw_app_meta_data')   // Campo que contiene metadata como current_org_id
-        .eq('id', userId)               // Filtrar por ID del usuario
-        .single();                      // Esperar un solo resultado
+      // Envolver con timeout de 10 segundos para evitar bloqueo infinito
+      let profile: any = null;
+      try {
+        const profileResult = await withTimeout(
+          supabase
+            .from('profiles')
+            .select('raw_app_meta_data')
+            .eq('id', userId)
+            .single(),
+          10000
+        );
+        profile = profileResult.data;
+      } catch (profileError) {
+        // Si falla la query de profiles, continuar sin profile (no es crítico)
+        console.warn('Error al obtener perfil (no crítico):', profileError);
+      }
 
       // Obtener todas las membresías (organizaciones) del usuario
-      const { data: memberships, error } = await supabase
-        .from('memberships')            // Tabla de relación usuario-organización
-        .select('org_id, role, is_primary') // Campos que queremos obtener
-        .eq('user_id', userId);         // Filtrar por ID del usuario
+      // Envolver con timeout de 10 segundos para evitar bloqueo infinito
+      let memberships: any[] | null = null;
+      let error: any = null;
+      try {
+        const membershipsResult = await withTimeout(
+          supabase
+            .from('memberships')
+            .select('org_id, role, is_primary')
+            .eq('user_id', userId),
+          10000
+        );
+        memberships = membershipsResult.data;
+        error = membershipsResult.error;
+      } catch (membershipsError) {
+        // Si falla por timeout u otro error, tratar como error
+        error = membershipsError;
+        console.error('Error al obtener membresías:', membershipsError);
+      }
 
       // Si hay error al obtener membresías
       if (error) {
@@ -259,24 +308,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // =========================================================================
   // Maneja el evento cuando un usuario inicia sesión correctamente
   const handleSignedIn = useCallback(async (newSession: Session | null) => {
-    // Si no hay sesión válida, tratar como signed out
-    if (!newSession?.user) {
-      handleSignedOut();
-      return;
-    }
+    try {
+      // Mostrar estado de carga mientras procesamos
+      setLoading(true);
 
-    // Guardar la sesión en estado
-    setSession(newSession);
-    
-    // Guardar la sesión en localStorage para persistencia
-    safeLocalStorage.setItem(STORAGE_KEYS.session, JSON.stringify(newSession));
-    
-    // Obtener las membresías (organizaciones) del usuario
-    await fetchUserMemberships(newSession.user.id, newSession.user as SupabaseUser);
-    
-    // Redirigir al dashboard
-    router.push('/dashboard');
+      // Si no hay sesión válida, tratar como signed out
+      if (!newSession?.user) {
+        handleSignedOut();
+        return;
+      }
+
+      // Guardar la sesión en estado
+      setSession(newSession);
+      
+      // Guardar la sesión en localStorage para persistencia
+      safeLocalStorage.setItem(STORAGE_KEYS.session, JSON.stringify(newSession));
+      
+      // Obtener las membresías (organizaciones) del usuario
+      // Si esto falla, aún así continuamos para no bloquear la UI
+      try {
+        await fetchUserMemberships(newSession.user.id, newSession.user as SupabaseUser);
+      } catch (membershipsError) {
+        // Si falla fetchUserMemberships, crear usuario mínimo para que no se quede bloqueado
+        console.error('Error al obtener membresías (continuando con usuario mínimo):', membershipsError);
+        setUser({
+          id: newSession.user.id,
+          email: newSession.user.email,
+          memberships: [],
+          isNewUser: true
+        });
+      }
+      
+      // Redirigir al dashboard
+      router.push('/dashboard');
+    } catch (e) {
+      // Si hay error general, loguearlo pero aún así limpiar loading
+      console.error('Error en handleSignedIn:', e);
+      // Aún así, setear usuario mínimo si tenemos sesión
+      if (newSession?.user) {
+        setUser({
+          id: newSession.user.id,
+          email: newSession.user.email,
+          memberships: [],
+          isNewUser: true
+        });
+        setSession(newSession);
+      }
+    } finally {
+      // SIEMPRE marcar que terminó la carga (incluso si falló)
+      setLoading(false);
+    }
   }, [handleSignedOut, router, fetchUserMemberships]);
+
+  // =========================================================================
+  // REFS: Para mantener referencias estables a las funciones callbacks
+  // =========================================================================
+  // Usamos refs para evitar que el listener de onAuthStateChange se re-instale
+  // cada vez que handleSignedIn o handleSignedOut cambien
+  const handleSignedInRef = useRef(handleSignedIn);
+  const handleSignedOutRef = useRef(handleSignedOut);
+
+  // Actualizar las refs cuando las funciones cambien
+  useEffect(() => {
+    handleSignedInRef.current = handleSignedIn;
+    handleSignedOutRef.current = handleSignedOut;
+  }, [handleSignedIn, handleSignedOut]);
 
   // =========================================================================
   // EFECTO: Restaurar sesión y escuchar cambios de autenticación
@@ -333,21 +429,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // =================================================================
         // PASO 3: Obtener la sesión actual de Supabase
         // =================================================================
-        const { data: { session: activeSession } } = await supabase.auth.getSession();
+        // Envolver con timeout de 10 segundos para evitar bloqueo infinito
+        const sessionResult = await withTimeout(
+          supabase.auth.getSession(),
+          10000
+        );
+        const { data: { session: activeSession } } = sessionResult;
 
         if (isMounted && activeSession?.user) {
           // Si hay sesión válida, usarla
-          await handleSignedIn(activeSession);
+          await handleSignedInRef.current(activeSession);
         } else if (isMounted) {
           // Si no hay sesión, limpiar estado
           setUser(null);
           setSession(null);
         }
       } catch (e) {
-        // Error al obtener la sesión
+        // Error al obtener la sesión (puede ser timeout, CORS, red lenta, etc.)
         console.error('Error al restaurar sesión:', e);
+        // Asegurar que siempre limpiamos el estado si falla
+        if (isMounted) {
+          setUser(null);
+          setSession(null);
+        }
       } finally {
-        // Siempre marcar que terminó la carga
+        // Siempre marcar que terminó la carga (incluso si falló)
         if (isMounted) setLoading(false);
       }
     };
@@ -372,13 +478,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // Si el usuario cerró sesión
           if (event === 'SIGNED_OUT') {
-            handleSignedOut();
+            handleSignedOutRef.current();
           } 
           // Si el usuario inició sesión o el token se refrescó
           else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            await handleSignedIn(newSession ?? null);
+            await handleSignedInRef.current(newSession ?? null);
           }
         });
+
+    // =====================================================================
+    // Escuchar cambios de visibilidad de la pestaña
+    // =====================================================================
+    // Si el usuario cambia de pestaña y vuelve, verificar que la sesión sigue válida
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isDemoModeFlag) {
+        // Solo verificar si ya tenemos user, para evitar loops
+        if (!isMounted || !userRef.current) return;
+        
+        // Validar que la sesión de Supabase sigue vigente
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!isMounted) return;
+          if (!session && userRef.current) {
+            // La sesión expiró pero tenemos user en estado local
+            console.warn('Sesión expirada al volver a la pestaña');
+            handleSignedOutRef.current();
+          } else if (session && !userRef.current) {
+            // Tenemos sesión pero perdimos el user, restaurarlo
+            handleSignedInRef.current(session);
+          }
+        }).catch((error) => {
+          console.error('Error al verificar sesión al volver a la pestaña:', error);
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // =====================================================================
     // LIMPIEZA: cuando el componente se desmonta
@@ -388,8 +522,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isMounted = false;
       // Desuscribirse de los cambios de autenticación
       listener?.subscription?.unsubscribe?.();
+      // Quitar listener de visibilidad
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [handleSignedIn, handleSignedOut]);
+  }, []);  // Sin dependencias: el efecto se ejecuta solo una vez
 
   // =========================================================================
   // FUNCIÓN: signIn
@@ -401,28 +537,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
-    try {
-      // Mostrar estado de carga
-      setLoading(true);
-      
-      // Llamar a Supabase para iniciar sesión
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    // Llamar a Supabase para iniciar sesión
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      // Si hay error, lanzarlo
-      if (error) {
-        throw error;
-      }
-
-      // Si no hay sesión en la respuesta, error
-      if (!data.session) {
-        throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
-      }
-
-      // El evento 'SIGNED_IN' de onAuthStateChange se encargará del resto
-    } finally {
-      // Siempre terminar la carga
-      setLoading(false);
+    // Si hay error, lanzarlo
+    if (error) {
+      throw error;
     }
+
+    // Si no hay sesión en la respuesta, error
+    if (!data.session) {
+      throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
+    }
+
+    // El evento 'SIGNED_IN' de onAuthStateChange se encargará del resto
+    // No modificamos loading aquí porque handleSignedIn lo maneja
   };
 
   // =========================================================================
@@ -539,7 +668,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Cierra sesión del usuario actual
   const signOut = async (): Promise<void> => {
     // Si es modo demo o usuario demo, solo limpiar (no hacer signout en Supabase)
-    if (isDemoModeFlag || isDemoUser) {
+    if (isDemo) {
       handleSignedOut();
       return;
     }

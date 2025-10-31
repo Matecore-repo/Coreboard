@@ -102,16 +102,18 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
           </Button>
         )}
       >
-        <SalonCarousel 
-          salons={salons}
-          selectedSalon={selectedSalon}
-          onSelectSalon={onSelectSalon}
-        />
+        <div className="mt-4 mb-4">
+          <SalonCarousel 
+            salons={salons}
+            selectedSalon={selectedSalon}
+            onSelectSalon={onSelectSalon}
+          />
+        </div>
       </Section>
 
-      <div className="mt-4 md:mt-5">
+      <div className="mt-4 gap-4">
         {/* Header con métricas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 md:mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         {/* Peluquería Asignada */}
         <div className="bg-card border border-border/60 dark:border-border/40 rounded-2xl p-3">
           <div className="flex items-center gap-2">
@@ -143,7 +145,7 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
         </div>
 
         {/* Calendario */}
-        <div className="px-0 md:px-0">
+        <div className="mt-4">
           <CalendarView 
           appointments={appointments} 
           selectedSalon={selectedSalon}

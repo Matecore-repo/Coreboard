@@ -22,6 +22,8 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
+import { SalonCarousel } from "../SalonCarousel";
+import type { Salon } from "../../types/salon";
 import { lazy, Suspense } from "react";
 
 const BarChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.BarChartComponent })));
@@ -36,6 +38,8 @@ interface FinancesViewProps {
   appointments: Appointment[];
   selectedSalon: string | null;
   salonName?: string;
+  salons?: Salon[];
+  onSelectSalon?: (salonId: string, salonName: string) => void;
 }
 
 // Función para exportar a Excel (CSV)
@@ -93,7 +97,7 @@ const COLORS = [
   '#10b981', // emerald-500
 ];
 
-export default function FinancesView({ appointments, selectedSalon, salonName }: FinancesViewProps) {
+export default function FinancesView({ appointments, selectedSalon, salonName, salons = [], onSelectSalon }: FinancesViewProps) {
   const { session, isDemo } = useAuth();
   const { payments } = usePayments({ enabled: !!session });
   
@@ -186,7 +190,18 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
 
   return (
     <PageContainer>
-      <Section 
+      {salons.length > 0 && (
+        <div className="mb-4">
+          <h2 className="mb-4 text-xl md:text-2xl">Seleccionar Peluquería</h2>
+          <SalonCarousel 
+            salons={salons}
+            selectedSalon={selectedSalon}
+            onSelectSalon={onSelectSalon || (() => {})}
+          />
+        </div>
+      )}
+      <div className="mt-4">
+        <Section 
         title="Finanzas"
         description={salonName}
       >
@@ -201,7 +216,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
       ) : (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -288,6 +303,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
         </>
       )}
       </Section>
+      </div>
     </PageContainer>
   );
 }

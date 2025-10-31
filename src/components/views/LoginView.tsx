@@ -27,6 +27,7 @@ function LoginView() {
   // Si el usuario ya está autenticado, redirigir al dashboard
   useEffect(() => {
     if (user && !isLoggingIn) {
+      setIsLoggingIn(false);
       router.push('/dashboard');
     }
   }, [user, router, isLoggingIn]);
@@ -54,10 +55,8 @@ function LoginView() {
       try {
         setIsLoggingIn(true);
         await signIn(email, password);
-        // Redirigir al dashboard - el toast de bienvenida se mostrará en App.tsx
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 300);
+        // No redirigir aquí porque handleSignedIn en AuthContext ya lo hace
+        setIsLoggingIn(false);
       } catch (error: any) {
         setIsLoggingIn(false);
         toast.error(error.message || "Error al iniciar sesión");
@@ -97,10 +96,8 @@ function LoginView() {
     if (typeof signInAsDemo === "function") {
       setIsLoggingIn(true);
       signInAsDemo();
-      // Redirigir al dashboard - el toast de bienvenida se mostrará en App.tsx
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 300);
+      // No redirigir aquí porque signInAsDemo en AuthContext ya lo hace
+      setIsLoggingIn(false);
     } else {
       toast.error("Demo no disponible en este entorno");
     }

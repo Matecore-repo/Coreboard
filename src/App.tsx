@@ -20,9 +20,12 @@ import DemoDataBubble from "./components/DemoDataBubble";
 import DemoWelcomeModal from "./components/DemoWelcomeModal";
 import { useAppointments as useDbAppointments } from "./hooks/useAppointments";
 import { useSalons as useDbSalons } from "./hooks/useSalons";
+import { useEmployees } from "./hooks/useEmployees";
 import { OnboardingModal } from "./components/OnboardingModal";
+import { EmployeeOnboardingModal } from "./components/EmployeeOnboardingModal";
 import { LoadingView } from "./components/layout/LoadingView";
 import { SidebarContent } from "./components/layout/SidebarContent";
+import { PageContainer } from "./components/layout/PageContainer";
 import { Card, CardContent } from "./components/ui/card";
 import type { Salon, SalonService } from "./types/salon";
 import { sampleSalons } from "./constants/salons";
@@ -39,7 +42,8 @@ const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
 const OrganizationView = lazy(() => import("./components/views/OrganizationView"));
-const ProfileView = lazy(() => import("./components/views/ProfileView"));
+
+import { ProfileModal } from "./components/ProfileModal";
 
 // ============================================================================
 // CONSTANTES - Datos de demostración
@@ -74,7 +78,6 @@ const viewPreloadMap: Record<string, () => void> = {
   settings: () => { import("./components/views/SettingsView"); },
   salons: () => { import("./components/views/SalonsManagementView"); },
   organization: () => { import("./components/views/OrganizationView"); },
-  profile: () => { import("./components/views/ProfileView"); },
 };
 
 // ============================================================================
@@ -108,6 +111,7 @@ export default function App() {
     if (typeof window === 'undefined') return null;
     try { return localStorage.getItem('demo:name'); } catch { return null; }
   });
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // UI State
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,6 +125,7 @@ export default function App() {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showEmployeeOnboarding, setShowEmployeeOnboarding] = useState(false);
   const [showDemoWelcome, setShowDemoWelcome] = useState(false);
   const [prevUser, setPrevUser] = useState<User | null>(null);
   const [services, setServices] = useState<SalonService[]>([
@@ -141,6 +146,7 @@ export default function App() {
     currentOrgId ?? undefined,
     { enabled: !!session && !!currentOrgId }
   );
+  const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId && currentRole === 'employee' });
 
   // =========================================================================
   // DATOS EFECTIVOS (Demo vs Real)
@@ -173,39 +179,55 @@ export default function App() {
         const hours = now.getHours().toString().padStart(2, '0');
         const minutes = now.getMinutes().toString().padStart(2, '0');
         
-        // Contar turnos de hoy - comparar fechas en formato YYYY-MM-DD
-        const today = new Date();
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        const todayAppointments = effectiveAppointments.filter(
-          (apt) => {
-            // Asegurar que apt.date esté en formato YYYY-MM-DD
-            const aptDateStr = apt.date || '';
-            return aptDateStr === todayStr && apt.status !== 'cancelled';
-          }
-        );
-        const appointmentsCount = todayAppointments.length;
+        // Usar store global de appointments para contar turnos pendientes de hoy
+        const appointments = appointmentsStore.appointments;
+        const pendingCount = pendingTodayCountSelector(appointments, null);
         
         // Mostrar toast completo
         toast.success(
-          `Bienvenido ${userName}, son las ${hours}:${minutes}, hoy te esperan ${appointmentsCount} turno${appointmentsCount !== 1 ? 's' : ''}`,
+          `Bienvenido ${userName}, son las ${hours}:${minutes}, hoy te esperan ${pendingCount} turno${pendingCount !== 1 ? 's' : ''}`,
           { duration: 4000 }
         );
       };
       
-      // Esperar un momento para que los appointments se carguen
-      // Si hay appointments disponibles, mostrar inmediatamente
-      // Si no, esperar hasta 2 segundos máximo
-      if (effectiveAppointments.length > 0 || isDemo) {
-        setTimeout(showWelcomeToast, 500);
-      } else {
-        // Esperar un poco más si no hay appointments aún
-        setTimeout(showWelcomeToast, 1500);
-      }
+      // Esperar un momento para que los appointments se carguen y se hidraten en el store
+      // Verificar periódicamente hasta que haya datos o timeout
+      let attempts = 0;
+      const maxAttempts = 10;
+      let toastShown = false;
+      
+      const checkInterval = setInterval(() => {
+        const appointments = appointmentsStore.appointments;
+        attempts++;
+        
+        if (appointments.length > 0 || attempts >= maxAttempts) {
+          clearInterval(checkInterval);
+          if (!toastShown) {
+            toastShown = true;
+            showWelcomeToast();
+          }
+        }
+      }, 300);
+      
+      // Timeout de seguridad
+      const timeoutId = setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!toastShown) {
+          toastShown = true;
+          showWelcomeToast();
+        }
+      }, 3000);
+      
+      // Cleanup: limpiar timers si el componente se desmonta o cambia el usuario
+      return () => {
+        clearInterval(checkInterval);
+        clearTimeout(timeoutId);
+      };
     } else if (!user) {
       setPrevUser(null);
       welcomeToastShownRef.current = false;
     }
-  }, [user, prevUser, effectiveAppointments, isDemo]);
+  }, [user, prevUser, isDemo]);
 
   useEffect(() => {
     const sync = () => setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
@@ -266,6 +288,18 @@ export default function App() {
       setShowOnboarding(true);
     }
   }, [user?.isNewUser, user?.memberships, currentRole, showOnboarding, isDemo, currentOrgId]);
+
+  // Mostrar EmployeeOnboardingModal si es employee con membresía pero sin registro en employees
+  useEffect(() => {
+    if (currentRole === 'employee' && currentOrgId && user?.id && !isDemo) {
+      const hasEmployeeRecord = employees.some(emp => emp.user_id === user.id);
+      const hasMembership = user?.memberships && user.memberships.length > 0;
+      
+      if (hasMembership && !hasEmployeeRecord && !showEmployeeOnboarding) {
+        setShowEmployeeOnboarding(true);
+      }
+    }
+  }, [currentRole, currentOrgId, user?.id, user?.memberships, employees, isDemo, showEmployeeOnboarding]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -576,7 +610,6 @@ export default function App() {
     { id: "home", label: "Inicio", icon: Home },
     { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
     { id: "clients", label: "Clientes", icon: Users },
-    { id: "profile", label: "Mi Perfil", icon: UserCog },
     { id: "organization", label: "Organización", icon: Building2 },
     { id: "salons", label: "Peluquerías", icon: Scissors },
     { id: "finances", label: "Finanzas", icon: DollarSign },
@@ -587,7 +620,6 @@ export default function App() {
     home: "Inicio",
     appointments: "Turnos",
     clients: "Clientes",
-    profile: "Mi Perfil",
     organization: "Organización",
     salons: "Peluquerías",
     finances: "Finanzas",
@@ -598,10 +630,10 @@ export default function App() {
     const role = isDemo ? 'demo' : (currentRole ?? 'viewer');
     if (role === 'demo') return allNavItems;
     
-    // Empleados pueden ver: Inicio, Turnos, Clientes, Mi Perfil, Organización (solo lectura)
+    // Empleados pueden ver: Inicio, Turnos, Clientes, Organización (solo lectura)
     if (role === 'employee') {
       return allNavItems.filter(it => 
-        ['home', 'appointments', 'clients', 'profile', 'organization'].includes(it.id)
+        ['home', 'appointments', 'clients', 'organization'].includes(it.id)
       );
     }
     
@@ -653,13 +685,23 @@ export default function App() {
         }
         return (
           <Suspense fallback={<LoadingView />}>
-            <FinancesView appointments={effectiveAppointments} selectedSalon={selectedSalon} salonName={selectedSalonName} />
+            <FinancesView 
+              appointments={effectiveAppointments} 
+              selectedSalon={selectedSalon} 
+              salonName={selectedSalonName}
+              salons={effectiveSalons}
+              onSelectSalon={handleSelectSalon}
+            />
           </Suspense>
         );
       case "clients":
         return (
           <Suspense fallback={<LoadingView />}>
-            <ClientsView />
+            <ClientsView 
+              salons={effectiveSalons}
+              selectedSalon={selectedSalon}
+              onSelectSalon={handleSelectSalon}
+            />
           </Suspense>
         );
       case "salons":
@@ -692,12 +734,6 @@ export default function App() {
             <OrganizationView isDemo={isDemo} />
           </Suspense>
         );
-      case "profile":
-        return (
-          <Suspense fallback={<LoadingView />}>
-            <ProfileView />
-          </Suspense>
-        );
       case "settings":
         // Empleados no pueden acceder a configuración
         if (currentRole === 'employee') {
@@ -718,36 +754,43 @@ export default function App() {
         );
       default:
         return (
-            <>
-              <div className="px-4 md:px-6 pt-5 pb-4">
-                <FilterBar
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  statusFilter={statusFilter}
-                  onStatusFilterChange={setStatusFilter}
-                  dateFilter={dateFilter}
-                  onDateFilterChange={setDateFilter}
-                  stylistFilter={stylistFilter}
-                  onStylistFilterChange={setStylistFilter}
-                />
-              </div>
-              <div className="bg-muted/20">
-                <div className="p-4 md:p-6 pb-20">
-                  {!selectedSalon ? (
-                    <div className="text-center py-16 px-4">
-                      <div className="text-muted-foreground mb-2">
-                        Por favor selecciona una peluquería para ver los turnos
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Usa el carrusel superior para elegir una sucursal
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-                        <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
-                      </div>
-                      <div className="space-y-2 md:space-y-3">
+          <PageContainer>
+            <div className="mb-4">
+              <h2 className="mb-4 text-xl md:text-2xl">Seleccionar Peluquería</h2>
+              <SalonCarousel 
+                salons={effectiveSalons}
+                selectedSalon={selectedSalon}
+                onSelectSalon={handleSelectSalon}
+              />
+            </div>
+            <div className="mt-4">
+              <FilterBar
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                dateFilter={dateFilter}
+                onDateFilterChange={setDateFilter}
+                stylistFilter={stylistFilter}
+                onStylistFilterChange={setStylistFilter}
+              />
+            </div>
+            <div className="mt-4">
+              {!selectedSalon ? (
+                <div className="text-center py-16 px-4">
+                  <div className="text-muted-foreground mb-2">
+                    Por favor selecciona una peluquería para ver los turnos
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Usa el carrusel superior para elegir una sucursal
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
+                    <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
+                  </div>
+                  <div className="space-y-3">
                     {filteredAppointments.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         No se encontraron turnos
@@ -762,19 +805,15 @@ export default function App() {
                         />
                       ))
                     )}
-                    </div>
-                  </>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </div>
-          </>
+          </PageContainer>
         );
     }
   }, [activeNavItem, effectiveAppointments, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, selectedAppointment, currentRole]);
 
-  const TransitionBanner = () => (
-    isPending ? <div className="px-4 py-1 text-xs text-muted-foreground">Cambiando vista...</div> : null
-  );
 
   // =========================================================================
   // RENDERIZADO PRINCIPAL
@@ -793,6 +832,7 @@ export default function App() {
             navItems={navItems}
             showQuickActions={showQuickActions}
             isMobile={isMobile}
+            onProfileClick={() => setIsProfileModalOpen(true)}
             onNavItemClick={(itemId) => {
               if (itemId === activeNavItem) return;
               try { viewPreloadMap[itemId]?.(); } catch {}
@@ -830,6 +870,10 @@ export default function App() {
               navItems={navItems}
               showQuickActions={showQuickActions}
               isMobile={isMobile}
+              onProfileClick={() => {
+                setIsProfileModalOpen(true);
+                setMobileMenuOpen(false);
+              }}
               onNavItemClick={(itemId) => {
                 if (itemId === activeNavItem) {
                   setMobileMenuOpen(false);
@@ -866,7 +910,6 @@ export default function App() {
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto h-screen relative">
           <div className="md:hidden h-20" />
-          <TransitionBanner />
           
           {/* Content wrapper with fade animation */}
           <AnimatePresence mode="wait">
@@ -876,18 +919,8 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
+              className="pt-[20px]"
             >
-          { ["appointments", "finances", "clients"].includes(activeNavItem) && (
-            <div className="px-4 md:px-6 pt-5 pb-4 border-b border-border">
-              <h2 className="mb-4 text-xl md:text-2xl">Seleccionar Peluquería</h2>
-              <SalonCarousel 
-                salons={effectiveSalons}
-                selectedSalon={selectedSalon}
-                onSelectSalon={handleSelectSalon}
-              />
-            </div>
-          )}
-
           {renderContent()}
             </motion.div>
           </AnimatePresence>
@@ -1080,6 +1113,10 @@ export default function App() {
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
       />
+      <EmployeeOnboardingModal
+        isOpen={showEmployeeOnboarding}
+        onClose={() => setShowEmployeeOnboarding(false)}
+      />
       {isDemo && (
         <DemoWelcomeModal
           isOpen={showDemoWelcome}
@@ -1087,6 +1124,10 @@ export default function App() {
           onClose={() => setShowDemoWelcome(false)}
         />
       )}
+      <ProfileModal
+        open={isProfileModalOpen}
+        onOpenChange={setIsProfileModalOpen}
+      />
     </div>
     </>
   );

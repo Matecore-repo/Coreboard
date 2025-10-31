@@ -23,7 +23,7 @@ export function SalonCarousel({
   const hasSelection = selectedSalon !== null && selectedSalon !== undefined;
   
   return (
-    <div className="relative -mx-4 md:-mx-6">
+    <div className="relative -mx-[20px] px-[20px] py-4">
       <Carousel 
         className="w-full" 
         opts={{ 
@@ -33,9 +33,9 @@ export function SalonCarousel({
           duration: 20,
         }}
       >
-        <CarouselContent className="-ml-3">
+        <CarouselContent className="ml-0 -ml-4 py-2">
           {/* Virtual card for All salons */}
-          <CarouselItem key="all" className="pl-3 md:basis-1/2 lg:basis-1/3">
+          <CarouselItem key="all" className="pl-4 pr-4 md:basis-1/2 lg:basis-1/3">
             <SalonCard
               name="Todas"
               address="Todas las peluquerías"
@@ -46,7 +46,7 @@ export function SalonCarousel({
             />
           </CarouselItem>
           {salons.map((salon) => (
-            <CarouselItem key={salon.id} className="pl-3 md:basis-1/2 lg:basis-1/3">
+            <CarouselItem key={salon.id} className="pl-4 pr-4 md:basis-1/2 lg:basis-1/3">
               <SalonCard
                 name={salon.name}
                 address={salon.address}

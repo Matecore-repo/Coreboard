@@ -9,7 +9,7 @@ export function PageContainer({ className, children, ...props }: PageContainerPr
   return (
     <div
       className={cn(
-        "max-w-screen-2xl mx-auto px-4 md:px-6 pt-5 md:pt-6 pb-5",
+        "max-w-screen-2xl mx-auto px-[20px] pt-[20px] pb-[20px]",
         className
       )}
       {...props}

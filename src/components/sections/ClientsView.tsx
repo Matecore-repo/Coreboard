@@ -12,8 +12,18 @@ import { toast } from 'sonner';
 import { Trash2, Edit3, Plus } from 'lucide-react';
 import { EmptyState } from '../ui/empty-state';
 import { Building2 } from 'lucide-react';
+import { PageContainer } from '../layout/PageContainer';
+import { Section } from '../layout/Section';
+import { SalonCarousel } from '../SalonCarousel';
+import type { Salon } from '../../types/salon';
 
-const ClientsView: React.FC = () => {
+interface ClientsViewProps {
+  salons?: Salon[];
+  selectedSalon?: string | null;
+  onSelectSalon?: (salonId: string, salonName: string) => void;
+}
+
+const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = null, onSelectSalon }) => {
   const { currentOrgId, isDemo } = useAuth();
   const { clients, loading: hooksLoading, error: clientsError, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
 
@@ -157,21 +167,29 @@ const ClientsView: React.FC = () => {
   }
 
   return (
-    <div className="pb-20 px-4 md:px-6 pt-5 max-w-screen-2xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-        <div>
-          <h2 className="text-xl md:text-2xl mb-1">Gestión de Clientes</h2>
-          <p className="text-sm text-muted-foreground">
-            {clients.length} {clients.length === 1 ? 'cliente registrado' : 'clientes registrados'}
-          </p>
+    <PageContainer>
+      {salons.length > 0 && (
+        <div className="mb-4">
+          <h2 className="mb-4 text-xl md:text-2xl">Seleccionar Peluquería</h2>
+          <SalonCarousel 
+            salons={salons}
+            selectedSalon={selectedSalon}
+            onSelectSalon={onSelectSalon || (() => {})}
+          />
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNew}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nuevo Cliente
-            </Button>
-          </DialogTrigger>
+      )}
+      <div className="mt-4">
+        <Section
+        title="Gestión de Clientes"
+        description={`${clients.length} ${clients.length === 1 ? 'cliente registrado' : 'clientes registrados'}`}
+        action={
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNew}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nuevo Cliente
+              </Button>
+            </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
@@ -220,18 +238,16 @@ const ClientsView: React.FC = () => {
                 </div>
               </DialogContent>
             </Dialog>
-        </div>
-
+        }
+      >
       {clients.length === 0 ? (
-        <div className="mt-4">
-          <EmptyStateClients
-            onAddClient={handleNew}
-            onImportClients={() => toast.info('Importar clientes próximamente')}
-            onSyncContacts={() => toast.info('Sincronizar contactos próximamente')}
-          />
-        </div>
+        <EmptyStateClients
+          onAddClient={handleNew}
+          onImportClients={() => toast.info('Importar clientes próximamente')}
+          onSyncContacts={() => toast.info('Sincronizar contactos próximamente')}
+        />
       ) : (
-        <div className="mt-4 space-y-3 md:space-y-4">
+        <div className="space-y-3">
           {clients.map((client) => (
             <Card key={client.id}>
               <CardContent className="p-4">
@@ -266,7 +282,9 @@ const ClientsView: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+      </Section>
+      </div>
+    </PageContainer>
   );
 };
 

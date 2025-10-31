@@ -17,7 +17,7 @@ export function Section({
   ...props 
 }: SectionProps) {
   return (
-    <section className={cn("space-y-4 md:space-y-5", className)} {...props}>
+    <section className={cn("space-y-4 md:space-y-5 p-4 md:p-6", className)} {...props}>
       {(title || action) && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           {title && (

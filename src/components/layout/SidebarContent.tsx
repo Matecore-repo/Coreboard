@@ -32,6 +32,7 @@ interface SidebarContentProps {
   onNavItemClick: (itemId: string) => void;
   onLogout: () => void;
   onQuickActionsToggle: () => void;
+  onProfileClick?: () => void;
 }
 
 /**
@@ -115,6 +116,7 @@ export const SidebarContent = memo(({
   onNavItemClick,
   onLogout,
   onQuickActionsToggle,
+  onProfileClick,
 }: SidebarContentProps) => {
   // Memoizar el cálculo de iniciales y nombre de usuario
   const userInitials = useMemo(() => {
@@ -151,7 +153,10 @@ export const SidebarContent = memo(({
           SECCIÓN: Avatar y Usuario
           =================================================================== */}
       <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
-        <Avatar className="h-12 w-12 border-2 border-border flex-shrink-0">
+        <Avatar 
+          className="h-12 w-12 border-2 border-border flex-shrink-0 cursor-pointer"
+          onClick={onProfileClick}
+        >
           <AvatarFallback className="bg-primary text-primary-foreground">
             {userInitials}
           </AvatarFallback>

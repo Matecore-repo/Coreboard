@@ -79,6 +79,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   // Refs para evitar cargas múltiples
   const loadingRef = useRef(false);
   const loadedOrgIdRef = useRef<string | null>(null);
+  const previousOrgIdRef = useRef<string | null>(null);
 
   const isAdmin = currentRole === 'admin';
   const isOwner = currentRole === 'owner';
@@ -266,7 +267,15 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setTokens([]);
       setLoading(false);
       loadedOrgIdRef.current = 'demo-org-123';
+      previousOrgIdRef.current = 'demo-org-123';
       return;
+    }
+
+    // Resetear carga si cambió el orgId o si se monta desde otra vista
+    if (currentOrgId !== previousOrgIdRef.current) {
+      loadedOrgIdRef.current = null;
+      loadingRef.current = false;
+      previousOrgIdRef.current = currentOrgId;
     }
 
     if (currentOrgId && loadedOrgIdRef.current !== currentOrgId && !loadingRef.current) {
@@ -275,6 +284,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setLoading(false);
       setOrganization(null);
       loadedOrgIdRef.current = null;
+      previousOrgIdRef.current = null;
     }
   }, [currentOrgId, isDemo, loadOrganizationData]);
 

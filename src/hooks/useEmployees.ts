@@ -55,7 +55,6 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
           full_name,
           email,
           phone,
-          role,
           default_commission_pct,
           active,
           created_at,
@@ -64,7 +63,7 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
         .eq('org_id', orgId)
         .eq('active', true)
         .is('deleted_at', null)
-        .order('full_name');
+        .order('full_name', { ascending: true });
 
       if (error) throw error;
       setEmployees(data || []);

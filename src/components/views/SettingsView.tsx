@@ -122,29 +122,32 @@ export default function SettingsView() {
         }
       >
 
-      <div className="space-y-4 md:space-y-5">
-        {isDemo && (
-          <Alert>
-            <AlertTitle>Modo demostración activo</AlertTitle>
-            <AlertDescription>
-              Algunas opciones se muestran solo como vista previa. Las acciones
-              reales se habilitarán cuando tu organización esté migrada a
-              producción.
-            </AlertDescription>
-          </Alert>
-        )}
+      <div className="space-y-4">
+        <div className="mb-4">
+          {isDemo && (
+            <Alert>
+              <AlertTitle>Modo demostración activo</AlertTitle>
+              <AlertDescription>
+                Algunas opciones se muestran solo como vista previa. Las acciones
+                reales se habilitarán cuando tu organización esté migrada a
+                producción.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {!isDemo && !currentOrgId && (
-          <Alert variant="destructive">
-            <AlertTitle>Sin organización seleccionada</AlertTitle>
-            <AlertDescription>
-              Vincula una organización para habilitar ajustes críticos en
-              producción. Mientras tanto, todos los cambios permanecen
-              deshabilitados.
-            </AlertDescription>
-          </Alert>
-        )}
+          {!isDemo && !currentOrgId && (
+            <Alert variant="destructive">
+              <AlertTitle>Sin organización seleccionada</AlertTitle>
+              <AlertDescription>
+                Vincula una organización para habilitar ajustes críticos en
+                producción. Mientras tanto, todos los cambios permanecen
+                deshabilitados.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
 
+        <div className="mb-4 space-y-4">
         <Card className={DISABLED_CLASS}>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
@@ -269,7 +272,9 @@ export default function SettingsView() {
           </div>
         </CardContent>
       </Card>
+        </div>
 
+        <div className="mb-4 space-y-4">
       <Card className={DISABLED_CLASS}>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
@@ -345,7 +350,9 @@ export default function SettingsView() {
           </div>
         </CardContent>
       </Card>
+        </div>
 
+        <div className="mb-4 space-y-4">
       <Card className={DISABLED_CLASS}>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
@@ -443,7 +450,9 @@ export default function SettingsView() {
           </div>
         </CardContent>
       </Card>
+        </div>
 
+        <div className="mb-4 space-y-4">
       <Card className={DISABLED_CLASS}>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
@@ -514,7 +523,9 @@ export default function SettingsView() {
           </div>
         </CardContent>
       </Card>
+        </div>
 
+        <div className="mb-4">
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
@@ -548,6 +559,7 @@ export default function SettingsView() {
         <Button disabled className={DISABLED_CLASS}>
           Guardar cambios
         </Button>
+      </div>
       </div>
       </Section>
     </PageContainer>
