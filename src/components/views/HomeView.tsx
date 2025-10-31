@@ -5,6 +5,8 @@ import { SalonCarousel } from "../SalonCarousel";
 import { Button } from "../ui/button";
 import { EmptyStateCTA } from "../EmptyStateCTA";
 import { InviteEmployeeModal } from "../InviteEmployeeModal";
+import { PageContainer } from "../layout/PageContainer";
+import { Section } from "../layout/Section";
 import React, { lazy, Suspense, useState } from "react";
 
 const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
@@ -67,62 +69,58 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
   // Si es usuario nuevo y no tiene datos, mostrar estado vacío
   if (isNewUser && appointments.length === 0) {
     return (
-      <div className="pb-20">
-        <div className="p-4 md:p-6">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold mb-2">¡Bienvenido a {orgName || 'tu peluquería'}!</h1>
-            <p className="text-muted-foreground">Empezá a configurar tu negocio con estos pasos:</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <EmptyStateCTA
-              type="appointments"
-              onAction={onAddAppointment || (() => {})}
-              orgName={orgName}
-            />
-            
-            <EmptyStateCTA
-              type="employees"
-              onAction={() => setShowInviteModal(true)}
-            />
-          </div>
+      <PageContainer>
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-semibold mb-2">¡Bienvenido a {orgName || 'tu peluquería'}!</h1>
+          <p className="text-muted-foreground">Empezá a configurar tu negocio con estos pasos:</p>
         </div>
-      </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <EmptyStateCTA
+            type="appointments"
+            onAction={onAddAppointment || (() => {})}
+            orgName={orgName}
+          />
+          
+          <EmptyStateCTA
+            type="employees"
+            onAction={() => setShowInviteModal(true)}
+          />
+        </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="pb-20">
-      {/* Salon Carousel */}
-      <div className="p-4 md:p-6 pb-4 border-b border-border">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-3">
-          <h2>Mis Peluquerías</h2>
-          {onAddAppointment && (
-            <Button onClick={onAddAppointment} className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Turno
-            </Button>
-          )}
-        </div>
+    <PageContainer>
+      <Section 
+        title="Mis Peluquerías"
+        action={onAddAppointment && (
+          <Button onClick={onAddAppointment}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Turno
+          </Button>
+        )}
+      >
         <SalonCarousel 
           salons={salons}
           selectedSalon={selectedSalon}
           onSelectSalon={onSelectSalon}
         />
-      </div>
+      </Section>
 
-      <div className="p-4 md:p-6 space-y-4">
+      <Section>
         {/* Header con métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Peluquería Asignada */}
-        <div className="bg-card border border-border rounded-2xl p-3">
+        <div className="bg-card border border-border/60 dark:border-border/40 rounded-2xl p-3">
           <div className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
               <MapPin className="h-4 w-4 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-muted-foreground truncate">Peluquería</p>
-              <p className="font-medium truncate">{salonNames[selectedSalon ?? 'all']}</p>
+              <p className="text-sm text-muted-foreground truncate">Peluquería</p>
+              <p className="text-sm truncate">{salonNames[selectedSalon ?? 'all']}</p>
             </div>
           </div>
         </div>
@@ -151,13 +149,13 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
           focusDate={null}
           onAppointmentClick={onAppointmentClick}
         />
+      </Section>
 
-        {/* Invite Employee Modal */}
-        <InviteEmployeeModal 
-          isOpen={showInviteModal}
-          onClose={() => setShowInviteModal(false)}
-        />
-      </div>
-    </div>
+      {/* Invite Employee Modal */}
+      <InviteEmployeeModal 
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+      />
+    </PageContainer>
   );
 }

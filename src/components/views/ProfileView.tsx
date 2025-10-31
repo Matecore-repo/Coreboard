@@ -6,20 +6,17 @@
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { PageContainer } from '../layout/PageContainer';
+import { Section } from '../layout/Section';
 
 export default function ProfileView() {
   const { user, currentRole, currentOrgId } = useAuth();
 
   return (
-    <div className="pb-20">
-      <div className="p-4 md:p-6 space-y-4">
-        {/* Header - Simplificado como HomeView */}
-        <div>
-          <h2>Mi Perfil</h2>
-        </div>
-
+    <PageContainer>
+      <Section title="Mi Perfil">
         {/* Información Personal */}
-        <Card className="rounded-2xl">
+        <Card>
           <CardHeader>
             <CardTitle>Información Personal</CardTitle>
             <CardDescription>
@@ -29,25 +26,25 @@ export default function ProfileView() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Email</label>
-                <p className="text-lg font-medium">{user?.email || 'No disponible'}</p>
+                <label className="text-sm text-muted-foreground">Email</label>
+                <p className="text-lg">{user?.email || 'No disponible'}</p>
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Rol</label>
-                <p className="text-lg font-medium capitalize">
+                <label className="text-sm text-muted-foreground">Rol</label>
+                <p className="text-lg capitalize">
                   <Badge variant="secondary">{currentRole || 'Sin rol'}</Badge>
                 </p>
               </div>
               
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-muted-foreground">Organización</label>
-                <p className="text-lg font-medium">{currentOrgId || 'No seleccionada'}</p>
+                <label className="text-sm text-muted-foreground">Organización</label>
+                <p className="text-lg">{currentOrgId || 'No seleccionada'}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </Section>
+    </PageContainer>
   );
 }

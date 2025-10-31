@@ -20,6 +20,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { PageContainer } from "../layout/PageContainer";
+import { Section } from "../layout/Section";
 import { lazy, Suspense } from "react";
 
 const BarChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.BarChartComponent })));
@@ -183,19 +185,16 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
   const netProfit = totalRevenue - totalExpenses;
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Finanzas</h1>
-          <p className="text-muted-foreground">{salonName}</p>
-        </div>
-      </div>
-
-      {completedAppointments.length === 0 ? (
+    <PageContainer>
+      <Section 
+        title="Finanzas"
+        description={salonName}
+      >
+        {completedAppointments.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">Sin datos de finanzas</h3>
+            <h3 className="text-lg mb-2">Sin datos de finanzas</h3>
             <p className="text-muted-foreground mb-4">Completa turnos para ver reportes de finanzas</p>
           </CardContent>
         </Card>
@@ -208,7 +207,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Ingresos Totales</p>
-                    <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
+                    <p className="text-2xl">${totalRevenue.toLocaleString()}</p>
                   </div>
                   <DollarSign className="h-8 w-8 text-green-500" />
                 </div>
@@ -220,7 +219,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Turnos Completados</p>
-                    <p className="text-2xl font-bold">{completedAppointments.length}</p>
+                    <p className="text-2xl">{completedAppointments.length}</p>
                   </div>
                   <UserCheck className="h-8 w-8 text-blue-500" />
                 </div>
@@ -232,7 +231,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Promedio por Turno</p>
-                    <p className="text-2xl font-bold">${(totalRevenue / completedAppointments.length).toLocaleString()}</p>
+                    <p className="text-2xl">${(totalRevenue / completedAppointments.length).toLocaleString()}</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-purple-500" />
                 </div>
@@ -254,10 +253,10 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
                   return (
                     <div key={apt.id} className="flex justify-between items-center p-2 bg-muted/20 rounded">
                       <div>
-                        <p className="font-medium text-sm">{apt.clientName}</p>
+                        <p className="text-sm">{apt.clientName}</p>
                         <p className="text-xs text-muted-foreground">{apt.service} - {apt.date}</p>
                       </div>
-                      <p className="font-semibold">${paymentAmount.toLocaleString()}</p>
+                      <p>${paymentAmount.toLocaleString()}</p>
                     </div>
                   );
                 })}
@@ -276,10 +275,10 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
                   {revenueByService.slice(0, 5).map(item => (
                     <div key={item.name} className="flex justify-between items-center p-2 bg-muted/20 rounded">
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{item.name}</p>
+                        <p className="text-sm">{item.name}</p>
                         <p className="text-xs text-muted-foreground">{item.count} turnos</p>
                       </div>
-                      <p className="font-semibold">${item.revenue.toLocaleString()}</p>
+                      <p>${item.revenue.toLocaleString()}</p>
                     </div>
                   ))}
                 </div>
@@ -288,6 +287,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName }:
           )}
         </>
       )}
-    </div>
+      </Section>
+    </PageContainer>
   );
 }

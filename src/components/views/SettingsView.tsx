@@ -20,6 +20,8 @@ import { Switch } from "../ui/switch";
 import { Badge } from "../ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Separator } from "../ui/separator";
+import { PageContainer } from "../layout/PageContainer";
+import { Section } from "../layout/Section";
 import { useAuth } from "../../contexts/AuthContext";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
@@ -109,23 +111,16 @@ export default function SettingsView() {
   const integrationSettings = useMemo(createIntegrationDefaults, []);
 
   return (
-    <>
-      <div className="space-y-6 p-4 pb-32 md:p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Configuración de la aplicación
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Visualiza qué ajustes estarán disponibles cuando lancemos la consola
-              de producción.
-            </p>
-          </div>
+    <PageContainer>
+      <Section 
+        title="Configuración de la aplicación"
+        description="Visualiza qué ajustes estarán disponibles cuando lancemos la consola de producción."
+        action={
           <Badge variant={IS_PRODUCTION ? "default" : "secondary"}>
             Entorno: {IS_PRODUCTION ? "Producción" : "Previsualización"}
           </Badge>
-        </div>
-      </div>
+        }
+      >
 
       {isDemo && (
         <Alert>
@@ -552,6 +547,7 @@ export default function SettingsView() {
           Guardar cambios
         </Button>
       </div>
-    </>
+      </Section>
+    </PageContainer>
   );
 }

@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+import { PageContainer } from '../layout/PageContainer';
+import { Section } from '../layout/Section';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Copy, Trash2, Pencil, Save, X, Users, Mail } from 'lucide-react';
@@ -430,39 +432,33 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   if (loading) {
     return (
-      <div className="pb-20">
-        <div className="p-4 md:p-6">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
+      <PageContainer>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (!organization) {
     return (
-      <div className="pb-20">
-        <div className="p-4 md:p-6">
-          <h2 className="mb-4">Organización</h2>
-          <Card className="rounded-2xl">
+      <PageContainer>
+        <Section title="Organización">
+          <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground">No tienes una organización asignada.</p>
             </CardContent>
           </Card>
-        </div>
-      </div>
+        </Section>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="pb-20">
-      <div className="p-4 md:p-6 space-y-4">
-        {/* Header - Simplificado como HomeView */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h2>Organización</h2>
-          </div>
+    <PageContainer>
+      <Section 
+        title="Organización"
+        action={
           <div className="flex gap-2">
             {canCreateTokens && (
               <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
@@ -545,8 +541,8 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
               </Button>
             )}
           </div>
-        </div>
-
+        }
+      >
         {/* Tabs */}
         <Tabs defaultValue="info" className="space-y-4">
           <TabsList>
@@ -624,13 +620,13 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">Nombre</Label>
-                      <p className="text-lg font-medium">{organization.name}</p>
+                      <Label className="text-sm text-muted-foreground">Nombre</Label>
+                      <p className="text-lg">{organization.name}</p>
                     </div>
                     {organization.tax_id && (
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-muted-foreground">CUIT/CUIL</Label>
-                        <p className="text-lg font-medium">{organization.tax_id}</p>
+                        <Label className="text-sm text-muted-foreground">CUIT/CUIL</Label>
+                        <p className="text-lg">{organization.tax_id}</p>
                       </div>
                     )}
                     <div className="space-y-2 md:col-span-2">
@@ -666,13 +662,13 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                 ) : (
                   <div className="space-y-3">
                     {memberships.map((membership) => (
-                      <div key={membership.user_id} className="flex items-center justify-between p-4 border border-border rounded-2xl bg-card">
+                      <div key={membership.user_id} className="flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card">
                         <div className="flex items-center space-x-3">
                           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                             <Users className="h-5 w-5 text-primary" />
                           </div>
                           <div>
-                            <p className="font-medium">{membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}</p>
+                            <p>{membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}</p>
                             <div className="flex items-center space-x-2 mt-1">
                               <Badge variant={
                                 membership.role === 'admin' ? 'default' :
@@ -718,13 +714,13 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                   ) : (
                     <div className="space-y-3">
                       {tokens.map((token) => (
-                        <div key={token.id} className="flex items-center justify-between p-4 border border-border rounded-2xl bg-card">
+                        <div key={token.id} className="flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card">
                           <div className="flex items-center space-x-3">
                             <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                               <Mail className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                              <p className="font-medium">Token de {token.role}</p>
+                              <p>Token de {token.role}</p>
                               <div className="flex items-center space-x-2 mt-1">
                                 <Badge variant="outline">{token.role}</Badge>
                                 <span className="text-sm text-muted-foreground">
@@ -751,30 +747,30 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
             </TabsContent>
           )}
         </Tabs>
+      </Section>
 
-        {/* Dialog de confirmación para eliminar */}
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>¿Eliminar organización?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Esta acción no se puede deshacer. Se eliminará la organización "{organization.name}" y todos sus datos asociados.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={deleteOrganization}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={deleting}
-              >
-                {deleting ? 'Eliminando...' : 'Eliminar'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </div>
+      {/* Dialog de confirmación para eliminar */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar organización?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará la organización "{organization.name}" y todos sus datos asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteOrganization}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+            >
+              {deleting ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </PageContainer>
   );
 };
 
