@@ -100,6 +100,9 @@ type AuthContextValue = {
   isDemo: boolean;                                                             // Flag que indica si se está en modo demostración
   signIn: (email: string, password: string) => Promise<void>;                 // Función para iniciar sesión
   signUp: (email: string, password: string, signupToken?: string) => Promise<void>; // Función para registrarse
+  signInWithGoogle: () => Promise<void>;                                       // Función para iniciar sesión con Google
+  linkGoogleAccount: () => Promise<void>;                                      // Función para vincular cuenta de Google
+  unlinkGoogleAccount: () => Promise<void>;                                    // Función para desvincular cuenta de Google
   signInAsDemo: () => void;                                                    // Función para iniciar sesión como demostración
   signOut: () => Promise<void>;                                                // Función para cerrar sesión
   switchOrganization: (org_id: string) => void;                               // Función para cambiar de organización
@@ -252,7 +255,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Si no, usar la organización primaria
       // 3. Si no, usar la primera membresía
       const savedOrgId = profile?.raw_app_meta_data?.current_org_id;
-      const currentOrgId = savedOrgId || primaryOrg?.org_id;
+      
+      // VALIDACIÓN CRÍTICA: Verificar que la org guardada aún existe en las membresías
+      // Si no existe, usar la primera disponible
+      let currentOrgId = savedOrgId;
+      if (currentOrgId && memberships) {
+        const orgExists = memberships.some(m => m.org_id === currentOrgId);
+        if (!orgExists) {
+          // La org guardada no es válida, usar la primera disponible
+          currentOrgId = primaryOrg?.org_id || null;
+        }
+      } else {
+        currentOrgId = primaryOrg?.org_id;
+      }
 
       // Construir el objeto de usuario con toda la información
       const userData: User = {
@@ -555,9 +570,145 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // =========================================================================
+  // FUNCIÓN: signInWithGoogle
+  // =========================================================================
+  // Inicia sesión con Google OAuth
+  const signInWithGoogle = async (): Promise<void> => {
+    // En modo demo, no permitir iniciar sesión real
+    if (isDemoModeFlag) {
+      throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
+    }
+
+    try {
+      // Verificar si hay un usuario con email existente por contraseña
+      // Esto lo hacemos antes de iniciar OAuth para mostrar mensaje claro
+      const redirectTo = typeof window !== 'undefined' 
+        ? `${window.location.origin}/auth/callback`
+        : undefined;
+
+      // Llamar a Supabase para iniciar OAuth con Google
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      // Si hay error, lanzarlo
+      if (error) {
+        throw error;
+      }
+
+      // El usuario será redirigido a Google y luego de vuelta a /auth/callback
+      // El callback se maneja en handleSignedIn
+    } catch (error: any) {
+      // Verificar si el error es porque el email ya existe con contraseña
+      if (error?.message?.includes('email') || error?.message?.includes('already')) {
+        throw new Error('Este email ya está registrado con contraseña. Entrá con contraseña una vez y conectá Google en tu perfil.');
+      }
+      throw error;
+    }
+  };
+
+  // =========================================================================
+  // FUNCIÓN: linkGoogleAccount
+  // =========================================================================
+  // Vincula una cuenta de Google a la cuenta actual
+  const linkGoogleAccount = async (): Promise<void> => {
+    if (!user || !session) {
+      throw new Error('Debes estar autenticado para vincular una cuenta');
+    }
+
+    if (isDemoModeFlag) {
+      throw new Error('Modo demo: no se pueden vincular cuentas reales');
+    }
+
+    try {
+      // Verificar que el usuario actual no tiene Google ya vinculado
+      const userProviders = session.user.app_metadata?.providers || [];
+      if (userProviders.includes('google')) {
+        throw new Error('Ya tienes Google vinculado a esta cuenta');
+      }
+
+      const redirectTo = typeof window !== 'undefined' 
+        ? `${window.location.origin}/auth/callback?link=true`
+        : undefined;
+
+      // Iniciar OAuth para vincular
+      const { error } = await supabase.auth.linkIdentity({
+        provider: 'google',
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (error) {
+        // Si el email de Google ya está asociado a otra cuenta
+        if (error.message?.includes('already') || error.message?.includes('exists')) {
+          throw new Error('Este email de Google ya está asociado a otra cuenta. No se puede vincular.');
+        }
+        throw error;
+      }
+
+      // El flujo de vinculación se completa en el callback
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  // =========================================================================
+  // FUNCIÓN: unlinkGoogleAccount
+  // =========================================================================
+  // Desvincula la cuenta de Google de la cuenta actual
+  const unlinkGoogleAccount = async (): Promise<void> => {
+    if (!user || !session) {
+      throw new Error('Debes estar autenticado para desvincular una cuenta');
+    }
+
+    if (isDemoModeFlag) {
+      throw new Error('Modo demo: no se pueden desvincular cuentas reales');
+    }
+
+    try {
+      // Obtener identidades del usuario
+      const { data: identities, error: fetchError } = await supabase.auth.getUserIdentities();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Encontrar la identidad de Google
+      const googleIdentity = identities?.identities?.find(id => id.provider === 'google');
+
+      if (!googleIdentity) {
+        throw new Error('No tienes Google vinculado a esta cuenta');
+      }
+
+      // Desvincular la identidad
+      const { error } = await supabase.auth.unlinkIdentity({
+        provider: 'google',
+        id: googleIdentity.id,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Refrescar el usuario para actualizar el estado
+      await fetchUserMemberships(user.id, session.user);
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
+  // =========================================================================
   // FUNCIÓN: signUp
   // =========================================================================
-  // Registra un nuevo usuario con email y contraseña
+  // Registra un nuevo usuario con email y contraseña (sin token obligatorio)
   const signUp = async (email: string, password: string, signupToken?: string): Promise<void> => {
     // En modo demo, no permitir registrarse real
     if (isDemoModeFlag) {
@@ -575,7 +726,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           // URL a la que redirigir después de confirmar email
           emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
-          // Si hay un token de invitación, incluirlo en los datos
+          // Si hay un token de invitación (legacy), incluirlo en los datos
           data: signupToken ? { invite_token: signupToken } : undefined,
         },
       });
@@ -630,6 +781,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // ===================================================================
       // Si no hay token, el usuario debe crear su propia organización
       // a través del onboarding modal (no crear automáticamente)
+      // El usuario nuevo puede registrarse libremente sin token
       // ===================================================================
     } finally {
       // Siempre terminar la carga
@@ -808,10 +960,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // =========================================================================
   // FUNCIÓN: switchOrganization
   // =========================================================================
-  // Cambia la organización actualmente seleccionada
+  // Cambia la organización actualmente seleccionada (refresh coordinado)
   const switchOrganization = async (org_id: string) => {
     // Solo funciona si hay un usuario autenticado
     if (user) {
+      // Validar que la org existe en las membresías del usuario
+      const orgExists = user.memberships?.some(m => m.org_id === org_id);
+      if (!orgExists) {
+        throw new Error('No perteneces a esta organización');
+      }
+
       // En modo demo, solo guardar en localStorage (no en BD)
       if (isDemo) {
         // Guardar la nueva org en localStorage
@@ -820,6 +978,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser({ ...user, current_org_id: org_id });
         // Limpiar salón seleccionado al cambiar de org
         safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+        
+        // Disparar evento para refresh coordinado de vistas
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('org:changed', { detail: { org_id } }));
+        }
         return;
       }
       
@@ -836,6 +999,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser({ ...user, current_org_id: org_id });
       // Limpiar salón seleccionado al cambiar de org
       safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+      
+      // Disparar evento para refresh coordinado de vistas
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('org:changed', { detail: { org_id } }));
+      }
     }
   };
 
@@ -948,6 +1116,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isDemo,                  // Flag de modo demo
       signIn,                  // Función para iniciar sesión
       signUp,                  // Función para registrarse
+      signInWithGoogle,        // Función para iniciar sesión con Google
+      linkGoogleAccount,       // Función para vincular Google
+      unlinkGoogleAccount,     // Función para desvincular Google
       signInAsDemo,            // Función para iniciar sesión como demo
       signOut,                 // Función para cerrar sesión
       switchOrganization,      // Función para cambiar org

@@ -19,7 +19,8 @@ import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
-import { Copy, Trash2, Pencil, Save, X, Users, Mail } from 'lucide-react';
+import { Copy, Trash2, Pencil, Save, X, Users, Mail, Send, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { useInvitations, Invitation } from '../../hooks/useInvitations';
 
 interface Organization {
   id: string;
@@ -40,13 +41,6 @@ interface Membership {
   };
 }
 
-interface RegistrationToken {
-  id: string;
-  role: 'admin' | 'owner' | 'employee';
-  expires_at: string;
-  used_at?: string;
-  created_at: string;
-}
 
 interface OrganizationViewProps {
   isDemo?: boolean;
@@ -56,21 +50,22 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const { user, currentRole, currentOrgId } = useAuth() as any;
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [tokens, setTokens] = useState<RegistrationToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
-  const [loadingTokens, setLoadingTokens] = useState(false);
   
   // Estados de edición
   const [editingOrg, setEditingOrg] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [orgTaxId, setOrgTaxId] = useState('');
 
-  // Estados para tokens de registro
-  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
-  const [tokenRole, setTokenRole] = useState<'employee'>('employee');
-  const [creatingToken, setCreatingToken] = useState(false);
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  // Hook de invitaciones
+  const { invitations, loading: loadingInvitations, loadInvitations, createInvitation, cancelInvitation } = useInvitations(currentOrgId);
+
+  // Estados para invitaciones por email
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'employee' | 'admin' | 'viewer'>('employee');
+  const [inviting, setInviting] = useState(false);
 
   // Estado para eliminar organización
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -85,7 +80,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const isOwner = currentRole === 'owner';
   const isEmployee = currentRole === 'employee';
   const canEdit = isAdmin || isOwner;
-  const canCreateTokens = isAdmin || isOwner;
+  const canInvite = isAdmin || isOwner; // Reemplaza canCreateTokens
   const canDelete = isOwner;
   const canViewMembers = true; // Todos los usuarios pueden ver miembros
 
@@ -132,35 +127,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   }, []);
 
-  const loadRegistrationTokens = useCallback(async (orgId: string) => {
-    setLoadingTokens(true);
-    try {
-      const { data: inviteTokens, error } = await supabase
-        .from('invitations')
-        .select('id, role, expires_at, used_at, created_at')
-        .eq('organization_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) {
-        console.error('Error loading registration tokens:', error);
-        return;
-      }
-
-      // Mapear invitations a RegistrationToken
-      setTokens((inviteTokens || []).map(inv => ({
-        id: inv.id,
-        role: inv.role as 'admin' | 'owner' | 'employee',
-        expires_at: inv.expires_at,
-        used_at: inv.used_at || undefined,
-        created_at: inv.created_at
-      })));
-    } catch (error) {
-      console.error('Error loading registration tokens:', error);
-    } finally {
-      setLoadingTokens(false);
-    }
-  }, []);
 
   const loadOrganizationData = useCallback(async () => {
     if (!currentOrgId) {
@@ -216,9 +182,11 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setOrgTaxId(org.tax_id || '');
 
       // Cargas secundarias en paralelo con tolerancia a fallos
-      const userCanCreateTokens = currentRole === 'admin' || currentRole === 'owner';
       const parallelLoads: Promise<any>[] = [loadMemberships(currentOrgId)];
-      if (userCanCreateTokens) parallelLoads.push(loadRegistrationTokens(currentOrgId));
+      if (canInvite) {
+        // Cargar invitaciones usando el hook
+        parallelLoads.push(loadInvitations());
+      }
 
       const results = await Promise.allSettled(parallelLoads);
       results.forEach((r) => {
@@ -237,7 +205,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [currentOrgId, loadMemberships, loadRegistrationTokens, currentRole]);
+  }, [currentOrgId, loadMemberships, loadInvitations, canInvite]);
 
   // ============================================================================
   // EFECTO PRINCIPAL
@@ -264,7 +232,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setOrgName(demoOrg.name);
       setOrgTaxId(demoOrg.tax_id || '');
       setMemberships(demoMembers);
-      setTokens([]);
       setLoading(false);
       loadedOrgIdRef.current = 'demo-org-123';
       previousOrgIdRef.current = 'demo-org-123';
@@ -319,52 +286,55 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   };
 
-  const createRegistrationToken = async () => {
-    if (!currentOrgId || !canCreateTokens) return;
+  const handleCreateInvitation = async () => {
+    if (!currentOrgId || !canInvite || !inviteEmail.trim()) {
+      toast.error('Ingresa un email válido');
+      return;
+    }
 
     try {
-      setCreatingToken(true);
-
-      // Generar token seguro para registro
-      const token = `REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.random().toString(36).substr(2, 9)}`;
+      setInviting(true);
 
       if (isDemo) {
-        const mockToken: RegistrationToken = {
-          id: `mock-${Date.now()}`,
-          role: tokenRole,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          created_at: new Date().toISOString()
-        };
-
-        setTokens(prev => [mockToken, ...prev]);
-        setGeneratedToken(token);
-        toast.success('Token de registro creado (modo demo)');
+        // Modo demo: simular creación
+        toast.success('Invitación creada (modo demo)');
+        setInviteEmail('');
+        setInviteRole('employee');
+        setInviteDialogOpen(false);
       } else {
-        const { data, error } = await supabase.rpc('create_invitation', {
-          p_organization_id: currentOrgId,
-          p_email: null, // No requiere email para tokens de registro
-          p_role: tokenRole,
-          p_token: token,
-          p_expires_days: 7
-        });
+        // Crear invitación real
+        const token = await createInvitation(
+          inviteEmail.trim(),
+          inviteRole,
+          7 // 7 días de expiración
+        );
 
-        if (error) {
-          console.error('RPC error:', error);
-          throw error;
+        if (token) {
+          // El token se devuelve para enviarlo por email (vía n8n)
+          // Aquí solo mostramos éxito, el envío de email se hace externamente
+          toast.success(`Invitación creada para ${inviteEmail}. El link de invitación se enviará por email.`);
+          setInviteEmail('');
+          setInviteRole('employee');
+          setInviteDialogOpen(false);
         }
-
-        await loadRegistrationTokens(currentOrgId);
-        setGeneratedToken(token);
-        toast.success('Token de registro creado exitosamente');
       }
-
-      setTokenRole('employee');
     } catch (error: any) {
-      console.error('Error creating registration token:', error);
-      toast.error(error.message || 'Error al crear el token de registro');
+      console.error('Error creando invitación:', error);
+      toast.error(error.message || 'Error al crear la invitación');
     } finally {
-      setCreatingToken(false);
+      setInviting(false);
     }
+  };
+
+  const getInvitationStatus = (invitation: Invitation) => {
+    if (invitation.used_at) {
+      return { label: 'Aceptada', icon: CheckCircle2, variant: 'secondary' as const };
+    }
+    const expiresAt = new Date(invitation.expires_at);
+    if (expiresAt < new Date()) {
+      return { label: 'Expirada', icon: XCircle, variant: 'destructive' as const };
+    }
+    return { label: 'Pendiente', icon: Clock, variant: 'default' as const };
   };
 
   const deleteOrganization = async () => {
@@ -399,42 +369,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      // Verificar si navigator.clipboard está disponible (requiere HTTPS o localhost)
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        toast.success('Copiado al portapapeles');
-      } else {
-        // Método de fallback para navegadores sin Clipboard API
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          const successful = document.execCommand('copy');
-          if (successful) {
-            toast.success('Copiado al portapapeles');
-          } else {
-            throw new Error('Fallback copy failed');
-          }
-        } catch (err) {
-          // Si falla, mostrar el token para que el usuario lo copie manualmente
-          toast.error('No se pudo copiar automáticamente. El token se muestra a continuación.');
-          alert(`Token: ${text}\n\nCopia este token manualmente.`);
-        } finally {
-          document.body.removeChild(textArea);
-        }
-      }
-    } catch (error: any) {
-      console.error('Error copying to clipboard:', error);
-      toast.error('No se pudo copiar al portapapeles. Intenta copiarlo manualmente.');
-    }
-  };
 
   // ============================================================================
   // RENDERIZADO
@@ -470,70 +404,68 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         title="Organización"
         action={
           <div className="flex gap-2">
-            {canCreateTokens && (
-              <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
+            {canInvite && (
+              <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
-                    Crear Token de Registro
+                    <Send className="h-4 w-4 mr-2" />
+                    Invitar por Email
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Crear Token de Registro</DialogTitle>
+                    <DialogTitle>Invitar Miembro</DialogTitle>
                     <DialogDescription>
-                      Genera un token que permite crear una cuenta directamente como parte de esta organización.
+                      Envía una invitación por email. El invitado recibirá un link para aceptar la invitación.
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="token-role">Rol</Label>
-                      <Select value={tokenRole} onValueChange={(value: 'employee') => setTokenRole(value)}>
-                        <SelectTrigger id="token-role">
+                      <Label htmlFor="invite-email">Email</Label>
+                      <Input
+                        id="invite-email"
+                        type="email"
+                        placeholder="invitado@example.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        required
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">
+                        El invitado recibirá un link de invitación en este email.
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="invite-role">Rol</Label>
+                      <Select value={inviteRole} onValueChange={(value: 'employee' | 'admin' | 'viewer') => setInviteRole(value)}>
+                        <SelectTrigger id="invite-role">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="employee">Empleado</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                          <SelectItem value="viewer">Solo Lectura</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Los usuarios que se registren con este token tendrán rol de empleado.
+                        El invitado tendrá este rol en la organización.
                       </p>
                     </div>
-
-                    {generatedToken && (
-                      <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
-                        <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Token Generado</h4>
-                        <div className="flex items-center space-x-2">
-                          <code className="flex-1 p-2 bg-white dark:bg-gray-900 border rounded text-sm font-mono break-all">
-                            {generatedToken}
-                          </code>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => copyToClipboard(generatedToken)}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                          Comparte este token con quien quieres que se registre. Al crear su cuenta, deberá ingresar este token en el campo "Token secreto".
-                        </p>
-                      </div>
-                    )}
 
                     <DialogFooter>
                       <Button
                         variant="outline"
                         onClick={() => {
-                          setTokenDialogOpen(false);
-                          setGeneratedToken(null);
+                          setInviteDialogOpen(false);
+                          setInviteEmail('');
+                          setInviteRole('employee');
                         }}
                       >
                         Cancelar
                       </Button>
-                      <Button onClick={createRegistrationToken} disabled={creatingToken}>
-                        {creatingToken ? 'Creando...' : 'Crear Token'}
+                      <Button onClick={handleCreateInvitation} disabled={inviting || !inviteEmail.trim()}>
+                        {inviting ? 'Enviando...' : 'Enviar Invitación'}
                       </Button>
                     </DialogFooter>
                   </div>
@@ -560,9 +492,9 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
             <TabsTrigger value="members">
               Miembros {loadingMembers ? '(...)' : `(${memberships.length})`}
             </TabsTrigger>
-            {canCreateTokens && (
-              <TabsTrigger value="tokens">
-                Tokens de Registro {loadingTokens ? '(...)' : `(${tokens.length})`}
+            {canInvite && (
+              <TabsTrigger value="invitations">
+                Invitaciones {loadingInvitations ? '(...)' : `(${invitations.length})`}
               </TabsTrigger>
             )}
           </TabsList>
@@ -706,48 +638,62 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
             </Card>
           </TabsContent>
 
-          {/* Tab: Tokens de Registro */}
-          {canCreateTokens && (
-            <TabsContent value="tokens" className="space-y-4">
+          {/* Tab: Invitaciones */}
+          {canInvite && (
+            <TabsContent value="invitations" className="space-y-4">
               <Card className="rounded-2xl">
                 <CardHeader>
-                  <CardTitle>Tokens de Registro</CardTitle>
+                  <CardTitle>Invitaciones Enviadas</CardTitle>
                   <CardDescription>
-                    Tokens que permiten crear cuentas directamente como parte de esta organización
+                    Invitaciones por email enviadas a miembros potenciales
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {loadingTokens ? (
+                  {loadingInvitations ? (
                     <div className="flex items-center justify-center py-8">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {tokens.map((token) => (
-                        <div key={token.id} className="flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card">
-                          <div className="flex items-center space-x-3">
-                            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                              <Mail className="h-5 w-5 text-muted-foreground" />
-                            </div>
-                            <div>
-                              <p>Token de {token.role}</p>
-                              <div className="flex items-center space-x-2 mt-1">
-                                <Badge variant="outline">{token.role}</Badge>
-                                <span className="text-sm text-muted-foreground">
-                                  Expira: {new Date(token.expires_at).toLocaleDateString()}
-                                </span>
-                                {token.used_at && (
-                                  <Badge variant="secondary">Usado</Badge>
-                                )}
+                      {invitations.map((invitation) => {
+                        const status = getInvitationStatus(invitation);
+                        const StatusIcon = status.icon;
+                        return (
+                          <div key={invitation.id} className="flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card">
+                            <div className="flex items-center space-x-3 flex-1">
+                              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                                <StatusIcon className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="font-medium">{invitation.email || 'Sin email'}</p>
+                                  <Badge variant={status.variant}>{status.label}</Badge>
+                                </div>
+                                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                  <Badge variant="outline" className="text-xs">{invitation.role}</Badge>
+                                  <span>Expira: {new Date(invitation.expires_at).toLocaleDateString('es-AR')}</span>
+                                  {invitation.used_at && (
+                                    <span>• Aceptada: {new Date(invitation.used_at).toLocaleDateString('es-AR')}</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                            {!invitation.used_at && status.label === 'Pendiente' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => cancelInvitation(invitation.id)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
-                      {tokens.length === 0 && (
+                      {invitations.length === 0 && (
                         <p className="text-muted-foreground text-center py-8">
-                          No hay tokens de registro creados
+                          No hay invitaciones enviadas
                         </p>
                       )}
                     </div>

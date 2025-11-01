@@ -10,19 +10,20 @@ import { useAuth } from "../../contexts/AuthContext";
 import ThemeBubble from "../../components/ThemeBubble";
 import { motion, AnimatePresence } from "motion/react";
 import { useRouter } from "next/router";
+import { Chrome } from "lucide-react";
 
 const salonImagePublic = "/imagenlogin.jpg";
 const salonImageAsset = "/imagenlogin.jpg";
 
 function LoginView() {
-  const { signInAsDemo, signIn, signUp, resetPassword, user, loading } = useAuth();
+  const { signInAsDemo, signIn, signUp, signInWithGoogle, resetPassword, user, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [secretToken, setSecretToken] = useState("");
   const [currentImage, setCurrentImage] = useState<string>(salonImageAsset);
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   // Si el usuario ya está autenticado, redirigir al dashboard
   useEffect(() => {
@@ -43,6 +44,24 @@ function LoginView() {
       mounted = false;
     };
   }, []);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsGoogleLoading(true);
+      await signInWithGoogle();
+      // No redirigir aquí porque el OAuth flow redirige automáticamente
+    } catch (error: any) {
+      setIsGoogleLoading(false);
+      const errorMessage = error.message || "Error al iniciar sesión con Google";
+      
+      // Si el email ya existe con contraseña, mostrar mensaje claro
+      if (errorMessage.includes('contraseña')) {
+        toast.error(errorMessage, { duration: 6000 });
+      } else {
+        toast.error(errorMessage);
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,15 +84,18 @@ function LoginView() {
     }
 
     if (mode === "register") {
-      if (!email || !password || !secretToken) {
-        toast.error("Ingresa email, contraseña y token secreto");
+      if (!email || !password) {
+        toast.error("Ingresa email y contraseña");
         return;
       }
       try {
-        await signUp(email, password, secretToken);
-        toast.success("Registro enviado. Revisa tu email.");
+        setIsLoggingIn(true);
+        await signUp(email, password); // Sin token obligatorio
+        toast.success("Registro enviado. Revisa tu email para verificar tu cuenta.");
         setMode("login");
+        setIsLoggingIn(false);
       } catch (error: any) {
+        setIsLoggingIn(false);
         toast.error(error.message || "Error al registrarse");
       }
       return;
@@ -84,10 +106,13 @@ function LoginView() {
       return;
     }
     try {
+      setIsLoggingIn(true);
       await resetPassword(email);
       toast.success("Te enviamos un email para recuperar tu contraseña");
       setMode("login");
+      setIsLoggingIn(false);
     } catch (error: any) {
+      setIsLoggingIn(false);
       toast.error(error.message || "Error enviando recuperación");
     }
   };
@@ -124,90 +149,103 @@ function LoginView() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-base">
-                  Email
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="tu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 text-base md:text-base"
-                    autoComplete="username"
-                    required
-                  />
-                </div>
-              </div>
-
-              {mode !== "reset" && (
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-base">
-                    Contraseña
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-12 text-base md:text-base"
-                      autoComplete="current-password"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-
-              {mode === "register" && (
-                <div className="space-y-2">
-                  <Label htmlFor="signup_token" className="text-base">
-                    Token secreto
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="signup_token"
-                      type="text"
-                      placeholder="Ingresa tu token de registro"
-                      value={secretToken}
-                      onChange={(e) => setSecretToken(e.target.value)}
-                      className="h-12 text-base md:text-base"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
-                <button type="button" className={actionButtonClass("login")} onClick={() => setMode("login")}>
-                  Iniciar sesión
-                </button>
-                <button type="button" className={actionButtonClass("register")} onClick={() => setMode("register")}>
-                  Crear cuenta
-                </button>
-                <button type="button" className={actionButtonClass("reset")} onClick={() => setMode("reset")}>
-                  Recuperar contraseña
-                </button>
-              </div>
-
-              <Button type="submit" className="w-full h-12 text-base" disabled={isLoggingIn}>
-                {isLoggingIn ? "Iniciando sesión..." : mode === "login"
-                  ? "Iniciar sesión"
-                  : mode === "register"
-                  ? "Crear cuenta"
-                  : "Enviar recuperación"}
+            {/* Botón grande de Google arriba */}
+            <div className="space-y-4">
+              <Button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-full h-14 text-base bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                disabled={isGoogleLoading || isLoggingIn}
+              >
+                {isGoogleLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900 dark:border-gray-100 mr-2" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    <Chrome className="h-5 w-5 mr-2" />
+                    Entrar con Google
+                  </>
+                )}
               </Button>
 
-              <div className="group">
-                <LoginCTA onClick={handleForceLogin}>Explorar la app</LoginCTA>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">O continúa con</span>
+                </div>
               </div>
-            </form>
+
+              {/* Form pequeño de email/contraseña abajo */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-base">
+                    Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="tu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 h-12 text-base md:text-base"
+                      autoComplete="username"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {mode !== "reset" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-base">
+                      Contraseña
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 h-12 text-base md:text-base"
+                        autoComplete={mode === "register" ? "new-password" : "current-password"}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
+                  <button type="button" className={actionButtonClass("login")} onClick={() => setMode("login")}>
+                    Iniciar sesión
+                  </button>
+                  <button type="button" className={actionButtonClass("register")} onClick={() => setMode("register")}>
+                    Crear cuenta
+                  </button>
+                  <button type="button" className={actionButtonClass("reset")} onClick={() => setMode("reset")}>
+                    Recuperar contraseña
+                  </button>
+                </div>
+
+                <Button type="submit" className="w-full h-12 text-base" disabled={isLoggingIn || isGoogleLoading}>
+                  {isLoggingIn ? "Procesando..." : mode === "login"
+                    ? "Iniciar sesión"
+                    : mode === "register"
+                    ? "Crear cuenta"
+                    : "Enviar recuperación"}
+                </Button>
+
+                <div className="group">
+                  <LoginCTA onClick={handleForceLogin}>Explorar la app</LoginCTA>
+                </div>
+              </form>
+            </div>
 
             <div className="text-center text-base text-muted-foreground pt-4">
               ¿No tienes cuenta?{" "}

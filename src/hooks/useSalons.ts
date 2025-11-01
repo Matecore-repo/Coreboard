@@ -118,7 +118,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
     if (enabled && orgId) {
       fetchSalons();
     }
-  }, [orgId, enabled, isDemo]);
+  }, [fetchSalons]);
 
   const createSalon = async (salonData: Omit<DBSalon, 'id'>) => {
     if (isDemo) {

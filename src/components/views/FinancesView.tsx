@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { 
   DollarSign, 
   TrendingUp, 
@@ -14,7 +14,10 @@ import {
   Repeat,
   Scissors,
   AlertCircle,
-  Download
+  Download,
+  BarChart3,
+  PieChart as PieChartIcon,
+  LineChart
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -24,11 +27,11 @@ import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
 import { SalonCarousel } from "../SalonCarousel";
 import type { Salon } from "../../types/salon";
-import { lazy, Suspense } from "react";
-
-const BarChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.BarChartComponent })));
-const AreaChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.AreaChartComponent })));
-const PieChartComponent = lazy(() => import("../features/finances/FinancesCharts").then(m => ({ default: m.PieChartComponent })));
+import { 
+  RevenueTrendChart, 
+  TopServicesChart, 
+  ServiceDistributionChart 
+} from "../features/finances/FinancesCharts";
 import { Appointment } from "../features/appointments/AppointmentCard";
 import { usePayments } from "../../hooks/usePayments";
 import { useAuth } from "../../contexts/AuthContext";
@@ -163,13 +166,20 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
       .sort((a, b) => b.revenue - a.revenue);
   }, [payments, appointments, completedAppointments, isDemo]);
 
-  // Ingresos por día
+  // Ingresos por día (últimos 30 días)
   const revenueByDay = useMemo(() => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
     if (!isDemo && payments.length > 0) {
       const map: Record<string, number> = {};
       payments.forEach(payment => {
-        const dateKey = payment.date;
-        map[dateKey] = (map[dateKey] || 0) + payment.amount;
+        const paymentDate = new Date(payment.date);
+        if (paymentDate >= thirtyDaysAgo && paymentDate <= now) {
+          const dateKey = payment.date;
+          map[dateKey] = (map[dateKey] || 0) + payment.amount;
+        }
       });
       return Object.entries(map)
         .sort((a, b) => a[0].localeCompare(b[0]))
@@ -178,12 +188,54 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
     // Fallback para demo
     const map: Record<string, number> = {};
     completedAppointments.forEach(apt => {
-      map[apt.date] = (map[apt.date] || 0) + (servicePrices[apt.service] || 0);
+      const aptDate = new Date(apt.date);
+      if (aptDate >= thirtyDaysAgo && aptDate <= now) {
+        map[apt.date] = (map[apt.date] || 0) + (servicePrices[apt.service] || 0);
+      }
     });
     return Object.entries(map)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, revenue]) => ({ date, revenue }));
   }, [payments, completedAppointments, isDemo]);
+
+  // KPIs: Ingresos últimos 30 días
+  const revenueLast30Days = useMemo(() => {
+    return revenueByDay.reduce((sum, day) => sum + day.revenue, 0);
+  }, [revenueByDay]);
+
+  // KPIs: Ticket promedio
+  const averageTicket = useMemo(() => {
+    if (completedAppointments.length === 0) return 0;
+    return totalRevenue / completedAppointments.length;
+  }, [totalRevenue, completedAppointments.length]);
+
+  // KPIs: % Ocupación (simplificado: completados vs totales)
+  const occupancyRate = useMemo(() => {
+    const totalAppointments = appointments.length;
+    if (totalAppointments === 0) return 0;
+    return (completedAppointments.length / totalAppointments) * 100;
+  }, [completedAppointments.length, appointments.length]);
+
+  // Datos para gráficos
+  const trendChartData = useMemo(() => revenueByDay, [revenueByDay]);
+  
+  const topServicesChartData = useMemo(() => 
+    revenueByService.slice(0, 5).map(item => ({
+      name: item.name,
+      revenue: item.revenue,
+      count: item.count,
+    })),
+    [revenueByService]
+  );
+
+  const distributionChartData = useMemo(() => 
+    revenueByService.map(item => ({
+      name: item.name,
+      value: item.revenue,
+      revenue: item.revenue,
+    })),
+    [revenueByService]
+  );
 
   const totalExpenses = Object.values(monthlyExpenses).reduce((a, b) => a + b, 0);
   const netProfit = totalRevenue - totalExpenses;
@@ -215,14 +267,14 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
         </Card>
       ) : (
         <>
-          {/* KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          {/* KPIs (3 tarjetas arriba) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Ingresos Totales</p>
-                    <p className="text-2xl">${totalRevenue.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">Ingresos últimos 30 días</p>
+                    <p className="text-2xl font-semibold">${revenueLast30Days.toLocaleString()}</p>
                   </div>
                   <DollarSign className="h-8 w-8 text-green-500" />
                 </div>
@@ -233,10 +285,10 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Turnos Completados</p>
-                    <p className="text-2xl">{completedAppointments.length}</p>
+                    <p className="text-sm text-muted-foreground">Ticket promedio</p>
+                    <p className="text-2xl font-semibold">${averageTicket.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</p>
                   </div>
-                  <UserCheck className="h-8 w-8 text-blue-500" />
+                  <TrendingUp className="h-8 w-8 text-blue-500" />
                 </div>
               </CardContent>
             </Card>
@@ -245,61 +297,174 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Promedio por Turno</p>
-                    <p className="text-2xl">${(totalRevenue / completedAppointments.length).toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">% Ocupación</p>
+                    <p className="text-2xl font-semibold">{occupancyRate.toFixed(1)}%</p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-purple-500" />
+                  <Target className="h-8 w-8 text-purple-500" />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Turnos Completados */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Turnos Completados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {completedAppointments.map(apt => {
-                  const paymentAmount = isDemo 
-                    ? (servicePrices[apt.service] || 0)
-                    : (paymentsByAppointment[apt.id] || 0);
-                  return (
-                    <div key={apt.id} className="flex justify-between items-center p-2 bg-muted/20 rounded">
-                      <div>
-                        <p className="text-sm">{apt.clientName}</p>
-                        <p className="text-xs text-muted-foreground">{apt.service} - {apt.date}</p>
-                      </div>
-                      <p>${paymentAmount.toLocaleString()}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Tabs: Resumen, Gráficos, Detalle */}
+          <Tabs defaultValue="charts" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="summary">Resumen</TabsTrigger>
+              <TabsTrigger value="charts">Gráficos</TabsTrigger>
+              <TabsTrigger value="detail">Detalle</TabsTrigger>
+            </TabsList>
 
-          {/* Ingresos por Servicio */}
-          {revenueByService.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Top Servicios</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {revenueByService.slice(0, 5).map(item => (
-                    <div key={item.name} className="flex justify-between items-center p-2 bg-muted/20 rounded">
-                      <div className="flex-1">
-                        <p className="text-sm">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.count} turnos</p>
-                      </div>
-                      <p>${item.revenue.toLocaleString()}</p>
+            {/* Tab: Resumen */}
+            <TabsContent value="summary" className="space-y-4">
+
+              {/* Turnos Completados */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Turnos Completados</CardTitle>
+                  <CardDescription>
+                    Resumen de turnos completados y sus ingresos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {completedAppointments.map(apt => {
+                      const paymentAmount = isDemo 
+                        ? (servicePrices[apt.service] || 0)
+                        : (paymentsByAppointment[apt.id] || 0);
+                      return (
+                        <div key={apt.id} className="flex justify-between items-center p-2 bg-muted/20 rounded">
+                          <div>
+                            <p className="text-sm font-medium">{apt.clientName}</p>
+                            <p className="text-xs text-muted-foreground">{apt.service} - {apt.date}</p>
+                          </div>
+                          <p className="font-semibold">${paymentAmount.toLocaleString()}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Ingresos por Servicio */}
+              {revenueByService.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Top Servicios</CardTitle>
+                    <CardDescription>
+                      Servicios con mayor ingreso
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {revenueByService.slice(0, 5).map(item => (
+                        <div key={item.name} className="flex justify-between items-center p-2 bg-muted/20 rounded">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">{item.count} turnos</p>
+                          </div>
+                          <p className="font-semibold">${item.revenue.toLocaleString()}</p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Tab: Gráficos */}
+            <TabsContent value="charts" className="space-y-4">
+              {/* Gráfico 1: Tendencia de Ingresos */}
+              {trendChartData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <LineChart className="h-5 w-5" />
+                      Tendencia de Ingresos
+                    </CardTitle>
+                    <CardDescription>
+                      Ingresos por día (últimos 30 días)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <RevenueTrendChart data={trendChartData} period="day" />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Gráfico 2: Top Servicios */}
+              {topServicesChartData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Top Servicios por Ingreso
+                    </CardTitle>
+                    <CardDescription>
+                      Servicios con mayor ingreso en los últimos 30 días
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <TopServicesChart data={topServicesChartData} />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Gráfico 3: Distribución por Servicio */}
+              {distributionChartData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <PieChartIcon className="h-5 w-5" />
+                      Distribución por Servicio
+                    </CardTitle>
+                    <CardDescription>
+                      Porcentaje de ingresos por servicio
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ServiceDistributionChart data={distributionChartData} />
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Tab: Detalle */}
+            <TabsContent value="detail" className="space-y-4">
+              {/* Turnos Completados Detallado */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Detalle de Turnos</CardTitle>
+                  <CardDescription>
+                    Lista completa de turnos completados
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {completedAppointments.map(apt => {
+                      const paymentAmount = isDemo 
+                        ? (servicePrices[apt.service] || 0)
+                        : (paymentsByAppointment[apt.id] || 0);
+                      return (
+                        <div key={apt.id} className="flex justify-between items-center p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{apt.clientName}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs">{apt.service}</Badge>
+                              <span className="text-xs text-muted-foreground">{apt.date}</span>
+                              {apt.stylist && (
+                                <span className="text-xs text-muted-foreground">• {apt.stylist}</span>
+                              )}
+                            </div>
+                          </div>
+                          <p className="font-semibold text-lg">${paymentAmount.toLocaleString()}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </>
       )}
       </Section>

@@ -11,11 +11,20 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       // Esperar a que la sesión se restaure
       if (!loading && session?.user) {
-        // Verificar si hay un token de invitación para reclamar
-        const inviteToken = session.user.user_metadata?.invite_token;
-        if (inviteToken) {
+        // Verificar si hay un token de invitación en los query params (nuevo sistema)
+        const inviteToken = router.query.invitation || router.query.token;
+        
+        // También verificar legacy token en metadata (sistema antiguo)
+        const legacyToken = session.user.user_metadata?.invite_token;
+
+        // Priorizar token de query params (nuevo sistema)
+        const tokenToUse = (inviteToken && typeof inviteToken === 'string') 
+          ? inviteToken 
+          : legacyToken;
+
+        if (tokenToUse) {
           try {
-            await claimInvitation(inviteToken);
+            await claimInvitation(tokenToUse);
             toast.success('¡Bienvenido! Tu invitación ha sido aceptada.');
           } catch (error: any) {
             console.error('Error reclamando invitación:', error);
@@ -24,12 +33,40 @@ export default function AuthCallback() {
           }
         }
 
-        // Redirigir a home
-        router.push('/');
+        // Verificar si hay token de invitación pendiente en sessionStorage
+        // (cuando usuario no estaba logueado y ahora sí)
+        const pendingToken = typeof window !== 'undefined' 
+          ? sessionStorage.getItem('pending_invitation_token')
+          : null;
+
+        if (pendingToken && !tokenToUse) {
+          try {
+            await claimInvitation(pendingToken);
+            sessionStorage.removeItem('pending_invitation_token');
+            toast.success('¡Bienvenido! Tu invitación ha sido aceptada.');
+          } catch (error: any) {
+            console.error('Error reclamando invitación pendiente:', error);
+            sessionStorage.removeItem('pending_invitation_token');
+          }
+        }
+
+        // Verificar si es vinculación de Google
+        const isLinking = router.query.link === 'true';
+        if (isLinking) {
+          toast.success('Cuenta de Google vinculada correctamente');
+        }
+
+        // Redirigir a dashboard (o accept-invite si hay token pendiente)
+        if (pendingToken && !tokenToUse) {
+          // Ya procesamos el token, ir a dashboard
+          router.push('/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
       } else if (!loading && !session) {
         // Si no hay sesión después de cargar, podría ser error
         toast.error('No se pudo autenticar. Intenta de nuevo.');
-        router.push('/');
+        router.push('/login');
       }
     };
 

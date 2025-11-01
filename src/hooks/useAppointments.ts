@@ -153,7 +153,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     } catch {
       // si falla realtime, no rompemos el flujo
     }
-  }, [salonId, enabled, isDemo, currentOrgId]);
+  }, [fetchAppointments]);
 
   // Sincronizar estado local al store global
   useEffect(() => {
