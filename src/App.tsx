@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
 import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useTheme } from "next-themes";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
 import { appointmentsStore, pendingTodayCountSelector } from './stores/appointments';
@@ -37,7 +36,7 @@ const HomeView = lazy(() => {
   (window as any).__preloadedViews.home = module;
   return module;
 });
-const ClientsView = lazy(() => import("./components/sections/ClientsView").then(module => ({ default: (module as any).default })));
+const ClientsView = lazy(() => import("./components/sections/ClientsView"));
 const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
@@ -147,6 +146,37 @@ export default function App() {
     { enabled: !!session && !!currentOrgId }
   );
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: !!session && !!currentOrgId && currentRole === 'employee' });
+
+  // =========================================================================
+  // REFRESH COORDINADO AL CAMBIAR ORGANIZACIÓN
+  // =========================================================================
+  useEffect(() => {
+    const handleOrgChange = async () => {
+      // Refrescar todas las vistas cuando cambia la organización
+      if (currentOrgId && session) {
+        try {
+          // Refrescar en paralelo
+          await Promise.all([
+            fetchAppointments(),
+            // Los hooks de salons y employees se refrescan automáticamente por currentOrgId
+          ]);
+        } catch (error) {
+          console.error('Error refrescando datos al cambiar org:', error);
+        }
+      }
+    };
+
+    // Escuchar evento de cambio de organización
+    const handler = (event: CustomEvent) => {
+      handleOrgChange();
+    };
+
+    window.addEventListener('org:changed', handler as EventListener);
+
+    return () => {
+      window.removeEventListener('org:changed', handler as EventListener);
+    };
+  }, [currentOrgId, session, fetchAppointments]);
 
   // =========================================================================
   // DATOS EFECTIVOS (Demo vs Real)

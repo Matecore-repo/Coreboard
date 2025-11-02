@@ -13,10 +13,20 @@ import {
   DollarSign,
   Building2,
   LogOut,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Button } from '../ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { useAuth } from '../../contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
 /**
  * Props para SidebarContent
@@ -33,6 +43,11 @@ interface SidebarContentProps {
   onLogout: () => void;
   onQuickActionsToggle: () => void;
   onProfileClick?: () => void;
+}
+
+interface OrganizationOption {
+  id: string;
+  name: string;
 }
 
 /**
@@ -118,6 +133,41 @@ export const SidebarContent = memo(({
   onQuickActionsToggle,
   onProfileClick,
 }: SidebarContentProps) => {
+  const { user, currentOrgId, switchOrganization, memberships } = useAuth() as any;
+  const [organizations, setOrganizations] = useState<OrganizationOption[]>([]);
+  const [loadingOrgs, setLoadingOrgs] = useState(false);
+
+  // Cargar organizaciones del usuario
+  useEffect(() => {
+    if (!user || !memberships || memberships.length === 0 || isDemo) {
+      return;
+    }
+
+    const loadOrganizations = async () => {
+      setLoadingOrgs(true);
+      try {
+        const orgIds = memberships.map((m: any) => m.org_id);
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('id, name')
+          .in('id', orgIds);
+
+        if (error) {
+          console.error('Error loading organizations:', error);
+          return;
+        }
+
+        setOrganizations((data || []).map(org => ({ id: org.id, name: org.name })));
+      } catch (error) {
+        console.error('Error loading organizations:', error);
+      } finally {
+        setLoadingOrgs(false);
+      }
+    };
+
+    loadOrganizations();
+  }, [user, memberships, isDemo]);
+
   // Memoizar el cálculo de iniciales y nombre de usuario
   const userInitials = useMemo(() => {
     return isDemo ? getInitialsFromName(demoName) : getInitials(userEmail);
@@ -128,6 +178,24 @@ export const SidebarContent = memo(({
       ? (demoName?.trim() || "Unnamed")
       : (userEmail?.split("@")[0] || "Unnamed");
   }, [isDemo, demoName, userEmail]);
+
+  // Nombre de la organización actual
+  const currentOrgName = useMemo(() => {
+    if (!currentOrgId || isDemo) return null;
+    return organizations.find(org => org.id === currentOrgId)?.name || null;
+  }, [currentOrgId, organizations, isDemo]);
+
+  // Si tiene múltiples organizaciones, mostrar selector
+  const hasMultipleOrgs = memberships && memberships.length > 1;
+
+  const handleSwitchOrg = useCallback(async (orgId: string) => {
+    if (orgId === currentOrgId) return;
+    try {
+      await switchOrganization(orgId);
+    } catch (error: any) {
+      console.error('Error switching organization:', error);
+    }
+  }, [currentOrgId, switchOrganization]);
 
   // Filtrar items válidos (con iconos) una sola vez
   const validNavItems = useMemo(() => {
@@ -152,21 +220,68 @@ export const SidebarContent = memo(({
       {/* ===================================================================
           SECCIÓN: Avatar y Usuario
           =================================================================== */}
-      <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
-        <Avatar 
-          className="h-12 w-12 border-2 border-border flex-shrink-0 cursor-pointer"
-          onClick={onProfileClick}
-        >
-          <AvatarFallback className="bg-primary text-primary-foreground">
-            {userInitials}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-muted-foreground text-xs">Bienvenido</span>
-          <span className="text-sidebar-foreground font-medium truncate">
-            {userName}
-          </span>
+      <div className="p-4 border-b border-sidebar-border space-y-3">
+        <div className="flex items-center gap-3">
+          <Avatar 
+            className="h-12 w-12 border-2 border-border flex-shrink-0 cursor-pointer"
+            onClick={onProfileClick}
+          >
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-muted-foreground text-xs">Bienvenido</span>
+            <span className="text-sidebar-foreground font-medium truncate">
+              {userName}
+            </span>
+          </div>
         </div>
+
+        {/* Selector de Organización */}
+        {hasMultipleOrgs && !isDemo && (
+          <div className="pt-2 border-t border-sidebar-border">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-between h-auto py-2 px-3"
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Building2 className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs truncate">
+                      {currentOrgName || 'Seleccionar org'}
+                    </span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 flex-shrink-0 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                {organizations.map((org) => (
+                  <DropdownMenuItem
+                    key={org.id}
+                    onClick={() => handleSwitchOrg(org.id)}
+                    className={currentOrgId === org.id ? 'bg-accent' : ''}
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    <span className="truncate">{org.name}</span>
+                    {currentOrgId === org.id && (
+                      <span className="ml-auto text-xs text-muted-foreground">✓</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
+        {/* Mostrar nombre de org si solo tiene una */}
+        {!hasMultipleOrgs && currentOrgName && !isDemo && (
+          <div className="pt-2 border-t border-sidebar-border flex items-center gap-2 text-xs text-muted-foreground">
+            <Building2 className="h-3 w-3" />
+            <span className="truncate">{currentOrgName}</span>
+          </div>
+        )}
       </div>
 
       {/* ===================================================================
