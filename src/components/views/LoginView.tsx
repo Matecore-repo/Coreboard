@@ -19,7 +19,6 @@ function LoginView() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [secretToken, setSecretToken] = useState("");
   const [currentImage, setCurrentImage] = useState<string>(salonImageAsset);
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -65,15 +64,18 @@ function LoginView() {
     }
 
     if (mode === "register") {
-      if (!email || !password || !secretToken) {
-        toast.error("Ingresa email, contraseña y token secreto");
+      if (!email || !password) {
+        toast.error("Ingresa email y contraseña");
         return;
       }
       try {
-        await signUp(email, password, secretToken);
-        toast.success("Registro enviado. Revisa tu email.");
+        setIsLoggingIn(true);
+        await signUp(email, password);
+        toast.success("¡Cuenta creada! Revisa tu email para verificar tu cuenta.");
         setMode("login");
+        setIsLoggingIn(false);
       } catch (error: any) {
+        setIsLoggingIn(false);
         toast.error(error.message || "Error al registrarse");
       }
       return;
@@ -170,25 +172,6 @@ function LoginView() {
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 h-12 text-base md:text-base"
                       autoComplete="current-password"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-
-              {mode === "register" && (
-                <div className="space-y-2">
-                  <Label htmlFor="signup_token" className="text-base">
-                    Token secreto
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="signup_token"
-                      type="text"
-                      placeholder="Ingresa tu token de registro"
-                      value={secretToken}
-                      onChange={(e) => setSecretToken(e.target.value)}
-                      className="h-12 text-base md:text-base"
                       required
                     />
                   </div>

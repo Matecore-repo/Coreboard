@@ -1,7 +1,7 @@
 // ============================================================================
-// COMPONENTE: OrganizationView (REFACTORIZADO - Tokens de Registro)
+// COMPONENTE: OrganizationView (REFACTORIZADO - Sistema de Invitación)
 // ============================================================================
-// Gestión completa de organizaciones: ver, renombrar, crear tokens de registro y eliminar
+// Gestión completa de organizaciones: ver, renombrar, invitar miembros y eliminar
 // Layout simplificado consistente con HomeView
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -19,7 +19,7 @@ import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
-import { Copy, Trash2, Pencil, Save, X, Users, Mail } from 'lucide-react';
+import { Trash2, Pencil, Save, X, Users, Mail, UserPlus, Search, Check } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -32,7 +32,7 @@ interface Organization {
 interface Membership {
   id?: string;
   user_id: string;
-  role: 'admin' | 'owner' | 'employee';
+  role: 'admin' | 'owner' | 'employee' | 'viewer';
   is_primary: boolean;
   user?: {
     email: string;
@@ -40,12 +40,10 @@ interface Membership {
   };
 }
 
-interface RegistrationToken {
+interface SearchedUser {
   id: string;
-  role: 'admin' | 'owner' | 'employee';
-  expires_at: string;
-  used_at?: string;
-  created_at: string;
+  email: string;
+  full_name?: string;
 }
 
 interface OrganizationViewProps {
@@ -53,28 +51,34 @@ interface OrganizationViewProps {
 }
 
 const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) => {
-  const { user, currentRole, currentOrgId } = useAuth() as any;
+  const { user: currentUser, currentRole, currentOrgId } = useAuth() as any;
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [tokens, setTokens] = useState<RegistrationToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
-  const [loadingTokens, setLoadingTokens] = useState(false);
   
   // Estados de edición
   const [editingOrg, setEditingOrg] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [orgTaxId, setOrgTaxId] = useState('');
 
-  // Estados para tokens de registro
-  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
-  const [tokenRole, setTokenRole] = useState<'employee'>('employee');
-  const [creatingToken, setCreatingToken] = useState(false);
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  // Estados para invitar miembros
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
+  const [inviteRole, setInviteRole] = useState<'employee' | 'admin' | 'viewer'>('employee');
+  const [inviting, setInviting] = useState(false);
 
   // Estado para eliminar organización
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Estado para quitar miembro
+  const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<Membership | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   // Refs para evitar cargas múltiples
   const loadingRef = useRef(false);
@@ -85,7 +89,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const isOwner = currentRole === 'owner';
   const isEmployee = currentRole === 'employee';
   const canEdit = isAdmin || isOwner;
-  const canCreateTokens = isAdmin || isOwner;
+  const canManageMembers = isAdmin || isOwner;
   const canDelete = isOwner;
   const canViewMembers = true; // Todos los usuarios pueden ver miembros
 
@@ -98,7 +102,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     try {
       const { data: members, error } = await supabase
         .from('memberships')
-        .select('user_id, role, is_primary')
+        .select('id, user_id, role, is_primary')
         .eq('org_id', orgId)
         .limit(100);
 
@@ -109,17 +113,29 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
       if (members && members.length > 0) {
         const userIds = members.map(m => m.user_id);
+        
+        // Obtener emails de profiles
         const { data: profiles } = await supabase
           .from('profiles')
           .select('id, email')
           .in('id', userIds);
 
+        // Obtener nombres completos de employees si tienen user_id
+        const { data: employees } = await supabase
+          .from('employees')
+          .select('user_id, full_name')
+          .eq('org_id', orgId)
+          .in('user_id', userIds)
+          .not('user_id', 'is', null);
+
         const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
+        const employeeMap = new Map((employees || []).map(e => [e.user_id, e.full_name]));
 
         setMemberships(members.map((m: any) => ({
           ...m,
           user: {
             email: profileMap.get(m.user_id) || `Usuario ${m.user_id.substring(0, 8)}`,
+            full_name: employeeMap.get(m.user_id)
           }
         })));
       } else {
@@ -129,36 +145,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       console.error('Error loading memberships:', error);
     } finally {
       setLoadingMembers(false);
-    }
-  }, []);
-
-  const loadRegistrationTokens = useCallback(async (orgId: string) => {
-    setLoadingTokens(true);
-    try {
-      const { data: inviteTokens, error } = await supabase
-        .from('invitations')
-        .select('id, role, expires_at, used_at, created_at')
-        .eq('organization_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) {
-        console.error('Error loading registration tokens:', error);
-        return;
-      }
-
-      // Mapear invitations a RegistrationToken
-      setTokens((inviteTokens || []).map(inv => ({
-        id: inv.id,
-        role: inv.role as 'admin' | 'owner' | 'employee',
-        expires_at: inv.expires_at,
-        used_at: inv.used_at || undefined,
-        created_at: inv.created_at
-      })));
-    } catch (error) {
-      console.error('Error loading registration tokens:', error);
-    } finally {
-      setLoadingTokens(false);
     }
   }, []);
 
@@ -215,17 +201,8 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setOrgName(org.name || '');
       setOrgTaxId(org.tax_id || '');
 
-      // Cargas secundarias en paralelo con tolerancia a fallos
-      const userCanCreateTokens = currentRole === 'admin' || currentRole === 'owner';
-      const parallelLoads: Promise<any>[] = [loadMemberships(currentOrgId)];
-      if (userCanCreateTokens) parallelLoads.push(loadRegistrationTokens(currentOrgId));
-
-      const results = await Promise.allSettled(parallelLoads);
-      results.forEach((r) => {
-        if (r.status === 'rejected') {
-          console.warn('Carga parcial fallida en Organización:', r.reason);
-        }
-      });
+      // Cargar miembros
+      await loadMemberships(currentOrgId);
 
     } catch (error: any) {
       console.error('Error loading organization:', error);
@@ -237,7 +214,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [currentOrgId, loadMemberships, loadRegistrationTokens, currentRole]);
+  }, [currentOrgId, loadMemberships]);
 
   // ============================================================================
   // EFECTO PRINCIPAL
@@ -254,17 +231,16 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
       const demoMembers: Membership[] = [{
         id: 'demo-member-1',
-        user_id: user?.id || 'demo-user',
+        user_id: currentUser?.id || 'demo-user',
         role: 'owner',
         is_primary: true,
-        user: { email: user?.email || 'demo@coreboard.local' }
+        user: { email: currentUser?.email || 'demo@coreboard.local' }
       }];
 
       setOrganization(demoOrg);
       setOrgName(demoOrg.name);
       setOrgTaxId(demoOrg.tax_id || '');
       setMemberships(demoMembers);
-      setTokens([]);
       setLoading(false);
       loadedOrgIdRef.current = 'demo-org-123';
       previousOrgIdRef.current = 'demo-org-123';
@@ -319,51 +295,160 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   };
 
-  const createRegistrationToken = async () => {
-    if (!currentOrgId || !canCreateTokens) return;
+  // ============================================================================
+  // FUNCIONES DE BÚSQUEDA Y GESTIÓN DE MIEMBROS
+  // ============================================================================
 
+  const searchUsers = useCallback(async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
     try {
-      setCreatingToken(true);
+      const searchTerm = query.trim().toLowerCase();
+      
+      // Buscar en profiles por email
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .ilike('email', `%${searchTerm}%`)
+        .limit(10);
 
-      // Generar token seguro para registro
-      const token = `REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.random().toString(36).substr(2, 9)}`;
-
-      if (isDemo) {
-        const mockToken: RegistrationToken = {
-          id: `mock-${Date.now()}`,
-          role: tokenRole,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          created_at: new Date().toISOString()
-        };
-
-        setTokens(prev => [mockToken, ...prev]);
-        setGeneratedToken(token);
-        toast.success('Token de registro creado (modo demo)');
-      } else {
-        const { data, error } = await supabase.rpc('create_invitation', {
-          p_organization_id: currentOrgId,
-          p_email: null, // No requiere email para tokens de registro
-          p_role: tokenRole,
-          p_token: token,
-          p_expires_days: 7
-        });
-
-        if (error) {
-          console.error('RPC error:', error);
-          throw error;
-        }
-
-        await loadRegistrationTokens(currentOrgId);
-        setGeneratedToken(token);
-        toast.success('Token de registro creado exitosamente');
+      if (profilesError) {
+        console.error('Error searching profiles:', profilesError);
       }
 
-      setTokenRole('employee');
-    } catch (error: any) {
-      console.error('Error creating registration token:', error);
-      toast.error(error.message || 'Error al crear el token de registro');
+      // Buscar en employees por full_name (solo si tienen user_id)
+      const { data: employees, error: employeesError } = await supabase
+        .from('employees')
+        .select('user_id, full_name, email')
+        .ilike('full_name', `%${searchTerm}%`)
+        .not('user_id', 'is', null)
+        .limit(10);
+
+      if (employeesError) {
+        console.error('Error searching employees:', employeesError);
+      }
+
+      // Combinar resultados
+      const userMap = new Map<string, SearchedUser>();
+      
+      (profiles || []).forEach((p: any) => {
+        if (!userMap.has(p.id)) {
+          userMap.set(p.id, {
+            id: p.id,
+            email: p.email || '',
+            full_name: undefined
+          });
+        }
+      });
+
+      (employees || []).forEach((e: any) => {
+        if (e.user_id && e.full_name) {
+          const existing = userMap.get(e.user_id);
+          if (existing) {
+            existing.full_name = e.full_name;
+          } else {
+            userMap.set(e.user_id, {
+              id: e.user_id,
+              email: e.email || '',
+              full_name: e.full_name
+            });
+          }
+        }
+      });
+
+      // Filtrar usuarios que ya son miembros de la organización
+      const memberIds = new Set(memberships.map(m => m.user_id));
+      const filteredResults = Array.from(userMap.values()).filter(u => !memberIds.has(u.id));
+
+      setSearchResults(filteredResults);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setSearchResults([]);
     } finally {
-      setCreatingToken(false);
+      setSearching(false);
+    }
+  }, [memberships]);
+
+  const inviteMember = async () => {
+    if (!currentOrgId || !selectedUser || !canManageMembers) return;
+
+    try {
+      setInviting(true);
+
+      if (isDemo) {
+        toast.success('Miembro invitado (modo demo)');
+        setInviteDialogOpen(false);
+        setSelectedUser(null);
+        setSearchQuery('');
+        setSearchResults([]);
+        return;
+      }
+
+      // Crear invitación usando RPC
+      const { data, error } = await supabase.rpc('create_invitation', {
+        p_organization_id: currentOrgId,
+        p_email: selectedUser.email,
+        p_role: inviteRole,
+        p_token: null, // Generar token automáticamente
+        p_expires_days: 7
+      });
+
+      if (error) {
+        console.error('RPC error:', error);
+        throw error;
+      }
+
+      toast.success(`Invitación enviada a ${selectedUser.email}`);
+      setInviteDialogOpen(false);
+      setSelectedUser(null);
+      setSearchQuery('');
+      setSearchResults([]);
+    } catch (error: any) {
+      console.error('Error inviting member:', error);
+      toast.error(error.message || 'Error al invitar al miembro');
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const removeMember = async () => {
+    if (!memberToRemove || !canManageMembers || memberToRemove.role === 'owner') {
+      toast.error('No se puede eliminar el propietario de la organización');
+      return;
+    }
+
+    try {
+      setRemoving(true);
+
+      if (isDemo) {
+        setMemberships(prev => prev.filter(m => m.user_id !== memberToRemove.user_id));
+        toast.success('Miembro eliminado (modo demo)');
+        setRemoveMemberDialogOpen(false);
+        setMemberToRemove(null);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('memberships')
+        .delete()
+        .eq('org_id', currentOrgId)
+        .eq('user_id', memberToRemove.user_id);
+
+      if (error) throw error;
+
+      setMemberships(prev => prev.filter(m => m.user_id !== memberToRemove.user_id));
+      toast.success('Miembro eliminado de la organización');
+      setRemoveMemberDialogOpen(false);
+      setMemberToRemove(null);
+    } catch (error: any) {
+      console.error('Error removing member:', error);
+      toast.error(error.message || 'Error al eliminar el miembro');
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -399,42 +484,25 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      // Verificar si navigator.clipboard está disponible (requiere HTTPS o localhost)
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        toast.success('Copiado al portapapeles');
-      } else {
-        // Método de fallback para navegadores sin Clipboard API
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          const successful = document.execCommand('copy');
-          if (successful) {
-            toast.success('Copiado al portapapeles');
-          } else {
-            throw new Error('Fallback copy failed');
-          }
-        } catch (err) {
-          // Si falla, mostrar el token para que el usuario lo copie manualmente
-          toast.error('No se pudo copiar automáticamente. El token se muestra a continuación.');
-          alert(`Token: ${text}\n\nCopia este token manualmente.`);
-        } finally {
-          document.body.removeChild(textArea);
-        }
-      }
-    } catch (error: any) {
-      console.error('Error copying to clipboard:', error);
-      toast.error('No se pudo copiar al portapapeles. Intenta copiarlo manualmente.');
+  // Efecto para búsqueda con debounce
+  useEffect(() => {
+    if (!inviteDialogOpen) {
+      setSearchQuery('');
+      setSearchResults([]);
+      setSelectedUser(null);
+      return;
     }
-  };
+
+    const timer = setTimeout(() => {
+      if (searchQuery.trim()) {
+        searchUsers(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, inviteDialogOpen, searchUsers]);
 
   // ============================================================================
   // RENDERIZADO
@@ -470,77 +538,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         title="Organización"
         action={
           <div className="flex gap-2">
-            {canCreateTokens && (
-              <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    Crear Token de Registro
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Crear Token de Registro</DialogTitle>
-                    <DialogDescription>
-                      Genera un token que permite crear una cuenta directamente como parte de esta organización.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="token-role">Rol</Label>
-                      <Select value={tokenRole} onValueChange={(value: 'employee') => setTokenRole(value)}>
-                        <SelectTrigger id="token-role">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="employee">Empleado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Los usuarios que se registren con este token tendrán rol de empleado.
-                      </p>
-                    </div>
-
-                    {generatedToken && (
-                      <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
-                        <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Token Generado</h4>
-                        <div className="flex items-center space-x-2">
-                          <code className="flex-1 p-2 bg-white dark:bg-gray-900 border rounded text-sm font-mono break-all">
-                            {generatedToken}
-                          </code>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => copyToClipboard(generatedToken)}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                          Comparte este token con quien quieres que se registre. Al crear su cuenta, deberá ingresar este token en el campo "Token secreto".
-                        </p>
-                      </div>
-                    )}
-
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setTokenDialogOpen(false);
-                          setGeneratedToken(null);
-                        }}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button onClick={createRegistrationToken} disabled={creatingToken}>
-                        {creatingToken ? 'Creando...' : 'Crear Token'}
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
-
             {canDelete && (
               <Button
                 variant="destructive"
@@ -560,11 +557,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
             <TabsTrigger value="members">
               Miembros {loadingMembers ? '(...)' : `(${memberships.length})`}
             </TabsTrigger>
-            {canCreateTokens && (
-              <TabsTrigger value="tokens">
-                Tokens de Registro {loadingTokens ? '(...)' : `(${tokens.length})`}
-              </TabsTrigger>
-            )}
           </TabsList>
 
           {/* Tab: Información */}
@@ -659,10 +651,131 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           <TabsContent value="members" className="space-y-4">
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle>Miembros de la Organización</CardTitle>
-                <CardDescription>
-                  {memberships.length} miembro{memberships.length !== 1 ? 's' : ''} en total
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Miembros de la Organización</CardTitle>
+                    <CardDescription>
+                      {memberships.length} miembro{memberships.length !== 1 ? 's' : ''} en total
+                    </CardDescription>
+                  </div>
+                  {canManageMembers && (
+                    <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Invitar Miembro
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Invitar Miembro a la Organización</DialogTitle>
+                          <DialogDescription>
+                            Busca un usuario por email o nombre para invitarlo a unirse a la organización.
+                          </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="search-user">Buscar usuario</Label>
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                id="search-user"
+                                placeholder="Email o nombre completo..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-10"
+                              />
+                            </div>
+                            {searching && (
+                              <p className="text-sm text-muted-foreground mt-1">Buscando...</p>
+                            )}
+                          </div>
+
+                          {searchResults.length > 0 && (
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {searchResults.map((result) => (
+                                <div
+                                  key={result.id}
+                                  onClick={() => setSelectedUser(result)}
+                                  className={`p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors ${
+                                    selectedUser?.id === result.id ? 'border-primary bg-accent' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="font-medium">
+                                        {result.full_name || result.email}
+                                      </p>
+                                      {result.full_name && (
+                                        <p className="text-sm text-muted-foreground">{result.email}</p>
+                                      )}
+                                    </div>
+                                    {selectedUser?.id === result.id && (
+                                      <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                                        <Check className="h-3 w-3 text-primary-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {selectedUser && (
+                            <div className="p-3 bg-accent rounded-lg">
+                              <p className="text-sm font-medium">Usuario seleccionado:</p>
+                              <p className="text-sm">{selectedUser.full_name || selectedUser.email}</p>
+                              {selectedUser.full_name && (
+                                <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
+                              )}
+                            </div>
+                          )}
+
+                          <div>
+                            <Label htmlFor="invite-role">Rol</Label>
+                            <Select 
+                              value={inviteRole} 
+                              onValueChange={(value: 'employee' | 'admin' | 'viewer') => setInviteRole(value)}
+                            >
+                              <SelectTrigger id="invite-role">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="employee">Empleado</SelectItem>
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="viewer">Visualizador</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              El usuario recibirá un email con la invitación para unirse a la organización.
+                            </p>
+                          </div>
+
+                          <DialogFooter>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setInviteDialogOpen(false);
+                                setSelectedUser(null);
+                                setSearchQuery('');
+                                setSearchResults([]);
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button 
+                              onClick={inviteMember} 
+                              disabled={inviting || !selectedUser}
+                            >
+                              {inviting ? 'Enviando...' : 'Enviar Invitación'}
+                            </Button>
+                          </DialogFooter>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingMembers ? (
@@ -678,13 +791,21 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                             <Users className="h-5 w-5 text-primary" />
                           </div>
                           <div>
-                            <p>{membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}</p>
+                            <p className="font-medium">
+                              {membership.user?.full_name || membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}
+                            </p>
+                            {membership.user?.full_name && membership.user?.email && (
+                              <p className="text-sm text-muted-foreground">{membership.user.email}</p>
+                            )}
                             <div className="flex items-center space-x-2 mt-1">
                               <Badge variant={
                                 membership.role === 'admin' ? 'default' :
                                 membership.role === 'owner' ? 'secondary' : 'outline'
                               }>
-                                {membership.role}
+                                {membership.role === 'owner' ? 'Propietario' :
+                                 membership.role === 'admin' ? 'Administrador' :
+                                 membership.role === 'employee' ? 'Empleado' :
+                                 'Visualizador'}
                               </Badge>
                               {membership.is_primary && (
                                 <Badge variant="outline">Principal</Badge>
@@ -692,6 +813,18 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                             </div>
                           </div>
                         </div>
+                        {canManageMembers && membership.role !== 'owner' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setMemberToRemove(membership);
+                              setRemoveMemberDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     ))}
 
@@ -705,61 +838,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Tab: Tokens de Registro */}
-          {canCreateTokens && (
-            <TabsContent value="tokens" className="space-y-4">
-              <Card className="rounded-2xl">
-                <CardHeader>
-                  <CardTitle>Tokens de Registro</CardTitle>
-                  <CardDescription>
-                    Tokens que permiten crear cuentas directamente como parte de esta organización
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {loadingTokens ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {tokens.map((token) => (
-                        <div key={token.id} className="flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card">
-                          <div className="flex items-center space-x-3">
-                            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                              <Mail className="h-5 w-5 text-muted-foreground" />
-                            </div>
-                            <div>
-                              <p>Token de {token.role}</p>
-                              <div className="flex items-center space-x-2 mt-1">
-                                <Badge variant="outline">{token.role}</Badge>
-                                <span className="text-sm text-muted-foreground">
-                                  Expira: {new Date(token.expires_at).toLocaleDateString()}
-                                </span>
-                                {token.used_at && (
-                                  <Badge variant="secondary">Usado</Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                      {tokens.length === 0 && (
-                        <p className="text-muted-foreground text-center py-8">
-                          No hay tokens de registro creados
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
         </Tabs>
       </Section>
 
-      {/* Dialog de confirmación para eliminar */}
+      {/* Dialog de confirmación para eliminar organización */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -776,6 +858,28 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
               disabled={deleting}
             >
               {deleting ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmación para quitar miembro */}
+      <AlertDialog open={removeMemberDialogOpen} onOpenChange={setRemoveMemberDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Quitar miembro de la organización?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas quitar a {memberToRemove?.user?.full_name || memberToRemove?.user?.email || 'este miembro'} de la organización? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMemberToRemove(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={removeMember}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removing}
+            >
+              {removing ? 'Quitando...' : 'Quitar Miembro'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

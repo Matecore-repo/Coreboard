@@ -11,7 +11,7 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       // Esperar a que la sesión se restaure
       if (!loading && session?.user) {
-        // Verificar si hay un token de invitación para reclamar
+        // Verificar si hay un token de invitación para reclamar (opcional)
         const inviteToken = session.user.user_metadata?.invite_token;
         if (inviteToken) {
           try {
@@ -22,9 +22,12 @@ export default function AuthCallback() {
             // No bloquear el login si el claim falla
             toast.warning('Te has registrado correctamente. Si tuviste problemas con tu invitación, contacta al administrador.');
           }
+        } else {
+          // Usuario nuevo sin invitación - redirigir para crear su organización
+          toast.success('¡Bienvenido! Puedes crear tu organización ahora.');
         }
 
-        // Redirigir a home
+        // Redirigir a home (el usuario podrá crear su organización si no tiene una)
         router.push('/');
       } else if (!loading && !session) {
         // Si no hay sesión después de cargar, podría ser error

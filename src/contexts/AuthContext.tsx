@@ -589,6 +589,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // FUNCIÓN: signUp
   // =========================================================================
   // Registra un nuevo usuario con email y contraseña
+  // signupToken es opcional: solo se usa si el usuario tiene una invitación
   const signUp = async (email: string, password: string, signupToken?: string): Promise<void> => {
     // En modo demo, no permitir registrarse real
     if (isDemoModeFlag) {
@@ -617,7 +618,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // ===================================================================
-      // Si hay sesión inmediata y token de invitación
+      // Si hay token de invitación (opcional), procesarlo automáticamente
+      // Si no hay token, el usuario debe verificar su email primero
       // ===================================================================
       if (data.session && signupToken) {
         try {
@@ -659,8 +661,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // ===================================================================
-      // Si no hay token, el usuario debe crear su propia organización
-      // a través del onboarding modal (no crear automáticamente)
+      // Si no hay token, el usuario debe:
+      // 1. Verificar su email (recibirá link de confirmación)
+      // 2. Después de verificar, podrá crear su propia organización
+      // 3. El onboarding modal se mostrará cuando el usuario verifique su email
       // ===================================================================
     } finally {
       // Siempre terminar la carga
