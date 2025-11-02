@@ -99,6 +99,7 @@ type AuthContextValue = {
   loading: boolean;                                                            // Flag para saber si se está cargando (restaurando sesión)
   isDemo: boolean;                                                             // Flag que indica si se está en modo demostración
   signIn: (email: string, password: string) => Promise<void>;                 // Función para iniciar sesión
+  signInWithGoogle: () => Promise<void>;                                       // Función para iniciar sesión con Google OAuth
   signUp: (email: string, password: string, signupToken?: string) => Promise<void>; // Función para registrarse
   signInAsDemo: () => void;                                                    // Función para iniciar sesión como demostración
   signOut: () => Promise<void>;                                                // Función para cerrar sesión
@@ -555,6 +556,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // =========================================================================
+  // FUNCIÓN: signInWithGoogle
+  // =========================================================================
+  // Inicia sesión con Google OAuth
+  const signInWithGoogle = async (): Promise<void> => {
+    // En modo demo, no permitir iniciar sesión real
+    if (isDemoModeFlag) {
+      throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
+    }
+
+    // Determinar la URL de redirección
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+
+    // Llamar a Supabase para iniciar sesión con Google
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+      },
+    });
+
+    // Si hay error, lanzarlo
+    if (error) {
+      throw error;
+    }
+
+    // El navegador será redirigido a Google y luego volverá al callback
+    // El callback manejará la sesión automáticamente
+  };
+
+  // =========================================================================
   // FUNCIÓN: signUp
   // =========================================================================
   // Registra un nuevo usuario con email y contraseña
@@ -947,6 +978,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loading,                 // Flag de carga
       isDemo,                  // Flag de modo demo
       signIn,                  // Función para iniciar sesión
+      signInWithGoogle,        // Función para iniciar sesión con Google
       signUp,                  // Función para registrarse
       signInAsDemo,            // Función para iniciar sesión como demo
       signOut,                 // Función para cerrar sesión
