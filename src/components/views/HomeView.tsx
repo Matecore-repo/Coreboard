@@ -59,7 +59,7 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
 
   // Nombre de la peluquería
   const salonNames: { [key: string]: string } = {
-    "all": "Todas las peluquerías",
+    "all": "Todos los locales",
     "1": "Studio Elegance",
     "2": "Barber Shop Premium",
     "3": "Beauty Salon Luxe",
@@ -71,7 +71,7 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
     return (
       <PageContainer>
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold mb-2">¡Bienvenido a {orgName || 'tu peluquería'}!</h1>
+          <h1 className="text-2xl font-semibold mb-2">¡Bienvenido a {orgName || 'tu local'}!</h1>
           <p className="text-muted-foreground">Empezá a configurar tu negocio con estos pasos:</p>
         </div>
         
@@ -94,7 +94,7 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
   return (
     <PageContainer>
       <Section 
-        title="Mis Peluquerías"
+        title="Mis Locales"
         action={onAddAppointment && (
           <Button onClick={onAddAppointment}>
             <Plus className="h-4 w-4 mr-2" />
@@ -121,7 +121,7 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
               <MapPin className="h-4 w-4 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm text-muted-foreground truncate">Peluquería</p>
+              <p className="text-sm text-muted-foreground truncate">Local</p>
               <p className="text-sm truncate">{salonNames[selectedSalon ?? 'all']}</p>
             </div>
           </div>

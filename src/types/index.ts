@@ -120,4 +120,109 @@ export type UserProfile = {
   isNewUser?: boolean;
 };
 
+export type Expense = {
+  id: string;
+  org_id: string;
+  salon_id?: string;
+  amount: number;
+  description: string;
+  category?: string;
+  type?: 'fixed' | 'variable' | 'supply_purchase';
+  supplier_id?: string;
+  invoice_number?: string;
+  invoice_date?: string;
+  payment_status?: 'pending' | 'paid' | 'partial';
+  due_date?: string;
+  incurred_at: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type DailyCashRegister = {
+  id: string;
+  org_id: string;
+  salon_id?: string;
+  date: string;
+  opening_amount: number;
+  closing_amount: number;
+  actual_amount: number;
+  difference: number;
+  opened_by?: string;
+  closed_by?: string;
+  opened_at?: string;
+  closed_at?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CashMovement = {
+  id: string;
+  register_id: string;
+  type: 'income' | 'expense' | 'transfer';
+  amount: number;
+  description?: string;
+  payment_id?: string;
+  expense_id?: string;
+  created_at: string;
+};
+
+export type Supplier = {
+  id: string;
+  org_id: string;
+  name: string;
+  tax_id?: string;
+  contact_info?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Invoice = {
+  id: string;
+  org_id: string;
+  type: 'invoice' | 'credit_note' | 'debit_note';
+  number: string;
+  date: string;
+  client_id?: string;
+  net_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  payment_status?: string;
+  payment_method?: string;
+  tax_aliquots?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SupplyPurchase = {
+  id: string;
+  org_id: string;
+  supplier_id?: string;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  purchase_date: string;
+  invoice_id?: string;
+  stock_remaining: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GatewayReconciliation = {
+  id: string;
+  org_id: string;
+  gateway_name: string;
+  transaction_date: string;
+  sold_amount: number;
+  settled_amount: number;
+  credited_amount: number;
+  commission_amount: number;
+  difference: number;
+  settlement_date?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 

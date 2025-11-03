@@ -672,6 +672,15 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                         <p className="text-lg">{organization.tax_id}</p>
                       </div>
                     )}
+                    {(() => {
+                      const owner = memberships.find(m => m.role === 'owner');
+                      return owner && (
+                        <div className="space-y-2">
+                          <Label className="text-sm text-muted-foreground">Propietario</Label>
+                          <p className="text-lg">{owner.user?.email || owner.user?.full_name || 'No especificado'}</p>
+                        </div>
+                      );
+                    })()}
                     <div className="space-y-2 md:col-span-2">
                       <Label className="text-sm font-medium text-muted-foreground">Creada</Label>
                       <p className="text-sm text-muted-foreground">

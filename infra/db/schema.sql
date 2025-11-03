@@ -125,7 +125,7 @@ create table if not exists app.appointments (
   status text not null default 'pending' check (status in ('pending', 'confirmed', 'completed', 'cancelled')),
   notes text,
   total_amount numeric not null default 0,
-  created_by uuid not null references auth.users(id),
+  created_by uuid references auth.users(id), -- Permitir NULL para turnos desde pasarela pública
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   -- Constraint: service must be available at this salon
@@ -224,7 +224,7 @@ create table if not exists app.payments (
   payment_method text not null check (payment_method in ('cash', 'card', 'transfer', 'other')),
   processed_at timestamptz default now(),
   notes text,
-  created_by uuid not null references auth.users(id),
+  created_by uuid references auth.users(id), -- Permitir NULL para pagos desde pasarela pública
   created_at timestamptz default now()
 );
 
@@ -255,11 +255,24 @@ create table if not exists app.invitations (
   unique(organization_id, token_hash)
 );
 
+-- Payment links table for public payment gateway
+create table if not exists app.payment_links (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references app.organizations(id) on delete cascade,
+  token_hash text not null, -- SHA256 hash of the payment link token (stored as text for easier querying)
+  expires_at timestamptz not null,
+  active boolean not null default true,
+  created_at timestamptz default now(),
+  created_by uuid references auth.users(id),
+  unique(org_id, token_hash)
+);
+
 -- Additional public views
 create or replace view public.commissions as select * from app.commissions;
 create or replace view public.payments as select * from app.payments;
 create or replace view public.expenses as select * from app.expenses;
 create or replace view public.invitations as select * from app.invitations;
+create or replace view public.payment_links as select * from app.payment_links;
 
 -- Row Level Security (RLS) Policies
 -- Enable RLS on all tables
@@ -275,6 +288,7 @@ alter table app.commissions enable row level security;
 alter table app.payments enable row level security;
 alter table app.expenses enable row level security;
 alter table app.invitations enable row level security;
+alter table app.payment_links enable row level security;
 alter table public.salon_employees enable row level security;
 
 -- Helper function to get current user's org_id
@@ -408,7 +422,10 @@ create policy "appointments_select" on app.appointments
   for select using (org_id = auth.org_id());
 
 create policy "appointments_insert" on app.appointments
-  for insert with check (org_id = auth.org_id());
+  for insert with check (org_id = auth.org_id() OR org_id IN (
+    SELECT org_id FROM app.payment_links 
+    WHERE active = true AND expires_at > now()
+  ));
 
 create policy "appointments_update" on app.appointments
   for update using (org_id = auth.org_id());

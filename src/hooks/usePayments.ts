@@ -10,6 +10,14 @@ export type Payment = {
   date: string;
   notes?: string;
   orgId?: string;
+  discountAmount?: number;
+  taxAmount?: number;
+  tipAmount?: number;
+  gatewayFee?: number;
+  paymentMethodDetail?: string;
+  gatewayTransactionId?: string;
+  gatewaySettlementDate?: string;
+  gatewaySettlementAmount?: number;
 };
 
 function mapRowToPayment(row: any): Payment {
@@ -19,6 +27,7 @@ function mapRowToPayment(row: any): Payment {
   const mm = String(dateValue.getMonth() + 1).padStart(2, '0');
   const dd = String(dateValue.getDate()).padStart(2, '0');
   const date = `${yyyy}-${mm}-${dd}`;
+  const settlementDate = row.gateway_settlement_date ? new Date(row.gateway_settlement_date).toISOString().split('T')[0] : undefined;
 
   return {
     id: String(row.id),
@@ -28,6 +37,14 @@ function mapRowToPayment(row: any): Payment {
     date,
     notes: row.notes || undefined,
     orgId: row.org_id ? String(row.org_id) : undefined,
+    discountAmount: row.discount_amount ? Number(row.discount_amount) : undefined,
+    taxAmount: row.tax_amount ? Number(row.tax_amount) : undefined,
+    tipAmount: row.tip_amount ? Number(row.tip_amount) : undefined,
+    gatewayFee: row.gateway_fee ? Number(row.gateway_fee) : undefined,
+    paymentMethodDetail: row.payment_method_detail || undefined,
+    gatewayTransactionId: row.gateway_transaction_id || undefined,
+    gatewaySettlementDate: settlementDate,
+    gatewaySettlementAmount: row.gateway_settlement_amount ? Number(row.gateway_settlement_amount) : undefined,
   };
 }
 
@@ -52,6 +69,30 @@ function mapPaymentToRow(payload: Partial<Payment>) {
   if (payload.orgId !== undefined) {
     row.org_id = payload.orgId;
   }
+  if (payload.discountAmount !== undefined) {
+    row.discount_amount = payload.discountAmount || null;
+  }
+  if (payload.taxAmount !== undefined) {
+    row.tax_amount = payload.taxAmount || null;
+  }
+  if (payload.tipAmount !== undefined) {
+    row.tip_amount = payload.tipAmount || null;
+  }
+  if (payload.gatewayFee !== undefined) {
+    row.gateway_fee = payload.gatewayFee || null;
+  }
+  if (payload.paymentMethodDetail !== undefined) {
+    row.payment_method_detail = payload.paymentMethodDetail || null;
+  }
+  if (payload.gatewayTransactionId !== undefined) {
+    row.gateway_transaction_id = payload.gatewayTransactionId || null;
+  }
+  if (payload.gatewaySettlementDate !== undefined) {
+    row.gateway_settlement_date = payload.gatewaySettlementDate || null;
+  }
+  if (payload.gatewaySettlementAmount !== undefined) {
+    row.gateway_settlement_amount = payload.gatewaySettlementAmount || null;
+  }
   
   return row;
 }
@@ -73,7 +114,8 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     try {
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, payment_method, processed_at, notes, org_id');
+        .select('id, appointment_id, amount, payment_method, processed_at, notes, org_id, discount_amount, tax_amount, tip_amount, gateway_fee, payment_method_detail, gateway_transaction_id, gateway_settlement_date, gateway_settlement_amount')
+        .order('processed_at', { ascending: false });
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
@@ -189,6 +231,20 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     await fetchPayments();
   };
 
+  const getPaymentsByMethod = useCallback((method: Payment['paymentMethod']) => {
+    return payments.filter(p => p.paymentMethod === method);
+  }, [payments]);
+
+  const getPaymentsBySettlementDate = useCallback((settlementDate: string) => {
+    return payments.filter(p => p.gatewaySettlementDate === settlementDate);
+  }, [payments]);
+
+  const calculateGatewayCommissions = useCallback(() => {
+    return payments.reduce((sum, payment) => {
+      return sum + (payment.gatewayFee || 0);
+    }, 0);
+  }, [payments]);
+
   return {
     payments,
     loading,
@@ -196,5 +252,8 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     createPayment,
     updatePayment,
     deletePayment,
+    getPaymentsByMethod,
+    getPaymentsBySettlementDate,
+    calculateGatewayCommissions,
   };
 }

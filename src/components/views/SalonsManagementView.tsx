@@ -82,7 +82,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
 
   const handleCreateAndAssignService = useCallback(async (input: { key: string; name: string; base_price: number; duration_minutes: number; }) => {
     if (!selectedSalon) {
-      toast.error("Selecciona una peluquería primero");
+      toast.error("Selecciona un local primero");
       return;
     }
     if (!currentOrgId) {
@@ -232,10 +232,10 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
 
     if (editingSalon) {
         await onEditSalon(editingSalon.id, dataToSave);
-      toast.success("Peluquería actualizada correctamente");
+      toast.success("Local actualizado correctamente");
     } else {
         await onAddSalon(dataToSave);
-      toast.success("Peluquería creada correctamente");
+      toast.success("Local creado correctamente");
     }
     setDialogOpen(false);
     } catch (error) {
@@ -248,7 +248,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       if (confirm('¿Estás seguro de eliminar "' + salon.name + '"?')) {
       try {
         await onDeleteSalon(salon.id);
-        toast.success("Peluquería eliminada");
+        toast.success("Local eliminado");
         setSelectedSalon(null);
       } catch (error) {
         console.error('❌ Error eliminando salón:', error);
@@ -279,12 +279,12 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
   return (
     <PageContainer>
       <Section 
-        title="Gestión de Peluquerías"
+        title="Gestión de Locales"
         description="Administra tus sucursales y personal"
         action={
           <Button onClick={() => handleOpenDialog()}>
             <Plus className="h-4 w-4 mr-2" />
-            Nueva peluquería
+            Nuevo local
           </Button>
         }
       >
@@ -351,7 +351,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 className="flex items-center gap-2"
               >
                 <Edit3 className="h-4 w-4" />
-                Editar peluquería
+                Editar local
               </Button>
               <Button
                 type="button"
@@ -680,9 +680,9 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingSalon ? "Editar Peluquería" : "Nueva Peluquería"}</DialogTitle>
+            <DialogTitle>{editingSalon ? "Editar Local" : "Nuevo Local"}</DialogTitle>
             <DialogDescription>
-              {editingSalon ? "Modifica los datos de la peluquería" : "Completa los datos para crear una nueva peluquería"}
+              {editingSalon ? "Modifica los datos del local" : "Completa los datos para crear un nuevo local"}
             </DialogDescription>
           </DialogHeader>
 
@@ -765,7 +765,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 <Label htmlFor="notes">Notas adicionales</Label>
                 <Textarea
                   id="notes"
-                  placeholder="Información adicional sobre la peluquería..."
+                  placeholder="Información adicional sobre el local..."
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   rows={3}
@@ -836,7 +836,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
               Cancelar
             </Button>
             <Button onClick={handleSave}>
-              {editingSalon ? "Guardar cambios" : "Crear peluquería"}
+              {editingSalon ? "Guardar cambios" : "Crear local"}
             </Button>
           </DialogFooter>
         </DialogContent>

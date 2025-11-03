@@ -204,6 +204,16 @@ CREATE POLICY "Users can insert appointments" ON public.appointments
     ) AND created_by = auth.uid()
   );
 
+-- Permitir crear turnos desde la pasarela pública (sin auth) si hay un payment_link activo
+-- NOTA: Esta política es básica. En producción, se recomienda usar una función RPC que valide el token
+CREATE POLICY "Public can insert appointments via payment link" ON public.appointments
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.payment_links 
+      WHERE active = true AND expires_at > now()
+    )
+  );
+
 CREATE POLICY "Users can update their organization appointments" ON public.appointments
   FOR UPDATE USING (
     org_id IN (
@@ -324,3 +334,319 @@ CREATE POLICY "Users can delete their organization expenses" ON public.expenses
       WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
     )
   );
+
+-- ============================================================================
+-- FINANZAS: Solo owners pueden acceder
+-- ============================================================================
+
+-- Suppliers: Solo owners
+CREATE POLICY "Owners can view their organization suppliers" ON public.suppliers
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can insert suppliers" ON public.suppliers
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can update their organization suppliers" ON public.suppliers
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can delete their organization suppliers" ON public.suppliers
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Daily Cash Registers: Solo owners
+CREATE POLICY "Owners can view their organization cash registers" ON public.daily_cash_registers
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can insert cash registers" ON public.daily_cash_registers
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can update their organization cash registers" ON public.daily_cash_registers
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can delete their organization cash registers" ON public.daily_cash_registers
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Cash Movements: Solo owners
+CREATE POLICY "Owners can view cash movements" ON public.cash_movements
+  FOR SELECT USING (
+    register_id IN (
+      SELECT dcr.id FROM public.daily_cash_registers dcr
+      JOIN public.memberships m ON dcr.org_id = m.org_id
+      WHERE m.user_id = auth.uid() AND m.role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can insert cash movements" ON public.cash_movements
+  FOR INSERT WITH CHECK (
+    register_id IN (
+      SELECT dcr.id FROM public.daily_cash_registers dcr
+      JOIN public.memberships m ON dcr.org_id = m.org_id
+      WHERE m.user_id = auth.uid() AND m.role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can update cash movements" ON public.cash_movements
+  FOR UPDATE USING (
+    register_id IN (
+      SELECT dcr.id FROM public.daily_cash_registers dcr
+      JOIN public.memberships m ON dcr.org_id = m.org_id
+      WHERE m.user_id = auth.uid() AND m.role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can delete cash movements" ON public.cash_movements
+  FOR DELETE USING (
+    register_id IN (
+      SELECT dcr.id FROM public.daily_cash_registers dcr
+      JOIN public.memberships m ON dcr.org_id = m.org_id
+      WHERE m.user_id = auth.uid() AND m.role = 'owner'
+    )
+  );
+
+-- Invoices: Solo owners
+CREATE POLICY "Owners can view their organization invoices" ON public.invoices
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can insert invoices" ON public.invoices
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can update their organization invoices" ON public.invoices
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can delete their organization invoices" ON public.invoices
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Supply Purchases: Solo owners
+CREATE POLICY "Owners can view their organization supply purchases" ON public.supply_purchases
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can insert supply purchases" ON public.supply_purchases
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can update their organization supply purchases" ON public.supply_purchases
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can delete their organization supply purchases" ON public.supply_purchases
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Gateway Reconciliations: Solo owners
+CREATE POLICY "Owners can view their organization gateway reconciliations" ON public.gateway_reconciliations
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can insert gateway reconciliations" ON public.gateway_reconciliations
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can update their organization gateway reconciliations" ON public.gateway_reconciliations
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+CREATE POLICY "Owners can delete their organization gateway reconciliations" ON public.gateway_reconciliations
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Payments: Actualizar para restringir acceso a owners
+DROP POLICY IF EXISTS "Users can view their organization payments" ON public.payments;
+CREATE POLICY "Owners can view their organization payments" ON public.payments
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can insert payments" ON public.payments;
+CREATE POLICY "Owners can insert payments" ON public.payments
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Permitir crear pagos desde la pasarela pública (sin auth) si hay un payment_link activo
+CREATE POLICY "Public can insert payments via payment link" ON public.payments
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.payment_links 
+      WHERE active = true AND expires_at > now()
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can update their organization payments" ON public.payments;
+CREATE POLICY "Owners can update their organization payments" ON public.payments
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Expenses: Actualizar para restringir acceso a owners
+DROP POLICY IF EXISTS "Users can view their organization expenses" ON public.expenses;
+CREATE POLICY "Owners can view their organization expenses" ON public.expenses
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can insert expenses" ON public.expenses;
+CREATE POLICY "Owners can insert expenses" ON public.expenses
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    ) AND created_by = auth.uid()
+  );
+
+DROP POLICY IF EXISTS "Users can update their organization expenses" ON public.expenses;
+CREATE POLICY "Owners can update their organization expenses" ON public.expenses
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Commissions: Actualizar para restringir acceso a owners
+DROP POLICY IF EXISTS "Users can view their organization commissions" ON public.commissions;
+CREATE POLICY "Owners can view their organization commissions" ON public.commissions
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can update their organization commissions" ON public.commissions;
+CREATE POLICY "Owners can update their organization commissions" ON public.commissions
+  FOR UPDATE USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Payment Links: Solo owners pueden crear y ver links de pago de su organización
+-- Los links de pago deben ser accesibles públicamente (sin autenticación) para la pasarela
+DROP POLICY IF EXISTS "Owners can view their organization payment links" ON public.payment_links;
+CREATE POLICY "Owners can view their organization payment links" ON public.payment_links
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+DROP POLICY IF EXISTS "Owners can insert payment links" ON public.payment_links;
+CREATE POLICY "Owners can insert payment links" ON public.payment_links
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM public.memberships 
+      WHERE user_id = auth.uid() AND role = 'owner'
+    )
+  );
+
+-- Permitir acceso público (sin auth) para validar el token en la pasarela
+-- Esto permite que cualquiera pueda ver payment_links activos y no expirados
+DROP POLICY IF EXISTS "Public can view active payment links" ON public.payment_links;
+CREATE POLICY "Public can view active payment links" ON public.payment_links
+  FOR SELECT USING (active = true AND expires_at > now());

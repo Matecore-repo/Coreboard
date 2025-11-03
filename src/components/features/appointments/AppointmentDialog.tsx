@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
+import { Textarea } from "../../ui/textarea";
 import {
   Select,
   SelectContent,
@@ -13,6 +14,7 @@ import {
 import { useSalonEmployees } from "../../../hooks/useSalonEmployees";
 import { useSalonServices } from "../../../hooks/useSalonServices";
 import { Appointment } from "./AppointmentCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
 interface Salon {
   id: string;
@@ -42,7 +44,17 @@ export function AppointmentDialog({
 }: AppointmentDialogProps) {
   const defaultSalonId = (salonId && salonId !== 'all') ? salonId : (salons && salons.length > 0 ? salons[0].id : "");
 
-  const [formData, setFormData] = useState<Partial<Appointment>>({
+  const [formData, setFormData] = useState<Partial<Appointment & {
+    discountAmount?: number;
+    taxAmount?: number;
+    tipAmount?: number;
+    paymentMethod?: string;
+    directCost?: number;
+    bookingSource?: string;
+    campaignCode?: string;
+    listPrice?: number;
+    totalCollected?: number;
+  }>>({
     clientName: "",
     date: "",
     time: "",
@@ -50,6 +62,15 @@ export function AppointmentDialog({
     salonId: defaultSalonId,
     service: "",
     stylist: "",
+    discountAmount: 0,
+    taxAmount: 0,
+    tipAmount: 0,
+    paymentMethod: "cash",
+    directCost: 0,
+    bookingSource: "mostrador",
+    campaignCode: "",
+    listPrice: 0,
+    totalCollected: 0,
   });
 
   const currentSalonId = (formData.salonId || salonId || undefined) === 'all' ? undefined : (formData.salonId || salonId || undefined);
@@ -66,6 +87,15 @@ export function AppointmentDialog({
         salonId: appointment.salonId || defaultSalonId,
         service: appointment.service || "",
         stylist: appointment.stylist || "",
+        discountAmount: (appointment as any).discountAmount || 0,
+        taxAmount: (appointment as any).taxAmount || 0,
+        tipAmount: (appointment as any).tipAmount || 0,
+        paymentMethod: (appointment as any).paymentMethod || "cash",
+        directCost: (appointment as any).directCost || 0,
+        bookingSource: (appointment as any).bookingSource || "mostrador",
+        campaignCode: (appointment as any).campaignCode || "",
+        listPrice: (appointment as any).listPrice || 0,
+        totalCollected: (appointment as any).totalCollected || 0,
       });
     } else {
       setFormData({
@@ -76,6 +106,15 @@ export function AppointmentDialog({
         salonId: defaultSalonId,
         service: "",
         stylist: "",
+        discountAmount: 0,
+        taxAmount: 0,
+        tipAmount: 0,
+        paymentMethod: "cash",
+        directCost: 0,
+        bookingSource: "mostrador",
+        campaignCode: "",
+        listPrice: 0,
+        totalCollected: 0,
       });
     }
   }, [appointment, open, salonId, defaultSalonId]);
@@ -117,7 +156,7 @@ export function AppointmentDialog({
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar peluquería" />
+                <SelectValue placeholder="Seleccionar local" />
               </SelectTrigger>
               <SelectContent>
                 {salons.map((salon) => (
@@ -239,6 +278,153 @@ export function AppointmentDialog({
                 </SelectContent>
               </Select>
             </div>
+          )}
+
+          {appointment && formData.status === 'completed' && (
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList>
+                <TabsTrigger value="basic">Básico</TabsTrigger>
+                <TabsTrigger value="financial">Financiero</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="financial" className="space-y-4 mt-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="list-price">Precio de Lista</Label>
+                  <Input
+                    id="list-price"
+                    type="number"
+                    step="0.01"
+                    value={formData.listPrice || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, listPrice: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="discount-amount">Descuento</Label>
+                  <Input
+                    id="discount-amount"
+                    type="number"
+                    step="0.01"
+                    value={formData.discountAmount || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, discountAmount: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="tax-amount">Impuestos (IVA)</Label>
+                  <Input
+                    id="tax-amount"
+                    type="number"
+                    step="0.01"
+                    value={formData.taxAmount || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, taxAmount: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="tip-amount">Propina</Label>
+                  <Input
+                    id="tip-amount"
+                    type="number"
+                    step="0.01"
+                    value={formData.tipAmount || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, tipAmount: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="total-collected">Total Cobrado</Label>
+                  <Input
+                    id="total-collected"
+                    type="number"
+                    step="0.01"
+                    value={formData.totalCollected || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, totalCollected: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="payment-method">Método de Pago</Label>
+                  <Select
+                    value={formData.paymentMethod || "cash"}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, paymentMethod: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Efectivo</SelectItem>
+                      <SelectItem value="card">Tarjeta</SelectItem>
+                      <SelectItem value="transfer">Transferencia</SelectItem>
+                      <SelectItem value="other">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="direct-cost">Costo Directo</Label>
+                  <Input
+                    id="direct-cost"
+                    type="number"
+                    step="0.01"
+                    value={formData.directCost || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, directCost: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="booking-source">Fuente de Reserva</Label>
+                  <Select
+                    value={formData.bookingSource || "mostrador"}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, bookingSource: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="web">Web</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="mostrador">Mostrador</SelectItem>
+                      <SelectItem value="campaña">Campaña</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="campaign-code">Código de Campaña/Cupón</Label>
+                  <Input
+                    id="campaign-code"
+                    value={formData.campaignCode || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, campaignCode: e.target.value })
+                    }
+                    placeholder="Código de promoción..."
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
           )}
         </div>
 

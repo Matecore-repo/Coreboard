@@ -309,17 +309,17 @@ export const SidebarContent = memo(({
       </nav>
 
       {/* ===================================================================
-          SECCIÓN: Acciones Rápidas
+          SECCIÓN: Generar link de pago (disponible para todos los usuarios)
           =================================================================== */}
       <div className="p-3 border-t border-sidebar-border flex-shrink-0">
         <Button
           onClick={handleQuickActionsToggle}
           className="w-full rounded-full h-9"
           variant={showQuickActions ? "secondary" : "default"}
-          aria-label={showQuickActions ? "Ocultar acciones rápidas" : "Mostrar acciones rápidas"}
+          aria-label={showQuickActions ? "Ocultar generar link de pago" : "Mostrar generar link de pago"}
         >
           <Zap className="h-4 w-4 mr-2 flex-shrink-0" />
-          Acciones Rápidas
+          Generar link de pago
         </Button>
       </div>
     </div>

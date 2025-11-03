@@ -1,37 +1,58 @@
 import { useEffect, useState, useCallback } from 'react';
 import supabase from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 export type Commission = {
   id: string;
-  stylist: string;
+  org_id: string;
+  employee_id: string;
+  appointment_id?: string;
   amount: number;
+  commission_rate: number;
   date: string;
-  salonId?: string;
-  sourceAppointmentId?: string;
+  created_at: string;
 };
 
 function mapRowToCommission(row: any): Commission {
+  const dateValue = row.date || row.created_at;
+  const date = dateValue ? new Date(dateValue).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
   return {
     id: String(row.id),
-    stylist: row.stylist_id ?? row.stylist ?? '',
+    org_id: String(row.org_id),
+    employee_id: String(row.employee_id),
+    appointment_id: row.appointment_id ? String(row.appointment_id) : undefined,
     amount: Number(row.amount ?? 0),
-    date: typeof row.date === 'string' ? row.date : String(row.date ?? ''),
-    salonId: row.salon_id ?? undefined,
-    sourceAppointmentId: row.source_appointment_id ?? undefined,
+    commission_rate: Number(row.commission_rate ?? row.commission_pct ?? 0),
+    date,
+    created_at: row.created_at || new Date().toISOString(),
   };
 }
 
 function mapCommissionToRow(payload: Partial<Commission>) {
-  return {
-    stylist_id: payload.stylist,
-    amount: payload.amount,
-    date: payload.date,
-    salon_id: payload.salonId,
-    source_appointment_id: payload.sourceAppointmentId,
-  };
+  const row: any = {};
+  
+  if (payload.employee_id !== undefined) {
+    row.employee_id = payload.employee_id;
+  }
+  if (payload.appointment_id !== undefined) {
+    row.appointment_id = payload.appointment_id || null;
+  }
+  if (payload.amount !== undefined) {
+    row.amount = payload.amount;
+  }
+  if (payload.commission_rate !== undefined) {
+    row.commission_pct = payload.commission_rate;
+  }
+  if (payload.date !== undefined) {
+    row.date = payload.date;
+  }
+  
+  return row;
 }
 
 export function useCommissions(options?: { enabled?: boolean }) {
+  const { currentOrgId } = useAuth();
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(false);
   const enabled = options?.enabled ?? true;
@@ -40,15 +61,22 @@ export function useCommissions(options?: { enabled?: boolean }) {
     if (!enabled) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('commissions')
-        .select('id, stylist_id, amount, date, salon_id, source_appointment_id');
+        .select('id, org_id, employee_id, appointment_id, amount, commission_pct, date, created_at');
+      
+      const { data, error } = await query.order('date', { ascending: false });
+      
       if (error) {
+        console.error('Error fetching commissions:', error);
         setCommissions([]);
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToCommission);
         setCommissions(mapped);
       }
+    } catch (error) {
+      console.error('Error fetching commissions:', error);
+      setCommissions([]);
     } finally {
       setLoading(false);
     }
@@ -60,11 +88,14 @@ export function useCommissions(options?: { enabled?: boolean }) {
   }, [fetchCommissions, enabled]);
 
   const createCommission = async (payload: Partial<Commission>) => {
-    const toInsert = mapCommissionToRow(payload);
+    const toInsert = {
+      ...mapCommissionToRow(payload),
+      org_id: currentOrgId || null,
+    };
     const { data, error } = await supabase.from('commissions').insert([toInsert]).select();
     if (error) throw error;
     await fetchCommissions();
-    return data;
+    return data ? data.map(mapRowToCommission) : [];
   };
 
   const updateCommission = async (id: string, updates: Partial<Commission>) => {
@@ -72,7 +103,7 @@ export function useCommissions(options?: { enabled?: boolean }) {
     const { data, error } = await supabase.from('commissions').update(toUpdate).eq('id', id).select();
     if (error) throw error;
     await fetchCommissions();
-    return data;
+    return data ? data.map(mapRowToCommission) : [];
   };
 
   const deleteCommission = async (id: string) => {
@@ -81,6 +112,32 @@ export function useCommissions(options?: { enabled?: boolean }) {
     await fetchCommissions();
   };
 
-  return { commissions, loading, fetchCommissions, createCommission, updateCommission, deleteCommission };
+  const getCommissionsByPeriod = useCallback((startDate: string, endDate: string) => {
+    return commissions.filter(comm => {
+      return comm.date >= startDate && comm.date <= endDate;
+    });
+  }, [commissions]);
+
+  const getCommissionsByEmployee = useCallback((employeeId: string) => {
+    return commissions.filter(comm => comm.employee_id === employeeId);
+  }, [commissions]);
+
+  const calculatePendingCommissions = useCallback(() => {
+    // En producción, esto debería verificar el estado de pago
+    // Por ahora, retornamos todas las comisiones
+    return commissions.reduce((sum, comm) => sum + comm.amount, 0);
+  }, [commissions]);
+
+  return { 
+    commissions, 
+    loading, 
+    fetchCommissions, 
+    createCommission, 
+    updateCommission, 
+    deleteCommission,
+    getCommissionsByPeriod,
+    getCommissionsByEmployee,
+    calculatePendingCommissions,
+  };
 }
 

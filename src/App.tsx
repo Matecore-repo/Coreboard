@@ -22,6 +22,7 @@ import { useSalons as useDbSalons } from "./hooks/useSalons";
 import { useEmployees } from "./hooks/useEmployees";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { EmployeeOnboardingModal } from "./components/EmployeeOnboardingModal";
+import { PaymentLinkModal } from "./components/PaymentLinkModal";
 import { LoadingView } from "./components/layout/LoadingView";
 import { SidebarContent } from "./components/layout/SidebarContent";
 import { PageContainer } from "./components/layout/PageContainer";
@@ -122,6 +123,7 @@ export default function App() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [activeNavItem, setActiveNavItem] = useState("home");
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showPaymentLinkModal, setShowPaymentLinkModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showEmployeeOnboarding, setShowEmployeeOnboarding] = useState(false);
@@ -641,7 +643,7 @@ export default function App() {
     { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
     { id: "clients", label: "Clientes", icon: Users },
     { id: "organization", label: "Organización", icon: Building2 },
-    { id: "salons", label: "Peluquerías", icon: Scissors },
+    { id: "salons", label: "Locales", icon: Scissors },
     { id: "finances", label: "Finanzas", icon: DollarSign },
     { id: "settings", label: "Configuración", icon: Settings },
   ];
@@ -651,7 +653,7 @@ export default function App() {
     appointments: "Turnos",
     clients: "Clientes",
     organization: "Organización",
-    salons: "Peluquerías",
+    salons: "Locales",
     finances: "Finanzas",
     settings: "Configuración"
   };
@@ -667,7 +669,12 @@ export default function App() {
       );
     }
     
-    // Owners y admins ven todo
+    // Solo owners pueden ver finanzas
+    if (role === 'admin') {
+      return allNavItems.filter(it => it.id !== 'finances');
+    }
+    
+    // Owners ven todo
     return allNavItems;
   }, [currentRole, isDemo]);
 
@@ -695,7 +702,7 @@ export default function App() {
                 setEditingAppointment(null);
                 setDialogOpen(true);
               }}
-              orgName={user?.memberships?.[0]?.org_id ? 'tu peluquería' : undefined}
+              orgName={user?.memberships?.[0]?.org_id ? 'tu local' : undefined}
               isNewUser={user?.isNewUser}
             />
           </Suspense>
@@ -735,7 +742,7 @@ export default function App() {
           </Suspense>
         );
       case "salons":
-        // Empleados no pueden acceder a gestión de peluquerías
+        // Empleados no pueden acceder a gestión de locales
         if (currentRole === 'employee') {
           return (
             <div className="pb-20 p-4 md:p-6">
@@ -787,7 +794,7 @@ export default function App() {
           <PageContainer>
             <div className="p-4 sm:p-6">
               <div className="mb-4">
-                <h2 className="mb-4 text-xl md:text-2xl font-semibold">Seleccionar Peluquería</h2>
+                <h2 className="mb-4 text-xl md:text-2xl font-semibold">Seleccionar Local</h2>
                 <div>
                   <SalonCarousel 
                     salons={effectiveSalons}
@@ -964,35 +971,8 @@ export default function App() {
       <FloatingQuickActions
         isOpen={showQuickActions}
         onClose={() => setShowQuickActions(false)}
-        onAddAppointment={() => {
-          setEditingAppointment(null);
-          setDialogOpen(true);
-        }}
-        onDeleteAppointment={handleDeleteAppointment}
-        onUpdateAppointment={handleUpdateAppointment}
-        onRegisterPayment={() => {
-          toast.info('Funcionalidad de registro de pago próximamente');
-        }}
-        onRegisterExpense={() => {
-          toast.info('Funcionalidad de registro de gasto próximamente');
-        }}
-        onViewFinances={() => {
-          if (activeNavItem !== 'finances') {
-            try { viewPreloadMap['finances']?.(); } catch {}
-            setNextViewName(viewNames['finances'] || 'Finanzas');
-            setIsNavigating(true);
-            startTransition(() => {
-              setActiveNavItem('finances');
-              const url = new URL(window.location.href);
-              url.searchParams.set('view', 'finances');
-              window.history.replaceState({}, '', url.toString());
-              setTimeout(() => {
-                setIsNavigating(false);
-                setNextViewName(null);
-              }, 2000);
-            });
-          }
-          setShowQuickActions(false);
+        onGeneratePaymentLink={() => {
+          setShowPaymentLinkModal(true);
         }}
       />
 
@@ -1002,7 +982,7 @@ export default function App() {
         <DemoDataBubble
           onSeed={() => {
             if (salons.length !== 1) {
-              toast.error('Crea una única peluquería para cargar datos demo');
+              toast.error('Crea un único local para cargar datos demo');
               return;
             }
             const targetSalonId = salons[0].id;
@@ -1010,7 +990,7 @@ export default function App() {
             if (typeof window !== 'undefined' && (window as any).__loadOrganizationDemoData) {
               (window as any).__loadOrganizationDemoData();
             }
-            toast.success('Datos de ejemplo cargados en tu peluquería demo');
+            toast.success('Datos de ejemplo cargados en tu local demo');
           }}
         />
       )}
@@ -1161,6 +1141,10 @@ export default function App() {
       <ProfileModal
         open={isProfileModalOpen}
         onOpenChange={setIsProfileModalOpen}
+      />
+      <PaymentLinkModal
+        isOpen={showPaymentLinkModal}
+        onClose={() => setShowPaymentLinkModal(false)}
       />
     </div>
     </>
