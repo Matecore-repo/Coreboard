@@ -1,49 +1,67 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import type { MPPreferenceResponse, MPPreferenceRequest } from '../types';
 
 export function usePaymentLinks() {
   const [isLoading, setIsLoading] = useState(false);
 
-  const generatePaymentLink = useCallback(async (orgId: string): Promise<string> => {
+  /**
+   * Genera un link de pago de Mercado Pago llamando a la Edge Function
+   * @param orgId - ID de la organización
+   * @param appointmentId - ID del turno
+   * @param title - Título del servicio
+   * @param amount - Monto a cobrar
+   * @returns URL del checkout de Mercado Pago
+   */
+  const generatePaymentLink = useCallback(async (
+    orgId: string,
+    appointmentId: string,
+    title: string,
+    amount: number
+  ): Promise<string> => {
     setIsLoading(true);
     try {
-      // Generar token único (32 bytes en base64url)
-      const token = crypto.getRandomValues(new Uint8Array(32))
-        .reduce((acc, byte) => acc + byte.toString(16).padStart(2, '0'), '');
-      
-      // Calcular hash del token (SHA256)
-      const encoder = new TextEncoder();
-      const data = encoder.encode(token);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const tokenHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      // Obtener URL de Edge Functions desde env
+      const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || 
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1`;
 
-      // Fecha de expiración: 30 días desde ahora
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      // Insertar payment link en la base de datos
-      const { data: paymentLinkData, error } = await supabase
-        .from('payment_links')
-        .insert({
-          org_id: orgId,
-          token_hash: tokenHash,
-          expires_at: expiresAt,
-          active: true,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creando payment link:', error);
-        throw error;
+      // Obtener token de sesión
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No hay sesión activa');
       }
 
-      // Retornar el token (no el hash) para construir la URL
-      return token;
-    } catch (error) {
+      // Preparar request
+      const request: MPPreferenceRequest = {
+        org_id: orgId,
+        appointment_id: appointmentId,
+        title: title,
+        amount: amount,
+      };
+
+      // Llamar a Edge Function
+      const response = await fetch(`${functionsUrl}/mp-create-preference`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(errorData.error || 'Error creando preferencia de pago');
+      }
+
+      const data: MPPreferenceResponse = await response.json();
+      
+      // Retornar URL del checkout
+      return data.url || data.sandbox_init_point || '';
+    } catch (error: any) {
       console.error('Error generando payment link:', error);
-      toast.error('Error al generar link de pago');
+      toast.error(error.message || 'Error al generar link de pago');
       throw error;
     } finally {
       setIsLoading(false);

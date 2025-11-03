@@ -225,4 +225,46 @@ export type GatewayReconciliation = {
   updated_at: string;
 };
 
+// Mercado Pago Types
+export type MercadoPagoCredentials = {
+  org_id: string;
+  collector_id: number;
+  scope?: string;
+  expires_at?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MPPayment = {
+  id: string;
+  org_id: string;
+  appointment_id?: string;
+  mp_payment_id: number;
+  mp_preference_id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'refunded' | 'chargeback' | 'cancelled';
+  amount: number;
+  currency: string;
+  raw?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MPPreferenceResponse = {
+  url: string;
+  preference_id: string;
+  sandbox_init_point?: string;
+};
+
+export type MPPreferenceRequest = {
+  org_id: string;
+  appointment_id: string;
+  title: string;
+  amount: number;
+  back_urls?: {
+    success?: string;
+    failure?: string;
+    pending?: string;
+  };
+};
+
 

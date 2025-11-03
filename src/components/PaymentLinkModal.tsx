@@ -33,7 +33,12 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
     }
 
     try {
-      const link = await generatePaymentLink(currentOrgId);
+      // Por ahora, generamos un token simple para el link de pago
+      // Más adelante, esto llamará a la Edge Function para crear una preferencia de MP
+      const token = crypto.getRandomValues(new Uint8Array(32))
+        .reduce((acc, byte) => acc + byte.toString(16).padStart(2, '0'), '');
+      
+      const link = `${window.location.origin}/payment/${token}`;
       setPaymentLink(link);
       toast.success('Link de pago generado correctamente');
     } catch (error) {

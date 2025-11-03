@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -23,6 +23,8 @@ import { Separator } from "../ui/separator";
 import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
 import { useAuth } from "../../contexts/AuthContext";
+import { useMercadoPago } from "../../hooks/useMercadoPago";
+import { CreditCard, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const DISABLED_CLASS =
@@ -99,8 +101,136 @@ const createIntegrationDefaults = (): IntegrationSettings => ({
   hubspot: false,
 });
 
+// Componente para sección de Mercado Pago
+function MercadoPagoSection() {
+  const { currentOrgId, currentRole } = useAuth();
+  const { isConnected, credentials, isLoading, connectMercadoPago, disconnectMercadoPago } = useMercadoPago();
+
+  // Verificar si hay mensaje de éxito/error en la URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const mpStatus = urlParams.get('mp');
+      const mpError = urlParams.get('mp_error');
+
+      if (mpStatus === 'connected') {
+        // Recargar la conexión
+        setTimeout(() => {
+          window.history.replaceState({}, '', window.location.pathname);
+        }, 2000);
+      } else if (mpError) {
+        // Mostrar error
+        console.error('Error conectando Mercado Pago:', mpError);
+        // Aquí podrías mostrar un toast o alert
+      }
+    }
+  }, []);
+
+  if (currentRole !== 'owner') {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle>Mercado Pago</CardTitle>
+          {isConnected ? (
+            <Badge variant="default" className="bg-green-600">
+              <CheckCircle2 className="w-3 h-3 mr-1" />
+              Conectado
+            </Badge>
+          ) : (
+            <Badge variant="outline">Desconectado</Badge>
+          )}
+        </div>
+        <CardDescription>
+          Conecta tu cuenta de Mercado Pago para recibir pagos online. Los clientes podrán pagar sus turnos directamente desde el link de pago.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isConnected && credentials ? (
+          <>
+            <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/50">
+              <div className="flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium">Cuenta conectada</p>
+                  <p className="text-xs text-muted-foreground">
+                    Collector ID: {credentials.collector_id}
+                    {credentials.expires_at && (
+                      <span className="ml-2">
+                        • Expira: {new Date(credentials.expires_at).toLocaleDateString('es-AR')}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={disconnectMercadoPago}
+              disabled={isLoading}
+              className="w-full sm:w-auto"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Desconectando...
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Desconectar cuenta
+                </>
+              )}
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/50">
+              <div className="flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">No hay cuenta conectada</p>
+                  <p className="text-xs text-muted-foreground">
+                    Conecta tu cuenta de Mercado Pago para habilitar pagos online
+                  </p>
+                </div>
+              </div>
+            </div>
+            <Button
+              onClick={connectMercadoPago}
+              disabled={isLoading}
+              className="w-full sm:w-auto"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Conectando...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Conectar Mercado Pago
+                </>
+              )}
+            </Button>
+          </>
+        )}
+        <Alert>
+          <AlertDescription className="text-xs">
+            Al conectar tu cuenta, serás redirigido a Mercado Pago para autorizar la aplicación.
+            Solo necesitas hacerlo una vez por organización.
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsView() {
-  const { isDemo, currentOrgId, user } = useAuth();
+  const { isDemo, currentOrgId, user, currentRole } = useAuth();
 
   const generalSettings = useMemo(
     () => createGeneralDefaults(user?.email),
@@ -524,6 +654,13 @@ export default function SettingsView() {
         </CardContent>
       </Card>
         </div>
+
+        {/* Mercado Pago Integration */}
+        {currentRole === 'owner' && (
+          <div className="mb-4 space-y-4">
+            <MercadoPagoSection />
+          </div>
+        )}
 
         <div className="mb-4">
       <Card>
