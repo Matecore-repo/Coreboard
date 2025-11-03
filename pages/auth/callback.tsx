@@ -23,6 +23,14 @@ export default function AuthCallback() {
             toast.warning('Te has registrado correctamente. Si tuviste problemas con tu invitación, contacta al administrador.');
           }
         } else {
+          // Verificar si se agregó una nueva identidad (linking de Google)
+          const hasGoogleIdentity = session.user.identities?.some((id: any) => id.provider === 'google');
+          if (hasGoogleIdentity && router.query.type === 'link') {
+            toast.success('¡Cuenta de Google vinculada correctamente!');
+            router.push('/dashboard');
+            return;
+          }
+          
           // Usuario nuevo sin invitación - redirigir para crear su organización
           toast.success('¡Bienvenido! Puedes crear tu organización ahora.');
         }

@@ -18,9 +18,8 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { useAuth } from "../contexts/AuthContext";
 import { useIsMobile } from "./ui/use-mobile";
-import { Chrome, Link as LinkIcon, Unlink } from "lucide-react";
-import { toast } from "sonner";
 import { useState } from "react";
+import { GoogleAccountSection } from "./GoogleAccountSection";
 
 interface ProfileModalProps {
   open: boolean;
@@ -28,37 +27,8 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
-  const { user, currentRole, currentOrgId, session, linkGoogleAccount, unlinkGoogleAccount } = useAuth();
+  const { user, currentRole, currentOrgId } = useAuth();
   const isMobile = useIsMobile();
-  const [isLinking, setIsLinking] = useState(false);
-  const [isUnlinking, setIsUnlinking] = useState(false);
-
-  // Verificar si tiene Google vinculado
-  const hasGoogleLinked = session?.user?.app_metadata?.providers?.includes('google') || 
-                          session?.user?.identities?.some((id: any) => id.provider === 'google');
-
-  const handleLinkGoogle = async () => {
-    try {
-      setIsLinking(true);
-      await linkGoogleAccount();
-      // El OAuth flow redirige automáticamente
-    } catch (error: any) {
-      setIsLinking(false);
-      toast.error(error.message || 'Error al vincular cuenta de Google');
-    }
-  };
-
-  const handleUnlinkGoogle = async () => {
-    try {
-      setIsUnlinking(true);
-      await unlinkGoogleAccount();
-      toast.success('Cuenta de Google desvinculada correctamente');
-      setIsUnlinking(false);
-    } catch (error: any) {
-      setIsUnlinking(false);
-      toast.error(error.message || 'Error al desvincular cuenta de Google');
-    }
-  };
 
   const content = (
     <>
@@ -100,71 +70,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
         </CardContent>
       </Card>
 
-      {/* Sección de cuenta de Google */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cuenta de Google</CardTitle>
-          <CardDescription>
-            Conecta tu cuenta de Google para iniciar sesión más rápido
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Chrome className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">
-                  {hasGoogleLinked ? 'Conectado' : 'No conectado'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {hasGoogleLinked 
-                    ? 'Puedes iniciar sesión con Google' 
-                    : 'Conecta tu cuenta de Google para iniciar sesión más rápido'}
-                </p>
-              </div>
-            </div>
-            {hasGoogleLinked ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleUnlinkGoogle}
-                disabled={isUnlinking}
-              >
-                {isUnlinking ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                    Desvinculando...
-                  </>
-                ) : (
-                  <>
-                    <Unlink className="h-4 w-4 mr-2" />
-                    Desconectar
-                  </>
-                )}
-              </Button>
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleLinkGoogle}
-                disabled={isLinking}
-              >
-                {isLinking ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                    Conectando...
-                  </>
-                ) : (
-                  <>
-                    <LinkIcon className="h-4 w-4 mr-2" />
-                    Conectar Google
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <GoogleAccountSection />
     </>
   );
 
@@ -208,71 +114,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
               </CardContent>
             </Card>
 
-            {/* Sección de cuenta de Google */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Cuenta de Google</CardTitle>
-                <CardDescription>
-                  Conecta tu cuenta de Google para iniciar sesión más rápido
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Chrome className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {hasGoogleLinked ? 'Conectado' : 'No conectado'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {hasGoogleLinked 
-                          ? 'Puedes iniciar sesión con Google' 
-                          : 'Conecta tu cuenta de Google para iniciar sesión más rápido'}
-                      </p>
-                    </div>
-                  </div>
-                  {hasGoogleLinked ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleUnlinkGoogle}
-                      disabled={isUnlinking}
-                    >
-                      {isUnlinking ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                          Desvinculando...
-                        </>
-                      ) : (
-                        <>
-                          <Unlink className="h-4 w-4 mr-2" />
-                          Desconectar
-                        </>
-                      )}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={handleLinkGoogle}
-                      disabled={isLinking}
-                    >
-                      {isLinking ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                          Conectando...
-                        </>
-                      ) : (
-                        <>
-                          <LinkIcon className="h-4 w-4 mr-2" />
-                          Conectar Google
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <GoogleAccountSection />
           </div>
         </SheetContent>
       </Sheet>
@@ -318,71 +160,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
             </CardContent>
           </Card>
 
-          {/* Sección de cuenta de Google */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Cuenta de Google</CardTitle>
-              <CardDescription>
-                Conecta tu cuenta de Google para iniciar sesión más rápido
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Chrome className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">
-                      {hasGoogleLinked ? 'Conectado' : 'No conectado'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {hasGoogleLinked 
-                        ? 'Puedes iniciar sesión con Google' 
-                        : 'Conecta tu cuenta de Google para iniciar sesión más rápido'}
-                    </p>
-                  </div>
-                </div>
-                {hasGoogleLinked ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleUnlinkGoogle}
-                    disabled={isUnlinking}
-                  >
-                    {isUnlinking ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                        Desvinculando...
-                      </>
-                    ) : (
-                      <>
-                        <Unlink className="h-4 w-4 mr-2" />
-                        Desconectar
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleLinkGoogle}
-                    disabled={isLinking}
-                  >
-                    {isLinking ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                        Conectando...
-                      </>
-                    ) : (
-                      <>
-                        <LinkIcon className="h-4 w-4 mr-2" />
-                        Conectar Google
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <GoogleAccountSection />
         </div>
       </DialogContent>
     </Dialog>

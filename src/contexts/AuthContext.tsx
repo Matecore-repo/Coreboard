@@ -111,6 +111,8 @@ type AuthContextValue = {
   resetPassword: (email: string) => Promise<void>;                            // Función para solicitar recuperación de contraseña
   updatePassword: (newPassword: string) => Promise<void>;                     // Función para actualizar contraseña
   claimInvitation: (token: string) => Promise<{ organization_id: string; role: string }>; // Función para reclamar una invitación a una org
+  linkGoogleAccount: () => Promise<void>;                                     // Vincular cuenta de Google
+  unlinkGoogleAccount: () => Promise<void>;                                   // Desvincular cuenta de Google
 };
 
 // Crear el contexto de autenticación que será compartido en toda la aplicación
@@ -132,7 +134,7 @@ const STORAGE_KEYS = {
 // ============================================================================
 // Envuelve una promise con un timeout para evitar que se quede bloqueada indefinidamente
 // Si la promise no resuelve en el tiempo especificado, lanza un error
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function withTimeout<T>(promise: Promise<T> | PromiseLike<T>, timeoutMs: number): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => {
@@ -586,6 +588,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // =========================================================================
+  // FUNCIÓN: linkGoogleAccount / unlinkGoogleAccount
+  // =========================================================================
+  const linkGoogleAccount = async (): Promise<void> => {
+    if (isDemoModeFlag) {
+      throw new Error('Modo demo: no disponible');
+    }
+    
+    // Verificar que el usuario esté autenticado
+    if (!user || !session) {
+      throw new Error('Debes estar autenticado para vincular una cuenta de Google');
+    }
+    
+    // Determinar la URL de redirección después del OAuth
+    // Agregar parámetro type=link para que el callback sepa que es un linking
+    const redirectTo = typeof window !== 'undefined' 
+      ? `${window.location.origin}/auth/callback?type=link` 
+      : undefined;
+    
+    // Usar signInWithOAuth - Supabase automáticamente vinculará la identidad
+    // si el usuario ya está autenticado y el email coincide
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+    
+    if (error) throw error;
+    // El navegador será redirigido a Google y luego volverá al callback
+  };
+
+  const unlinkGoogleAccount = async (): Promise<void> => {
+    if (isDemoModeFlag) {
+      throw new Error('Modo demo no soporta desvincular');
+    }
+    const googleIdentityId = (session?.user as any)?.identities?.find((i: any) => i.provider === 'google')?.identity_id;
+    if (!googleIdentityId) {
+      throw new Error('No hay cuenta de Google vinculada');
+    }
+    const { error } = await (supabase.auth as any).unlinkIdentity({ identity_id: googleIdentityId });
+    if (error) throw error;
+  };
+
+  // =========================================================================
   // FUNCIÓN: signUp
   // =========================================================================
   // Registra un nuevo usuario con email y contraseña
@@ -993,7 +1043,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sendMagicLink,           // Función para enviar link mágico
       resetPassword,           // Función para resetear contraseña
       updatePassword,          // Función para actualizar contraseña
-      claimInvitation          // Función para reclamar invitación
+      claimInvitation,         // Función para reclamar invitación
+      linkGoogleAccount,       // Vincular cuenta de Google
+      unlinkGoogleAccount      // Desvincular cuenta de Google
     }}>
       {/* Renderizar los componentes hijos con acceso al contexto */}
       {children}

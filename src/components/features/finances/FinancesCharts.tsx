@@ -17,6 +17,16 @@ import {
   Line,
 } from "recharts";
 
+// Utilidad: número de semana ISO (1-53)
+function getISOWeekNumber(date: Date): number {
+  const temp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNumber = temp.getUTCDay() || 7;
+  temp.setUTCDate(temp.getUTCDate() + 4 - dayNumber);
+  const yearStart = new Date(Date.UTC(temp.getUTCFullYear(), 0, 1));
+  const diffDays = Math.floor((temp.getTime() - yearStart.getTime()) / 86400000) + 1;
+  return Math.ceil(diffDays / 7);
+}
+
 // ============================================================================
 // GRÁFICO 1: RevenueTrendChart - Línea de tiempo de ingresos
 // ============================================================================
@@ -48,7 +58,7 @@ export function RevenueTrendChart({ data, period = 'day' }: RevenueTrendChartPro
           tickFormatter={(value) => {
             const date = new Date(value);
             if (period === 'day') return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
-            if (period === 'week') return `Sem ${date.getWeek()}`;
+            if (period === 'week') return `Sem ${getISOWeekNumber(date)}`;
             return date.toLocaleDateString('es-AR', { month: 'short' });
           }}
         />
