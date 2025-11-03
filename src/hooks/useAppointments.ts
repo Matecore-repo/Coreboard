@@ -66,6 +66,14 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
     row.created_by = payload.created_by || null;
   }
   
+  // Asegurar que total_amount siempre tenga un valor (requerido por la BD)
+  // Si viene en el payload, usarlo; si no, usar 0 como default
+  if ((payload as any).total_amount !== undefined) {
+    row.total_amount = (payload as any).total_amount;
+  } else {
+    row.total_amount = 0;
+  }
+  
   // Construir starts_at correctamente: date + time en formato ISO
   if (payload.date && payload.time) {
     const dateStr = payload.date; // Formato: YYYY-MM-DD
@@ -129,31 +137,44 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     if (!enabled) return;
     fetchAppointments();
     if (isDemo || subscribed.current) return;
+    
+    let channelApp: any = null;
+    
     try {
-      const channelPublic = supabase
-        .channel('realtime:public:appointments')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
-          fetchAppointments();
-        })
-        .subscribe();
-
-      const channelApp = supabase
+      // Solo suscribirse a la tabla real app.appointments
+      // La vista public.appointments no puede tener realtime
+      // RLS filtrará automáticamente qué cambios puede ver cada usuario
+      channelApp = supabase
         .channel('realtime:app:appointments')
-        .on('postgres_changes', { event: '*', schema: 'app', table: 'appointments' }, () => {
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'app', 
+          table: 'appointments'
+        }, () => {
+          // Refrescar appointments cuando hay cambios
+          // fetchAppointments ya filtra por currentOrgId
           fetchAppointments();
         })
         .subscribe();
 
       subscribed.current = true;
+      
       return () => {
-        try { channelPublic.unsubscribe(); } catch {}
-        try { channelApp.unsubscribe(); } catch {}
+        if (channelApp) {
+          try { 
+            channelApp.unsubscribe(); 
+          } catch (e) {
+            console.error('Error unsubscribing from realtime:', e);
+          }
+        }
         subscribed.current = false;
       };
-    } catch {
+    } catch (e) {
       // si falla realtime, no rompemos el flujo
+      console.error('Error setting up realtime subscription:', e);
+      subscribed.current = false;
     }
-  }, [fetchAppointments]);
+  }, [enabled, isDemo, fetchAppointments, currentOrgId]);
 
   // Sincronizar estado local al store global
   useEffect(() => {
@@ -179,9 +200,10 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       ...mapAppointmentToRow({ ...appointmentData, salonId }),
       org_id: currentOrgId || null,
       created_by: user?.id || null,
+      // Asegurar total_amount siempre tiene un valor (mapAppointmentToRow ya lo maneja)
     } as any;
     const { data, error } = await supabase
-      .from('app.appointments')
+      .from('appointments')
       .insert([row])
       .select()
       .single();
@@ -263,14 +285,23 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       return newApt;
     }
 
+    // Validar que haya organización activa (modo real)
+    if (!currentOrgId) {
+      throw new Error('No hay organización seleccionada. No se puede crear el turno.');
+    }
+
+    if (!user?.id) {
+      throw new Error('Usuario no autenticado. No se puede crear el turno.');
+    }
+
     const row = {
       ...mapAppointmentToRow({ ...appointmentData, salonId: targetSalonId }),
-      org_id: currentOrgId || null,
-      created_by: user?.id || null,
+      org_id: currentOrgId, // Siempre debe tener org_id
+      created_by: user.id, // Siempre debe tener created_by
     } as any;
 
     const { data, error } = await supabase
-      .from('app.appointments')
+      .from('appointments')
       .insert([row])
       .select()
       .single();

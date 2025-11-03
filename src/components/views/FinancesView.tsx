@@ -244,7 +244,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
     <PageContainer>
       {salons.length > 0 && (
         <div className="mb-4">
-          <h2 className="mb-4 text-xl md:text-2xl">Seleccionar Peluquería</h2>
+          <h2 className="mb-4 text-xl md:text-2xl font-semibold">Ver tus finanzas</h2>
           <SalonCarousel 
             salons={salons}
             selectedSalon={selectedSalon}

@@ -51,7 +51,7 @@ interface OrganizationViewProps {
 }
 
 const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) => {
-  const { user: currentUser, currentRole, currentOrgId } = useAuth() as any;
+  const { user: currentUser, currentRole, currentOrgId, leaveOrganization } = useAuth() as any;
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +79,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<Membership | null>(null);
   const [removing, setRemoving] = useState(false);
+
+  // Estado para salir de la organización
+  const [leaveOrgDialogOpen, setLeaveOrgDialogOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   // Refs para evitar cargas múltiples
   const loadingRef = useRef(false);
@@ -440,6 +444,17 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
       if (error) throw error;
 
+      // Cancelar invitaciones pendientes para este usuario en esta organización
+      // Esto permite que puedan ser invitados nuevamente sin problemas
+      if (memberToRemove.user?.email) {
+        await supabase
+          .from('invitations')
+          .update({ used_at: new Date().toISOString() })
+          .eq('organization_id', currentOrgId)
+          .eq('email', memberToRemove.user.email.toLowerCase().trim())
+          .is('used_at', null);
+      }
+
       setMemberships(prev => prev.filter(m => m.user_id !== memberToRemove.user_id));
       toast.success('Miembro eliminado de la organización');
       setRemoveMemberDialogOpen(false);
@@ -449,6 +464,32 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       toast.error(error.message || 'Error al eliminar el miembro');
     } finally {
       setRemoving(false);
+    }
+  };
+
+  const handleLeaveOrganization = async () => {
+    if (!currentOrgId || !organization) return;
+
+    try {
+      setLeaving(true);
+
+      if (isDemo) {
+        toast.success('Has salido de la organización (modo demo)');
+        setLeaveOrgDialogOpen(false);
+        return;
+      }
+
+      await leaveOrganization(currentOrgId);
+      toast.success('Has salido de la organización correctamente');
+      setLeaveOrgDialogOpen(false);
+      
+      // La función leaveOrganization ya maneja la redirección
+      // Si no hay más organizaciones, el usuario será redirigido al login
+    } catch (error: any) {
+      console.error('Error leaving organization:', error);
+      toast.error(error.message || 'Error al salir de la organización');
+    } finally {
+      setLeaving(false);
     }
   };
 
@@ -674,10 +715,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                           </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="search-user">Buscar usuario</Label>
-                            <div className="relative">
+                        <div className="space-y-5">
+                          <div className="space-y-2.5">
+                            <Label htmlFor="search-user" className="text-sm font-medium">Buscar usuario</Label>
+                            <div className="relative mt-1">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
                                 id="search-user"
@@ -688,7 +729,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                               />
                             </div>
                             {searching && (
-                              <p className="text-sm text-muted-foreground mt-1">Buscando...</p>
+                              <p className="text-sm text-muted-foreground mt-1.5">Buscando...</p>
                             )}
                           </div>
 
@@ -732,13 +773,13 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                             </div>
                           )}
 
-                          <div>
-                            <Label htmlFor="invite-role">Rol</Label>
+                          <div className="space-y-2.5">
+                            <Label htmlFor="invite-role" className="text-sm font-medium">Rol</Label>
                             <Select 
                               value={inviteRole} 
                               onValueChange={(value: 'employee' | 'admin' | 'viewer') => setInviteRole(value)}
                             >
-                              <SelectTrigger id="invite-role">
+                              <SelectTrigger id="invite-role" className="mt-1">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -747,7 +788,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                                 <SelectItem value="viewer">Visualizador</SelectItem>
                               </SelectContent>
                             </Select>
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="text-xs text-muted-foreground mt-1.5">
                               El usuario recibirá un email con la invitación para unirse a la organización.
                             </p>
                           </div>
@@ -813,18 +854,32 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                             </div>
                           </div>
                         </div>
-                        {canManageMembers && membership.role !== 'owner' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setMemberToRemove(membership);
-                              setRemoveMemberDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {/* Botón para salir de la organización (solo para el usuario actual, no owners) */}
+                          {membership.user_id === currentUser?.id && membership.role !== 'owner' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setLeaveOrgDialogOpen(true)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              Salir de la organización
+                            </Button>
+                          )}
+                          {/* Botón para quitar miembro (solo para admin/owner, no el usuario actual) */}
+                          {canManageMembers && membership.role !== 'owner' && membership.user_id !== currentUser?.id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setMemberToRemove(membership);
+                                setRemoveMemberDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
 
@@ -880,6 +935,28 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
               disabled={removing}
             >
               {removing ? 'Quitando...' : 'Quitar Miembro'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmación para salir de la organización */}
+      <AlertDialog open={leaveOrgDialogOpen} onOpenChange={setLeaveOrgDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Salir de la organización?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas salir de la organización "{organization?.name}"? Esta acción no se puede deshacer. Ya no tendrás acceso a los datos de esta organización.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLeaveOrganization}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={leaving}
+            >
+              {leaving ? 'Saliendo...' : 'Salir de la organización'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

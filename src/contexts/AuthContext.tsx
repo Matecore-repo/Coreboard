@@ -113,6 +113,7 @@ type AuthContextValue = {
   claimInvitation: (token: string) => Promise<{ organization_id: string; role: string }>; // Función para reclamar una invitación a una org
   linkGoogleAccount: () => Promise<void>;                                     // Vincular cuenta de Google
   unlinkGoogleAccount: () => Promise<void>;                                   // Desvincular cuenta de Google
+  leaveOrganization: (orgId: string) => Promise<void>;                        // Función para salir de una organización
 };
 
 // Crear el contexto de autenticación que será compartido en toda la aplicación
@@ -925,6 +926,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // =========================================================================
+  // FUNCIÓN: leaveOrganization
+  // =========================================================================
+  // Permite que un usuario salga de una organización (eliminar su membresía)
+  const leaveOrganization = async (orgId: string): Promise<void> => {
+    // Verificar que hay usuario autenticado
+    if (!user || !session) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    // No permitir salir en modo demo
+    if (isDemoModeFlag) {
+      throw new Error('Modo demo: no se puede salir de organizaciones');
+    }
+
+    // Verificar que el usuario pertenece a esta organización
+    const membership = user.memberships?.find(m => m.org_id === orgId);
+    if (!membership) {
+      throw new Error('No perteneces a esta organización');
+    }
+
+    // No permitir que el último owner salga
+    if (membership.role === 'owner') {
+      // Verificar cuántos owners hay en la organización
+      const { data: owners, error: ownersError } = await supabase
+        .from('memberships')
+        .select('user_id')
+        .eq('org_id', orgId)
+        .eq('role', 'owner');
+
+      if (ownersError) throw ownersError;
+
+      if (owners && owners.length === 1) {
+        throw new Error('No puedes salir: eres el único propietario de la organización');
+      }
+    }
+
+    try {
+      // Eliminar la membresía
+      const { error } = await supabase
+        .from('memberships')
+        .delete()
+        .eq('org_id', orgId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Obtener las membresías restantes directamente de la BD
+      const { data: remainingMemberships, error: membershipsError } = await supabase
+        .from('memberships')
+        .select('org_id')
+        .eq('user_id', user.id);
+
+      if (membershipsError) throw membershipsError;
+
+      // Refrescar memberships en el contexto
+      await fetchUserMemberships(user.id, session.user);
+
+      // Si era la org actual, cambiar a otra o limpiar
+      if (user.current_org_id === orgId) {
+        if (remainingMemberships && remainingMemberships.length > 0) {
+          // Cambiar a la primera organización disponible
+          const nextOrgId = remainingMemberships[0].org_id;
+          await switchOrganization(nextOrgId);
+        } else {
+          // No quedan organizaciones, limpiar estado
+          safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
+          safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+          setUser(prev => prev ? { ...prev, current_org_id: undefined, memberships: [] } : null);
+        }
+      }
+    } catch (e: any) {
+      throw e;
+    }
+  };
+
+  // =========================================================================
   // FUNCIÓN: createOrganization
   // =========================================================================
   // Crea una nueva organización con salón
@@ -1045,7 +1122,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatePassword,          // Función para actualizar contraseña
       claimInvitation,         // Función para reclamar invitación
       linkGoogleAccount,       // Vincular cuenta de Google
-      unlinkGoogleAccount      // Desvincular cuenta de Google
+      unlinkGoogleAccount,      // Desvincular cuenta de Google
+      leaveOrganization         // Función para salir de organización
     }}>
       {/* Renderizar los componentes hijos con acceso al contexto */}
       {children}

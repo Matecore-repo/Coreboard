@@ -785,59 +785,61 @@ export default function App() {
       default:
         return (
           <PageContainer>
-            <div className="mb-4">
-              <h2 className="mb-4 text-xl md:text-2xl">Seleccionar Peluquería</h2>
-              <SalonCarousel 
-                salons={effectiveSalons}
-                selectedSalon={selectedSalon}
-                onSelectSalon={handleSelectSalon}
-              />
-            </div>
-            <div className="mt-4">
-              <FilterBar
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
-                dateFilter={dateFilter}
-                onDateFilterChange={setDateFilter}
-                stylistFilter={stylistFilter}
-                onStylistFilterChange={setStylistFilter}
-              />
-            </div>
-            <div className="mt-4">
-              {!selectedSalon ? (
-                <div className="text-center py-16 px-4">
-                  <div className="text-muted-foreground mb-2">
-                    Por favor selecciona una peluquería para ver los turnos
+            <div className="p-4 sm:p-6">
+              <div className="mb-4">
+                <h2 className="mb-4 text-xl md:text-2xl font-semibold">Seleccionar Peluquería</h2>
+                <SalonCarousel 
+                  salons={effectiveSalons}
+                  selectedSalon={selectedSalon}
+                  onSelectSalon={handleSelectSalon}
+                />
+              </div>
+              <div className="mt-4">
+                <FilterBar
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  dateFilter={dateFilter}
+                  onDateFilterChange={setDateFilter}
+                  stylistFilter={stylistFilter}
+                  onStylistFilterChange={setStylistFilter}
+                />
+              </div>
+              <div className="mt-4">
+                {!selectedSalon ? (
+                  <div className="text-center py-16 px-4">
+                    <div className="text-muted-foreground mb-2">
+                      Por favor selecciona una peluquería para ver los turnos
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Usa el carrusel superior para elegir una sucursal
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Usa el carrusel superior para elegir una sucursal
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-                    <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
-                  </div>
-                  <div className="space-y-3">
-                    {filteredAppointments.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No se encontraron turnos
-                      </div>
-                    ) : (
-                      filteredAppointments.map((appointment) => (
-                        <AppointmentCard
-                          key={appointment.id}
-                          appointment={appointment}
-                          onClick={handleSelectAppointment}
-                          isSelected={selectedAppointment?.id === appointment.id}
-                        />
-                      ))
-                    )}
-                  </div>
-                </>
-              )}
+                ) : (
+                  <>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
+                      <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
+                    </div>
+                    <div className="space-y-3">
+                      {filteredAppointments.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No se encontraron turnos
+                        </div>
+                      ) : (
+                        filteredAppointments.map((appointment) => (
+                          <AppointmentCard
+                            key={appointment.id}
+                            appointment={appointment}
+                            onClick={handleSelectAppointment}
+                            isSelected={selectedAppointment?.id === appointment.id}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </PageContainer>
         );

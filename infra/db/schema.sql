@@ -347,7 +347,13 @@ create policy "salon_employees_select" on public.salon_employees
 
 create policy "salon_employees_insert" on public.salon_employees
   for insert with check (
-    exists (select 1 from app.salons s where s.id = salon_employees.salon_id and s.org_id = auth.org_id())
+    exists (
+      select 1 
+      from app.salons s
+      join app.memberships m on s.org_id = m.org_id
+      where s.id = salon_employees.salon_id 
+      and m.user_id = auth.uid()
+    )
   );
 
 create policy "salon_employees_update" on public.salon_employees
@@ -592,11 +598,20 @@ create or replace function public.update_appointment_status(
 returns json
 language plpgsql
 security definer
+SET search_path TO 'app', 'public'
 as $$
 declare
   v_appointment app.appointments%rowtype;
   v_status_enum appointment_status;
+  v_user_id uuid;
 begin
+  -- Obtener el user_id actual
+  v_user_id := auth.uid();
+  
+  if v_user_id is null then
+    raise exception 'User not authenticated';
+  end if;
+  
   -- Validar y convertir status a enum
   if p_status not in ('pending', 'confirmed', 'completed', 'cancelled', 'no_show') then
     raise exception 'Invalid status: %', p_status;
@@ -605,12 +620,16 @@ begin
   -- Cast el texto al enum
   v_status_enum := p_status::appointment_status;
   
-  -- Actualizar appointment
+  -- Actualizar appointment SOLO si el usuario tiene membresía en la organización del turno
   update app.appointments
   set status = v_status_enum,
       updated_at = now()
   where id = p_appointment_id
-    and org_id = auth.org_id()
+    and org_id IN (
+      SELECT m.org_id 
+      FROM app.memberships m
+      WHERE m.user_id = v_user_id
+    )
   returning * into v_appointment;
   
   -- Verificar que se actualizó
@@ -629,6 +648,104 @@ begin
     'total_amount', v_appointment.total_amount,
     'starts_at', v_appointment.starts_at,
     'updated_at', v_appointment.updated_at
+  );
+end;
+$$;
+
+-- RPC Function for claiming invitations
+create or replace function public.claim_invitation(
+  p_token text
+)
+returns json
+language plpgsql
+security definer
+as $$
+declare
+  v_token_hash bytea;
+  v_invitation app.invitations%rowtype;
+  v_user_id uuid;
+  v_membership_exists boolean;
+begin
+  -- Verificar que el usuario está autenticado
+  v_user_id := auth.uid();
+  if v_user_id is null then
+    raise exception 'User must be authenticated to claim an invitation';
+  end if;
+
+  -- Crear hash del token para buscar la invitación
+  v_token_hash := digest(p_token, 'sha256');
+
+  -- Buscar la invitación por hash del token
+  select * into v_invitation
+  from app.invitations
+  where token_hash = v_token_hash
+    and used_at is null
+    and expires_at > now();
+
+  -- Si no se encontró la invitación
+  if v_invitation.id is null then
+    raise exception 'Invalid or expired invitation token';
+  end if;
+
+  -- Si la invitación tiene email, verificar que coincide con el usuario actual
+  if v_invitation.email is not null then
+    declare
+      v_user_email text;
+    begin
+      select email into v_user_email
+      from auth.users
+      where id = v_user_id;
+
+      if lower(v_user_email) != lower(v_invitation.email) then
+        raise exception 'Invitation email does not match user email';
+      end if;
+    end;
+  end if;
+
+  -- Verificar si el usuario ya tiene membresía en esta organización
+  select exists(
+    select 1 from app.memberships
+    where org_id = v_invitation.organization_id
+      and user_id = v_user_id
+  ) into v_membership_exists;
+
+  -- Si ya tiene membresía, marcar invitación como usada pero no crear duplicado
+  if v_membership_exists then
+    update app.invitations
+    set used_at = now(),
+        used_by = v_user_id
+    where id = v_invitation.id;
+
+    -- Retornar la información de la organización
+    return json_build_object(
+      'organization_id', v_invitation.organization_id,
+      'role', v_invitation.role,
+      'message', 'Already a member of this organization'
+    );
+  end if;
+
+  -- Crear la membresía
+  insert into app.memberships (
+    org_id,
+    user_id,
+    role
+  ) values (
+    v_invitation.organization_id,
+    v_user_id,
+    v_invitation.role
+  );
+
+  -- Marcar la invitación como usada
+  update app.invitations
+  set used_at = now(),
+      used_by = v_user_id
+  where id = v_invitation.id;
+
+  -- Retornar la información de la organización y rol
+  return json_build_object(
+    'organization_id', v_invitation.organization_id,
+    'role', v_invitation.role,
+    'message', 'Invitation claimed successfully'
   );
 end;
 $$;

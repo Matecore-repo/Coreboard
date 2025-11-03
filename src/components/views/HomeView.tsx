@@ -111,7 +111,7 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
         </div>
       </Section>
 
-      <div className="mt-4 gap-4">
+      <div className="mt-4 gap-4 p-4 sm:p-6">
         {/* Header con métricas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         {/* Peluquería Asignada */}
