@@ -243,13 +243,15 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
   return (
     <PageContainer>
       {salons.length > 0 && (
-        <div className="mb-4">
+        <div className="mb-4 p-4 sm:p-6">
           <h2 className="mb-4 text-xl md:text-2xl font-semibold">Ver tus finanzas</h2>
-          <SalonCarousel 
-            salons={salons}
-            selectedSalon={selectedSalon}
-            onSelectSalon={onSelectSalon || (() => {})}
-          />
+          <div>
+            <SalonCarousel 
+              salons={salons}
+              selectedSalon={selectedSalon}
+              onSelectSalon={onSelectSalon || (() => {})}
+            />
+          </div>
         </div>
       )}
       <div className="mt-4">

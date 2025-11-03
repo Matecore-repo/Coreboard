@@ -788,11 +788,13 @@ export default function App() {
             <div className="p-4 sm:p-6">
               <div className="mb-4">
                 <h2 className="mb-4 text-xl md:text-2xl font-semibold">Seleccionar Peluquería</h2>
-                <SalonCarousel 
-                  salons={effectiveSalons}
-                  selectedSalon={selectedSalon}
-                  onSelectSalon={handleSelectSalon}
-                />
+                <div>
+                  <SalonCarousel 
+                    salons={effectiveSalons}
+                    selectedSalon={selectedSalon}
+                    onSelectSalon={handleSelectSalon}
+                  />
+                </div>
               </div>
               <div className="mt-4">
                 <FilterBar
