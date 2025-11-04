@@ -54,7 +54,10 @@ export function useFinancialAlerts(salonId?: string | null) {
     const previousThreeWeeksRevenue = payments
       .filter(p => {
         const date = new Date(p.date);
-        return date >= fourWeeksAgo.toISOString().split('T')[0] && date < lastWeek.toISOString().split('T')[0];
+        const dateStr = date.toISOString().split('T')[0];
+        const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
+        const lastWeekStr = lastWeek.toISOString().split('T')[0];
+        return dateStr >= fourWeeksAgoStr && dateStr < lastWeekStr;
       })
       .reduce((sum, p) => sum + p.amount, 0);
 

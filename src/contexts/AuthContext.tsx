@@ -175,11 +175,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRef.current = user;
   }, [user]);
   
-  // Calcular si estamos en modo demo (ya sea por flag o porque es el usuario demo)
+  // Calcular si estamos en modo demo (solo si es el usuario demo específico)
+  // Los usuarios reales (iangel.oned@gmail.com, nachoangelone@gmail.com) NUNCA están en modo demo
   const isDemo = useMemo(() => {
-    const isDemoUser = user?.id === DEMO_USER_ID;
-    return isDemoModeFlag || isDemoUser;
-  }, [user?.id]);
+    // Si no hay usuario, no es demo
+    if (!user) return false;
+    
+    // Si es el usuario demo específico, es demo
+    const isDemoUser = user.id === DEMO_USER_ID;
+    
+    // Si el email es un usuario real conocido, NO es demo
+    const realUserEmails = ['iangel.oned@gmail.com', 'nachoangelone@gmail.com'];
+    const isRealUser = realUserEmails.includes(user.email || '');
+    
+    // Solo es demo si es el usuario demo Y no es un usuario real
+    return (isDemoModeFlag || isDemoUser) && !isRealUser;
+  }, [user?.id, user?.email]);
 
   // =========================================================================
   // FUNCIÓN: fetchUserMemberships
@@ -187,8 +198,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Obtiene las membresías (organizaciones) del usuario desde la base de datos
   // Esto define a qué organizaciones pertenece el usuario y qué roles tiene
   const fetchUserMemberships = useCallback(async (userId: string, authUser: SupabaseUser): Promise<string | null> => {
-    // En modo demo, no hacer queries reales a la BD, solo devolver null
-    if (isDemoModeFlag) {
+    // Los usuarios reales (iangel.oned@gmail.com, nachoangelone@gmail.com) SIEMPRE usan datos reales
+    const realUserEmails = ['iangel.oned@gmail.com', 'nachoangelone@gmail.com'];
+    const isRealUser = realUserEmails.includes(authUser.email || '');
+    
+    // En modo demo Y no es usuario real, no hacer queries reales a la BD
+    if (isDemoModeFlag && !isRealUser) {
       return null;
     }
 
@@ -422,9 +437,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // ===================================================================
-      // PASO 2: En modo demo, no restaurar sesiones reales
+      // PASO 2: En modo demo, no restaurar sesiones reales (PERO usuarios reales SIEMPRE usan datos reales)
       // ===================================================================
-      if (isDemoModeFlag) {
+      // Verificar si hay una sesión guardada que indica un usuario real
+      const realUserEmails = ['iangel.oned@gmail.com', 'nachoangelone@gmail.com'];
+      let hasRealUserSession = false;
+      try {
+        const storedSession = safeLocalStorage.getItem(STORAGE_KEYS.session);
+        if (storedSession) {
+          const parsedSession = JSON.parse(storedSession);
+          if (parsedSession?.user?.email && realUserEmails.includes(parsedSession.user.email)) {
+            hasRealUserSession = true;
+          }
+        }
+      } catch (e) {
+        // Ignorar error
+      }
+      
+      if (isDemoModeFlag && !hasRealUserSession) {
         if (isMounted) setLoading(false);  // Fin de la carga
         return;  // Salir
       }

@@ -28,14 +28,17 @@ function mapRowToAppointment(row: any): Appointment {
   const date = `${yyyy}-${mm}-${dd}`;
   const time = startsAt.toTimeString().slice(0, 5);
 
+  // La tabla appointments en public usa client_name directamente
+  const clientName = row.client_name || row.clients?.full_name || '';
+
   return {
     id: row.id,
-    clientName: row.client_name || '',
+    clientName,
     service: row.service_id || '',
     date,
     time,
     status: row.status || 'pending',
-    stylist: row.stylist_id || '',
+    stylist: row.stylist_id || row.employee_id || '',
     salonId: row.salon_id || '',
   };
 }
@@ -44,8 +47,9 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
   const row: any = {};
   
   // Solo incluir campos que están presentes en el payload
+  // La tabla appointments en public tiene service_id y client_name directamente
   if (payload.clientName !== undefined) {
-    row.client_name = payload.clientName;
+    row.client_name = payload.clientName || null;
   }
   if (payload.service !== undefined) {
     row.service_id = payload.service || null;
@@ -115,7 +119,23 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
 
       let base = supabase
         .from('appointments')
-        .select('id, org_id, salon_id, service_id, stylist_id, client_name, client_phone, client_email, starts_at, status, total_amount, notes, created_by, created_at, updated_at');
+        .select(`
+          id, 
+          org_id, 
+          salon_id, 
+          service_id,
+          stylist_id, 
+          client_name,
+          client_phone,
+          client_email,
+          starts_at, 
+          status, 
+          total_amount, 
+          notes, 
+          created_by, 
+          created_at, 
+          updated_at
+        `);
       // Asegurar scoping por organización si está disponible
       if (currentOrgId) {
         base = base.eq('org_id', currentOrgId);
@@ -196,11 +216,25 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       setAppointments(prev => [newApt, ...prev]);
       return newApt;
     }
+    
+    // Obtener total_amount desde totalCollected o listPrice o calcular desde servicio
+    let totalAmount = (appointmentData as any).total_amount || (appointmentData as any).totalCollected || (appointmentData as any).listPrice || 0;
+    if (!totalAmount && appointmentData.service) {
+      const { data: serviceData } = await supabase
+        .from('services')
+        .select('base_price')
+        .eq('id', appointmentData.service)
+        .single();
+      if (serviceData?.base_price) {
+        totalAmount = Number(serviceData.base_price);
+      }
+    }
+    
     const row = {
       ...mapAppointmentToRow({ ...appointmentData, salonId }),
       org_id: currentOrgId || null,
+      total_amount: totalAmount,
       created_by: user?.id || null,
-      // Asegurar total_amount siempre tiene un valor (mapAppointmentToRow ya lo maneja)
     } as any;
     const { data, error } = await supabase
       .from('appointments')
@@ -209,6 +243,24 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       .single();
 
     if (error) throw error;
+    
+    // Crear appointment_item si hay service_id
+    if (data && appointmentData.service) {
+      const { error: itemError } = await supabase
+        .from('appointment_items')
+        .insert([{
+          appointment_id: data.id,
+          service_id: appointmentData.service,
+          quantity: 1,
+          unit_price: totalAmount,
+        }]);
+      
+      if (itemError) {
+        console.error('Error creating appointment_item:', itemError);
+        // No fallar si el item falla, el appointment ya está creado
+      }
+    }
+    
     await fetchAppointments();
     return mapRowToAppointment(data);
   };
@@ -236,12 +288,12 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     
     // Para otros updates, usar mapAppointmentToRow
     const row = mapAppointmentToRow(updates);
-    const { data, error } = await supabase
-      .from('appointments')
-      .update(row)
-      .eq('id', id)
-      .select()
-      .single();
+      const { data, error } = await supabase
+        .from('appointments')
+        .update(row)
+        .eq('id', id)
+        .select()
+        .single();
 
     if (error) throw error;
     await fetchAppointments();

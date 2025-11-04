@@ -28,7 +28,7 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
   const [error, setError] = useState<Error | null>(null);
   const enabled = options?.enabled ?? true;
   const subscribed = useRef(false);
-  const { isDemo } = useAuth();
+  const { isDemo, user } = useAuth();
 
   const fetchEmployees = useCallback(async () => {
     if (!enabled || !orgId) {
@@ -58,8 +58,6 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
           email,
           phone,
           default_commission_pct,
-          commission_type,
-          default_commission_amount,
           active,
           created_at,
           updated_at
@@ -162,8 +160,12 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
     await fetchEmployees();
   };
 
+  // Helper: Obtener el empleado del usuario logueado
+  const myEmployee = employees.find(emp => emp.user_id === user?.id) || null;
+
   return {
     employees,
+    myEmployee, // Empleado del usuario logueado (si existe)
     isLoading: loading,
     error,
     fetchEmployees,

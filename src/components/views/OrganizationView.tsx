@@ -131,37 +131,49 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   // FUNCIONES DE GESTIÓN DE EMPLEADOS
   // ============================================================================
 
-  const handleSelectEmployee = useCallback(async (membership: Membership) => {
-    if (membership.role === 'owner') return; // No mostrar action bar para owner
+  const handleSelectEmployeeFromList = useCallback(async (employee: any) => {
+    // Cargar salones asignados
+    const { data: assignments } = await supabase
+      .from('salon_employees')
+      .select('salon_id')
+      .eq('employee_id', employee.id)
+      .eq('is_active', true);
     
-    // Buscar empleado por user_id o crear uno nuevo si no existe
-    let employee = membership.employee;
-    
-    if (!employee && membership.user_id) {
-      // Buscar empleado existente por user_id
-      const existingEmployee = employees.find(emp => emp.user_id === membership.user_id);
-      if (existingEmployee) {
-        employee = existingEmployee;
-      }
-    }
-    
-    if (employee) {
-      // Cargar salones asignados
-      const { data: assignments } = await supabase
-        .from('salon_employees')
-        .select('salon_id')
-        .eq('employee_id', employee.id)
-        .eq('is_active', true);
-      
-      const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
-      setSelectedSalons(assignedSalonIds);
-    }
+    const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
+    setSelectedSalons(assignedSalonIds);
     
     setSelectedEmployee({
-      ...membership,
-      employee: employee || null
+      employee: employee,
+      membership: memberships.find(m => m.user_id === employee.user_id) || null
     });
-  }, [employees]);
+  }, [memberships]);
+
+  const handleEditEmployeeFromList = useCallback(async (employee: any) => {
+    setEditingEmployee(employee);
+    setEmployeeFormData({
+      full_name: employee.full_name,
+      email: employee.email || '',
+      phone: employee.phone || '',
+      commission_type: (employee.commission_type as 'percentage' | 'fixed') || 'percentage',
+      default_commission_pct: employee.default_commission_pct || 0,
+      default_commission_amount: employee.default_commission_amount || 0,
+    });
+    
+    // Cargar salones asignados
+    const { data: assignments } = await supabase
+      .from('salon_employees')
+      .select('salon_id')
+      .eq('employee_id', employee.id)
+      .eq('is_active', true);
+    
+    const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
+    setSelectedSalons(assignedSalonIds);
+    
+    setSelectedEmployee(null); // Cerrar action bar
+    setTimeout(() => {
+      setEmployeeDialogOpen(true);
+    }, 200);
+  }, []);
 
   const handleSaveEmployee = async () => {
     try {
@@ -185,7 +197,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                 .insert([{
                   salon_id: salonId,
                   employee_id: editingEmployee.id,
-                  assigned_by: userData?.data?.user?.id,
+                  assigned_by: userData?.user?.id || currentUser?.id,
                   is_active: true,
                 }]);
               
@@ -246,7 +258,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
               .insert([{
                 salon_id: salonId,
                 employee_id: createdEmployee.id,
-                assigned_by: userData?.data?.user?.id,
+                  assigned_by: userData?.user?.id || currentUser?.id,
                 is_active: true,
               }]);
             
@@ -271,56 +283,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   };
 
-  const handleEditEmployee = async (membership: Membership) => {
-    if (membership.role === 'owner') return;
-    
-    // Cerrar action bar primero
-    setSelectedEmployee(null);
-    
-    const employee = membership.employee;
-    if (!employee) {
-      // Si no tiene empleado, crear uno nuevo
-      setEditingEmployee(null);
-      setEmployeeFormData({
-        full_name: membership.user?.full_name || '',
-        email: membership.user?.email || '',
-        phone: '',
-        commission_type: 'percentage',
-        default_commission_pct: 50.0,
-        default_commission_amount: 0,
-      });
-      setSelectedSalons(new Set());
-      // Abrir modal después de cerrar action bar
-      setTimeout(() => {
-        setEmployeeDialogOpen(true);
-      }, 200);
-      return;
-    }
-    
-    setEditingEmployee(employee);
-    setEmployeeFormData({
-      full_name: employee.full_name,
-      email: employee.email || '',
-      phone: employee.phone || '',
-      commission_type: employee.commission_type || 'percentage',
-      default_commission_pct: employee.default_commission_pct || 0,
-      default_commission_amount: employee.default_commission_amount || 0,
-    });
-    
-    // Cargar salones asignados
-    const { data: assignments } = await supabase
-      .from('salon_employees')
-      .select('salon_id')
-      .eq('employee_id', employee.id)
-      .eq('is_active', true);
-    
-    const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
-    setSelectedSalons(assignedSalonIds);
-    // Abrir modal después de cerrar action bar y cargar datos
-    setTimeout(() => {
-      setEmployeeDialogOpen(true);
-    }, 200);
-  };
 
   const handleDeleteEmployee = async (employeeId: string) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este empleado?')) return;
@@ -397,29 +359,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   // Obtener datos del empleado seleccionado para el action bar
   const employeeActionBarData = useMemo(() => {
-    if (!selectedEmployee) return null;
+    if (!selectedEmployee || !selectedEmployee.employee) return null;
     
     const employee = selectedEmployee.employee;
-    const membership = selectedEmployee;
-    
-    if (!employee && membership.role !== 'owner') {
-      // Empleado sin registro en tabla employees
-      return {
-        title: membership.user?.full_name || membership.user?.email || 'Nuevo Empleado',
-        subtitle: membership.user?.email || '',
-        badge: {
-          text: membership.role === 'employee' ? 'Empleado' : membership.role === 'admin' ? 'Administrador' : 'Visualizador',
-          variant: membership.role === 'admin' ? 'default' : 'outline' as const
-        },
-        detailFields: [
-          { label: 'Email', value: membership.user?.email || 'N/A' },
-          { label: 'Rol', value: membership.role === 'employee' ? 'Empleado' : membership.role === 'admin' ? 'Administrador' : 'Visualizador' },
-          { label: 'Estado', value: 'Sin registro de empleado' },
-        ]
-      };
-    }
-    
-    if (!employee) return null;
+    const membership = selectedEmployee.membership;
     
     // Obtener nombres de salones asignados
     const assignedSalonNames = salons
@@ -429,13 +372,13 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     
     return {
       title: employee.full_name,
-      subtitle: employee.email || membership.user?.email || '',
-      badge: {
-        text: employee.active ? 'Activo' : 'Inactivo',
-        variant: employee.active ? 'default' : 'outline' as const
-      },
+      subtitle: employee.email || 'Sin email',
+            badge: {
+              text: employee.active ? 'Activo' : 'Inactivo',
+              variant: (employee.active ? 'default' : 'outline') as 'default' | 'outline'
+            },
       detailFields: [
-        { label: 'Email', value: employee.email || membership.user?.email || 'N/A' },
+        { label: 'Email', value: employee.email || 'N/A' },
         { label: 'Teléfono', value: employee.phone || 'N/A' },
         { 
           label: 'Comisión', 
@@ -444,7 +387,9 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
             : `${employee.default_commission_pct || 0}%`
         },
         { label: 'Salones Asignados', value: assignedSalonNames },
-        { label: 'Rol', value: membership.role === 'employee' ? 'Empleado' : membership.role === 'admin' ? 'Administrador' : 'Visualizador' },
+        { label: 'Rol en organización', value: membership 
+          ? (membership.role === 'employee' ? 'Empleado' : membership.role === 'admin' ? 'Administrador' : membership.role)
+          : 'Sin cuenta' },
       ]
     };
   }, [selectedEmployee, selectedSalons, salons]);
@@ -476,28 +421,17 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           .select('id, email, full_name')
           .in('id', userIds);
 
-        // Obtener datos completos de employees (con user_id y sin user_id)
-        const { data: employeesData } = await supabase
-          .from('employees')
-          .select('id, user_id, full_name, email, phone, commission_type, default_commission_pct, default_commission_amount, active')
-          .eq('org_id', orgId);
-
         const profileMap = new Map((profiles || []).map(p => [p.id, { email: p.email, full_name: p.full_name }]));
-        
-        // Mapear employees por user_id y por id
-        const employeeByUserIdMap = new Map((employeesData || []).filter(e => e.user_id).map(e => [e.user_id, e]));
-        const employeeByIdMap = new Map((employeesData || []).map(e => [e.id, e]));
 
+        // Solo cargar membresías, sin mezclar con empleados
         setMemberships(members.map((m: any) => {
-          const employee = employeeByUserIdMap.get(m.user_id);
           const profile = profileMap.get(m.user_id);
           return {
             ...m,
             user: {
-              email: profile?.email || employee?.email || `Usuario ${m.user_id.substring(0, 8)}`,
-              full_name: profile?.full_name || employee?.full_name || undefined
-            },
-            employee: employee // Agregar datos completos del empleado
+              email: profile?.email || `Usuario ${m.user_id.substring(0, 8)}`,
+              full_name: profile?.full_name || undefined
+            }
           };
         }));
       } else {
@@ -956,6 +890,9 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
             <TabsTrigger value="members">
               Miembros {loadingMembers ? '(...)' : `(${memberships.length})`}
             </TabsTrigger>
+            <TabsTrigger value="employees">
+              Empleados {loadingEmployees ? '(...)' : `(${employees.length})`}
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab: Información */}
@@ -1193,15 +1130,12 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                 ) : (
                   <div className="space-y-3">
                     {memberships.map((membership) => {
-                      const employee = membership.employee;
-                      const hasEmployeeRecord = !!employee;
                       const isOwner = membership.role === 'owner';
                       
                       return (
                         <div 
                           key={membership.user_id} 
-                          className={`flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card ${!isOwner && canManageMembers ? 'cursor-pointer hover:bg-accent/50 transition-colors' : ''}`}
-                          onClick={() => !isOwner && canManageMembers && handleSelectEmployee(membership)}
+                          className="flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card"
                         >
                           <div className="flex items-center space-x-3 flex-1">
                             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1209,10 +1143,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium">
-                                {membership.user?.full_name || employee?.full_name || membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}
+                                {membership.user?.full_name || membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}
                               </p>
-                              {(membership.user?.email || employee?.email) && (
-                                <p className="text-sm text-muted-foreground truncate">{employee?.email || membership.user?.email}</p>
+                              {membership.user?.email && (
+                                <p className="text-sm text-muted-foreground truncate">{membership.user.email}</p>
                               )}
                               <div className="flex items-center space-x-2 mt-1 flex-wrap gap-1">
                                 <Badge variant={
@@ -1227,27 +1161,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                                 {membership.is_primary && (
                                   <Badge variant="outline">Principal</Badge>
                                 )}
-                                {hasEmployeeRecord && (
-                                  <>
-                                    <Badge variant={employee.active ? 'default' : 'outline'}>
-                                      {employee.active ? 'Activo' : 'Inactivo'}
-                                    </Badge>
-                                    {employee.commission_type && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {employee.commission_type === 'fixed' 
-                                          ? `$${employee.default_commission_amount?.toFixed(2) || 0}`
-                                          : `${employee.default_commission_pct || 0}%`}
-                                      </Badge>
-                                    )}
-                                  </>
-                                )}
-                                {!hasEmployeeRecord && !isOwner && (
-                                  <Badge variant="outline" className="text-xs">Sin registro</Badge>
-                                )}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
                             {/* Botón para salir de la organización (solo para el usuario actual, no owners) */}
                             {membership.user_id === currentUser?.id && membership.role !== 'owner' && (
                               <Button
@@ -1257,16 +1174,6 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                                 className="text-destructive hover:text-destructive"
                               >
                                 Salir de la organización
-                              </Button>
-                            )}
-                            {/* Botón para gestionar empleado (solo para admin/owner, no owners) */}
-                            {canManageMembers && !isOwner && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditEmployee(membership)}
-                              >
-                                <Edit3 className="h-4 w-4" />
                               </Button>
                             )}
                             {/* Botón para quitar miembro (solo para admin/owner, no el usuario actual, no owners) */}
@@ -1290,6 +1197,131 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                     {memberships.length === 0 && (
                       <p className="text-muted-foreground text-center py-8">
                         No hay miembros en esta organización
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Empleados */}
+          <TabsContent value="employees" className="space-y-4">
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Empleados de la Organización</CardTitle>
+                    <CardDescription>
+                      Gestión de legajos laborales: comisiones, locales asignados y datos de contacto
+                    </CardDescription>
+                  </div>
+                  {canManageMembers && (
+                    <Button
+                      onClick={() => {
+                        setEditingEmployee(null);
+                        setEmployeeFormData({ full_name: '', email: '', phone: '', commission_type: 'percentage', default_commission_pct: 50.0, default_commission_amount: 0 });
+                        setSelectedSalons(new Set());
+                        setEmployeeDialogOpen(true);
+                      }}
+                      className="gap-2"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Agregar Empleado
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingEmployees ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {employees.map((employee) => {
+                      const employeeMembership = memberships.find(m => m.user_id === employee.user_id);
+                      const hasUserAccount = !!employee.user_id;
+                      
+                      return (
+                        <div 
+                          key={employee.id} 
+                          className={`flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card ${canManageMembers ? 'cursor-pointer hover:bg-accent/50 transition-colors' : ''}`}
+                          onClick={() => canManageMembers && handleSelectEmployeeFromList(employee)}
+                        >
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <Users className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">
+                                {employee.full_name}
+                              </p>
+                              {employee.email && (
+                                <p className="text-sm text-muted-foreground truncate">{employee.email}</p>
+                              )}
+                              <div className="flex items-center space-x-2 mt-1 flex-wrap gap-1">
+                                <Badge variant={employee.active ? 'default' : 'outline'}>
+                                  {employee.active ? 'Activo' : 'Inactivo'}
+                                </Badge>
+                                {hasUserAccount && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Con cuenta
+                                  </Badge>
+                                )}
+                                {!hasUserAccount && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Sin cuenta
+                                  </Badge>
+                                )}
+                                {employee.commission_type && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {employee.commission_type === 'fixed' 
+                                      ? `$${employee.default_commission_amount?.toFixed(2) || 0}`
+                                      : `${employee.default_commission_pct || 0}%`}
+                                  </Badge>
+                                )}
+                                {employeeMembership && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {employeeMembership.role === 'admin' ? 'Admin' :
+                                     employeeMembership.role === 'employee' ? 'Empleado' :
+                                     employeeMembership.role}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {canManageMembers && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditEmployeeFromList(employee)}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canManageMembers && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (confirm('¿Estás seguro de que quieres eliminar este empleado?')) {
+                                    handleDeleteEmployee(employee.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {employees.length === 0 && (
+                      <p className="text-muted-foreground text-center py-8">
+                        No hay empleados registrados en esta organización
                       </p>
                     )}
                   </div>
@@ -1549,8 +1581,8 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           isOpen={!!selectedEmployee && !employeeDialogOpen}
           onClose={() => setSelectedEmployee(null)}
           onEdit={() => {
-            if (selectedEmployee) {
-              handleEditEmployee(selectedEmployee);
+            if (selectedEmployee?.employee) {
+              handleEditEmployeeFromList(selectedEmployee.employee);
             }
           }}
           onDelete={selectedEmployee.employee ? () => {

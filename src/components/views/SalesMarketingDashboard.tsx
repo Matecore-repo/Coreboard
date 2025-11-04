@@ -1,6 +1,10 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Button } from '../ui/button';
+import { Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useFinancialExports } from '../../hooks/useFinancialExports';
+import { toast } from 'sonner';
 import type { Appointment } from '../../types';
 
 interface SalesMarketingDashboardProps {
@@ -9,6 +13,8 @@ interface SalesMarketingDashboardProps {
 }
 
 export default function SalesMarketingDashboard({ appointments, selectedSalon }: SalesMarketingDashboardProps) {
+  const { exportToExcel } = useFinancialExports();
+  
   const filteredAppointments = useMemo(() => {
     if (!selectedSalon) return appointments;
     return appointments.filter(apt => apt.salon_id === selectedSalon);
@@ -32,8 +38,36 @@ export default function SalesMarketingDashboard({ appointments, selectedSalon }:
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [filteredAppointments]);
 
+  const handleExport = async () => {
+    try {
+      const exportData = {
+        'Nuevos vs Recurrentes': newVsRecurrentData.map(d => ({
+          'Tipo': d.name,
+          'Cantidad': d.value,
+        })),
+        'Fuente de Reserva': bookingSourceData.map(d => ({
+          'Fuente': d.name,
+          'Cantidad de Turnos': d.value,
+        })),
+      };
+      
+      await exportToExcel(exportData, `ventas_marketing_${new Date().toISOString().split('T')[0]}`);
+      toast.success('Datos exportados exitosamente');
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      toast.error('Error al exportar los datos');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Botón de exportación */}
+      <div className="flex justify-end">
+        <Button onClick={handleExport} variant="outline" className="gap-2">
+          <Download className="h-4 w-4" />
+          Exportar a Excel
+        </Button>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>Nuevos vs Recurrentes</CardTitle>

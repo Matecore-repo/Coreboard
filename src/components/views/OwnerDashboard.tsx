@@ -6,14 +6,17 @@ import {
   Target,
   Wallet,
   AlertCircle,
+  Download,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { useFinancialMetrics } from '../../hooks/useFinancialMetrics';
 import { usePayments } from '../../hooks/usePayments';
 import { useExpenses } from '../../hooks/useExpenses';
 import { useAppointments } from '../../hooks/useAppointments';
 import { useFinancialAlerts } from '../../hooks/useFinancialAlerts';
+import { useFinancialExports } from '../../hooks/useFinancialExports';
 import { FinancialAlertsPanel } from '../FinancialAlertsPanel';
 import { 
   IncomeExpenseChart, 
@@ -24,6 +27,7 @@ import {
   ProjectionChart,
   BreakEvenChart,
 } from '../features/finances/FinancesCharts';
+import { toast } from 'sonner';
 import type { Appointment } from '../../types';
 
 interface OwnerDashboardProps {
@@ -44,6 +48,8 @@ export default function OwnerDashboard({
   const metrics = useFinancialMetrics(selectedSalon, dateRange);
   const { appointments: allAppointments } = useAppointments(selectedSalon || undefined, { enabled: true });
   const { alerts } = useFinancialAlerts(selectedSalon);
+
+  const { exportToExcel } = useFinancialExports();
 
   const filteredAppointments = useMemo(() => {
     if (!selectedSalon) return appointments;
@@ -212,10 +218,73 @@ export default function OwnerDashboard({
     ];
   }, [payments]);
 
+  const handleExportAll = async () => {
+    try {
+      const exportData = {
+        'KPIs': [
+          { 'Indicador': 'Ingreso Bruto', 'Valor': metrics.kpis.grossRevenue.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Indicador': 'Ingreso Neto', 'Valor': metrics.kpis.netRevenue.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Indicador': 'Margen Bruto', 'Valor': metrics.kpis.grossMargin.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Indicador': 'Margen Neto', 'Valor': metrics.kpis.netMargin.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Indicador': 'Ticket Promedio', 'Valor': metrics.kpis.averageTicket.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Indicador': '% Ocupación', 'Valor': `${metrics.kpis.occupancyRate.toFixed(1)}%` },
+          { 'Indicador': 'Caja del Día', 'Valor': metrics.kpis.dailyCash.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Indicador': 'Saldo por Liquidar', 'Valor': metrics.kpis.pendingSettlement.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+        ],
+        'Ingresos vs Gastos': incomeExpenseData.map(d => ({
+          'Fecha': d.date,
+          'Ingresos': d.income,
+          'Gastos': d.expense,
+        })),
+        'Flujo de Caja': cashFlowData.map(d => ({
+          'Fecha': d.date,
+          'Caja': d.cash,
+        })),
+        'Utilidad por Mes': profitByMonthData.map(d => ({
+          'Mes': d.month,
+          'Utilidad': d.profit,
+        })),
+        'Métodos de Pago': paymentMethodData.map(d => ({
+          'Método': d.name,
+          'Monto': d.value,
+        })),
+        'Cancelaciones': cancellationsData.map(d => ({
+          'Fecha': d.date,
+          'Canceladas': d.cancelled,
+          'No Show': d.noShow || 0,
+        })),
+        'Proyección': projectionData.map(d => ({
+          'Fecha': d.date,
+          'Real': d.actual || 0,
+          'Proyectado': d.projected || 0,
+        })),
+        'Break-Even': breakEvenData.map(d => ({
+          'Fecha': d.date,
+          'Ingresos': d.revenue,
+          'Costo Fijo': d.fixedCost,
+        })),
+      };
+      
+      await exportToExcel(exportData, `finanzas_${salonName || 'todas'}_${new Date().toISOString().split('T')[0]}`);
+      toast.success('Datos exportados exitosamente');
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      toast.error('Error al exportar los datos');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Alertas */}
       {alerts.length > 0 && <FinancialAlertsPanel alerts={alerts} />}
+      
+      {/* Botón de exportación global */}
+      <div className="flex justify-end">
+        <Button onClick={handleExportAll} variant="outline" className="gap-2">
+          <Download className="h-4 w-4" />
+          Exportar Todo a Excel
+        </Button>
+      </div>
       
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

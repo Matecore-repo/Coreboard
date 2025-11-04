@@ -160,26 +160,28 @@ BEGIN
           v_commission_amount := (v_appointment_total * v_commission_pct / 100);
         END IF;
         
-        -- Solo crear comisión si hay un monto mayor a cero
-        IF v_commission_amount > 0 THEN
-          INSERT INTO app.commissions (
-            org_id,
-            employee_id,
-            appointment_id,
-            amount,
-            pct,
-            date,
-            created_at
-          ) VALUES (
-            NEW.org_id,
-            v_employee_id,
-            NEW.id,
-            v_commission_amount,
-            v_commission_pct,
-            CURRENT_DATE,
-            NOW()
-          );
-        END IF;
+               -- Solo crear comisión si hay un monto mayor a cero
+               IF v_commission_amount > 0 THEN
+                 INSERT INTO app.commissions (
+                   org_id,
+                   appointment_item_id,
+                   employee_id,
+                   appointment_id,
+                   amount,
+                   pct,
+                   date,
+                   created_at
+                 ) VALUES (
+                   NEW.org_id,
+                   NEW.id, -- Use appointment_id as appointment_item_id if no separate items
+                   v_employee_id,
+                   NEW.id,
+                   v_commission_amount,
+                   v_commission_pct,
+                   CURRENT_DATE,
+                   NOW()
+                 );
+               END IF;
       END IF;
     END IF;
   END IF;

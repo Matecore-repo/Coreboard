@@ -659,11 +659,17 @@ begin
     'id', v_appointment.id,
     'org_id', v_appointment.org_id,
     'salon_id', v_appointment.salon_id,
-    'client_id', v_appointment.client_id,
-    'employee_id', v_appointment.employee_id,
+    'service_id', v_appointment.service_id,
+    'stylist_id', v_appointment.stylist_id,
+    'client_name', v_appointment.client_name,
+    'client_phone', v_appointment.client_phone,
+    'client_email', v_appointment.client_email,
     'status', v_appointment.status::text,
     'total_amount', v_appointment.total_amount,
     'starts_at', v_appointment.starts_at,
+    'notes', v_appointment.notes,
+    'created_by', v_appointment.created_by,
+    'created_at', v_appointment.created_at,
     'updated_at', v_appointment.updated_at
   );
 end;

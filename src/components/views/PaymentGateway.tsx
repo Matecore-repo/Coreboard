@@ -18,9 +18,9 @@ interface PaymentGatewayProps {
 }
 
 export function PaymentGateway({ orgId, paymentLinkToken }: PaymentGatewayProps) {
-  const { salons, loading: salonsLoading } = useSalons(orgId, { enabled: !!orgId });
-  const { employees, loading: employeesLoading } = useEmployees(orgId, { enabled: !!orgId });
-  const { services, loading: servicesLoading } = useServices(orgId, { enabled: !!orgId });
+  const { salons, isLoading: salonsLoading } = useSalons(orgId, { enabled: !!orgId });
+  const { employees, isLoading: employeesLoading } = useEmployees(orgId, { enabled: !!orgId });
+  const { services, isLoading: servicesLoading } = useServices(orgId, { enabled: !!orgId });
   
   const [selectedSalon, setSelectedSalon] = useState<string>('');
   const [selectedService, setSelectedService] = useState<string>('');
@@ -232,7 +232,7 @@ export function PaymentGateway({ orgId, paymentLinkToken }: PaymentGatewayProps)
                   <SelectContent>
                     {availableEmployees.map((employee) => (
                       <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name}
+                        {employee.full_name || employee.email || `Empleado ${employee.id.substring(0, 8)}`}
                       </SelectItem>
                     ))}
                   </SelectContent>

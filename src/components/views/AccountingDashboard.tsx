@@ -3,9 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { usePayments, type Payment } from '../../hooks/usePayments';
-import { useExpenses, type Expense } from '../../hooks/useExpenses';
+import { useExpenses } from '../../hooks/useExpenses';
 import { useCommissions, type Commission } from '../../hooks/useCommissions';
-import { useInvoices, type Invoice } from '../../hooks/useInvoices';
+import { useInvoices } from '../../hooks/useInvoices';
+import type { Expense } from '../../types';
+import type { Invoice } from '../../types';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useAuth } from '../../contexts/AuthContext';
 import { ExpenseFormModal } from '../ExpenseFormModal';
 import { PaymentFormModal } from '../PaymentFormModal';
 import { CommissionFormModal } from '../CommissionFormModal';
@@ -29,6 +33,8 @@ interface AccountingDashboardProps {
 }
 
 export default function AccountingDashboard({ selectedSalon }: AccountingDashboardProps) {
+  const { currentOrgId } = useAuth();
+  const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
   const { payments, deletePayment } = usePayments({ enabled: true });
   const { expenses, deleteExpense } = useExpenses({ enabled: true, filters: selectedSalon ? { salonId: selectedSalon } : undefined });
   const { commissions, deleteCommission } = useCommissions({ enabled: true });
@@ -161,14 +167,17 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
   }, [payments]);
 
   const commissionsExportData = useMemo(() => {
-    return commissions.map(comm => ({
-      Fecha: comm.date,
-      Empleado: comm.employee_id,
-      Monto: comm.amount,
-      'Tasa (%)': comm.commission_rate,
-      'ID Turno': comm.appointment_id || '',
-    }));
-  }, [commissions]);
+    return commissions.map(comm => {
+      const employee = employees.find(emp => emp.id === comm.employee_id);
+      return {
+        Fecha: new Date(comm.date).toLocaleDateString('es-AR'),
+        Empleado: employee?.full_name || employee?.email || `Empleado ${comm.employee_id.substring(0, 8)}`,
+        Monto: comm.amount,
+        'Tasa (%)': comm.commission_rate,
+        'ID Turno': comm.appointment_id || '',
+      };
+    });
+  }, [commissions, employees]);
 
   const invoicesExportData = useMemo(() => {
     return invoices.map(inv => ({
@@ -183,12 +192,27 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
     }));
   }, [invoices]);
 
+  const incomeStatementExportData = useMemo(() => {
+    return [
+      { 'Concepto': 'Ingresos Netos', 'Monto': incomeStatement.revenue },
+      { 'Concepto': 'Costo Directo (Comisiones)', 'Monto': incomeStatement.directCosts },
+      { 'Concepto': 'Margen Bruto', 'Monto': incomeStatement.grossMargin },
+      { 'Concepto': 'Gastos', 'Monto': incomeStatement.expenses },
+      { 'Concepto': 'Resultado Neto', 'Monto': incomeStatement.netIncome },
+    ];
+  }, [incomeStatement]);
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Estado de Resultados</CardTitle>
-          <CardDescription>Resumen financiero mensual</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Estado de Resultados</CardTitle>
+              <CardDescription>Resumen financiero mensual</CardDescription>
+            </div>
+            <ExportButton data={incomeStatementExportData} filename="estado_resultados" />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -366,24 +390,29 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {commissions.map(comm => (
-                  <TableRow key={comm.id}>
-                    <TableCell>{new Date(comm.date).toLocaleDateString('es-AR')}</TableCell>
-                    <TableCell>{comm.employee_id}</TableCell>
-                    <TableCell>${comm.amount.toLocaleString()}</TableCell>
-                    <TableCell>{comm.commission_rate}%</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleEditCommission(comm)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteCommission(comm.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {commissions.map(comm => {
+                  const employee = employees.find(emp => emp.id === comm.employee_id);
+                  return (
+                    <TableRow key={comm.id}>
+                      <TableCell>{new Date(comm.date).toLocaleDateString('es-AR')}</TableCell>
+                      <TableCell>
+                        {employee?.full_name || employee?.email || `Empleado ${comm.employee_id.substring(0, 8)}`}
+                      </TableCell>
+                      <TableCell>${comm.amount.toLocaleString()}</TableCell>
+                      <TableCell>{comm.commission_rate}%</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleEditCommission(comm)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteCommission(comm.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

@@ -38,15 +38,16 @@ export function useMercadoPago() {
         return;
       }
 
-      setIsConnected(data?.connected || false);
-      if (data?.connected) {
+      const dataAny = data as any;
+      setIsConnected(dataAny?.connected || false);
+      if (dataAny?.connected) {
         setCredentials({
           org_id: currentOrgId,
-          collector_id: data.collector_id || 0,
-          scope: data.scope,
-          expires_at: data.expires_at,
-          created_at: data.created_at || new Date().toISOString(),
-          updated_at: data.updated_at || new Date().toISOString(),
+          collector_id: dataAny.collector_id || 0,
+          scope: dataAny.scope,
+          expires_at: dataAny.expires_at,
+          created_at: dataAny.created_at || new Date().toISOString(),
+          updated_at: dataAny.updated_at || new Date().toISOString(),
         });
       }
     } catch (error) {

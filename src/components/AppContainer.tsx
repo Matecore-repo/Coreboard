@@ -41,7 +41,6 @@ const ClientsView = lazy(() => import("./sections/ClientsView").then(module => (
 const FinancesView = lazy(() => import("./views/FinancesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./views/SalonsManagementView"));
-const EmployeesView = lazy(() => import("./sections/EmployeesView"));
 const OrganizationView = lazy(() => import("./views/OrganizationView"));
 
 const isDemoModeEnv = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
@@ -353,7 +352,7 @@ export default function AppContainer() {
           <ClientsView />
         );
       case "employees":
-        return <EmployeesView />;
+        return <OrganizationView isDemo={isDemo} />;
       case "salons":
         return (
           <SalonsManagementView
@@ -499,7 +498,7 @@ function preloadView(view: ViewKey) {
   const viewMap: Record<ViewKey, () => Promise<any>> = {
     home: () => import("./views/HomeView"),
     clients: () => import("./sections/ClientsView"),
-    employees: () => import("./sections/EmployeesView"),
+    employees: () => import("./views/OrganizationView"),
     salons: () => import("./views/SalonsManagementView"),
     organization: () => import("./views/OrganizationView"),
     finances: () => import("./views/FinancesView"),

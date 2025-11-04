@@ -1,6 +1,10 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Button } from '../ui/button';
+import { Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useFinancialExports } from '../../hooks/useFinancialExports';
+import { toast } from 'sonner';
 import type { Appointment } from '../../types';
 
 interface OperationsDashboardProps {
@@ -9,6 +13,8 @@ interface OperationsDashboardProps {
 }
 
 export default function OperationsDashboard({ appointments, selectedSalon }: OperationsDashboardProps) {
+  const { exportToExcel } = useFinancialExports();
+  
   const filteredAppointments = useMemo(() => {
     if (!selectedSalon) return appointments;
     return appointments.filter(apt => {
@@ -36,8 +42,33 @@ export default function OperationsDashboard({ appointments, selectedSalon }: Ope
     }));
   }, [filteredAppointments]);
 
+  const handleExport = async () => {
+    try {
+      const exportData = {
+        'Productividad por Profesional': productivityData.map(d => ({
+          'Profesional': d.name,
+          'Ingresos': d.ingresos,
+          'Cantidad de Turnos': d.turnos,
+        })),
+      };
+      
+      await exportToExcel(exportData, `operaciones_${new Date().toISOString().split('T')[0]}`);
+      toast.success('Datos exportados exitosamente');
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      toast.error('Error al exportar los datos');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Botón de exportación */}
+      <div className="flex justify-end">
+        <Button onClick={handleExport} variant="outline" className="gap-2">
+          <Download className="h-4 w-4" />
+          Exportar a Excel
+        </Button>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>Productividad por Profesional</CardTitle>

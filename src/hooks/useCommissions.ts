@@ -14,7 +14,7 @@ export type Commission = {
 };
 
 function mapRowToCommission(row: any): Commission {
-  const dateValue = row.date || row.created_at;
+  const dateValue = row.date || row.calculated_at || row.created_at;
   const date = dateValue ? new Date(dateValue).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
   return {
@@ -63,10 +63,10 @@ export function useCommissions(options?: { enabled?: boolean }) {
     try {
       let query = supabase
         .from('commissions')
-        .select('id, org_id, employee_id, appointment_id, appointment_item_id, amount, pct, date, created_at')
+        .select('id, org_id, employee_id, amount, pct, calculated_at')
         .eq('org_id', currentOrgId);
       
-      const { data, error } = await query.order('date', { ascending: false });
+      const { data, error } = await query.order('id', { ascending: false });
       
       if (error) {
         console.error('Error fetching commissions:', error);
@@ -86,6 +86,20 @@ export function useCommissions(options?: { enabled?: boolean }) {
   useEffect(() => {
     if (!enabled) return;
     fetchCommissions();
+    
+    // Escuchar evento de turno completado para refrescar comisiones
+    const handleAppointmentCompleted = () => {
+      // Esperar un poco para que el trigger de la BD genere la comisión
+      setTimeout(() => {
+        fetchCommissions();
+      }, 1000);
+    };
+    
+    window.addEventListener('appointment:completed', handleAppointmentCompleted);
+    
+    return () => {
+      window.removeEventListener('appointment:completed', handleAppointmentCompleted);
+    };
   }, [fetchCommissions, enabled]);
 
   const createCommission = async (payload: Partial<Commission>) => {

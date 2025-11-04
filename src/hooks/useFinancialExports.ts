@@ -32,15 +32,43 @@ export function useFinancialExports() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const exportToExcel = useCallback(async (data: any[], filename: string) => {
-    if (!data || data.length === 0) {
-      throw new Error('No hay datos para exportar');
-    }
-
-    // Crear workbook y worksheet
-    const worksheet = XLSX.utils.json_to_sheet(data);
+  const exportToExcel = useCallback(async (data: any[] | { [sheetName: string]: any[] }, filename: string) => {
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
+
+    // Si es un objeto con múltiples hojas
+    if (typeof data === 'object' && !Array.isArray(data)) {
+      const sheetNames = Object.keys(data);
+      if (sheetNames.length === 0) {
+        throw new Error('No hay datos para exportar');
+      }
+
+      sheetNames.forEach(sheetName => {
+        const sheetData = data[sheetName];
+        if (Array.isArray(sheetData) && sheetData.length > 0) {
+          const worksheet = XLSX.utils.json_to_sheet(sheetData);
+          // Ajustar ancho de columnas
+          const colWidths = Object.keys(sheetData[0]).map(key => ({
+            wch: Math.max(key.length, 15)
+          }));
+          worksheet['!cols'] = colWidths;
+          XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+        }
+      });
+    } else if (Array.isArray(data)) {
+      // Si es un array simple
+      if (data.length === 0) {
+        throw new Error('No hay datos para exportar');
+      }
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      // Ajustar ancho de columnas
+      const colWidths = Object.keys(data[0]).map(key => ({
+        wch: Math.max(key.length, 15)
+      }));
+      worksheet['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
+    } else {
+      throw new Error('Formato de datos inválido');
+    }
 
     // Generar archivo Excel
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });

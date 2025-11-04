@@ -1,17 +1,34 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCommissions } from '../../hooks/useCommissions';
 import { useEmployees } from '../../hooks/useEmployees';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { DollarSign, Users, TrendingUp, Calendar } from 'lucide-react';
+import { DollarSign, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function OwnerCommissionsView() {
   const { currentOrgId } = useAuth();
-  const { commissions, loading } = useCommissions({ enabled: true });
+  const { commissions, loading, fetchCommissions } = useCommissions({ enabled: true });
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
+  
+  // Refrescar comisiones cuando se monta la vista
+  useEffect(() => {
+    fetchCommissions();
+  }, [fetchCommissions]);
+
+  // Filtrar comisiones de hoy
+  const todayCommissions = useMemo(() => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    
+    return commissions.filter(comm => {
+      const commDate = new Date(comm.date);
+      return commDate >= startOfDay && commDate <= endOfDay;
+    });
+  }, [commissions]);
 
   // Filtrar comisiones del mes actual
   const currentMonthCommissions = useMemo(() => {
@@ -25,6 +42,11 @@ export default function OwnerCommissionsView() {
     });
   }, [commissions]);
 
+  // Calcular total de hoy
+  const totalToday = useMemo(() => {
+    return todayCommissions.reduce((sum, comm) => sum + comm.amount, 0);
+  }, [todayCommissions]);
+
   // Calcular total del mes
   const totalMonth = useMemo(() => {
     return currentMonthCommissions.reduce((sum, comm) => sum + comm.amount, 0);
@@ -33,7 +55,7 @@ export default function OwnerCommissionsView() {
   // Agrupar por empleado
   const commissionsByEmployee = useMemo(() => {
     const grouped: Record<string, {
-      employee: typeof employees[0];
+      employee: typeof employees[0] | { id: string; full_name: string; email?: string };
       commissions: typeof currentMonthCommissions;
       total: number;
     }> = {};
@@ -44,6 +66,17 @@ export default function OwnerCommissionsView() {
         if (employee) {
           grouped[comm.employee_id] = {
             employee,
+            commissions: [],
+            total: 0,
+          };
+        } else {
+          // Si no encontramos el empleado, crear un objeto temporal con el ID
+          grouped[comm.employee_id] = {
+            employee: {
+              id: comm.employee_id,
+              full_name: `Empleado ${comm.employee_id.substring(0, 8)}`,
+              email: undefined,
+            } as any,
             commissions: [],
             total: 0,
           };
@@ -95,55 +128,62 @@ export default function OwnerCommissionsView() {
           </div>
         </div>
 
-        {/* Resumen del mes */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total del Mes</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalMonth.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground mt-1">{currentMonthName}</p>
-            </CardContent>
-          </Card>
+        {/* Comisiones de Hoy */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Comisiones de Hoy</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Hoy</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${totalToday.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {format(new Date(), 'dd/MM/yyyy', { locale: es })}
+                </p>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Empleados con Comisiones</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{commissionsByEmployee.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Este mes</p>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cantidad de Comisiones</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{todayCommissions.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">Hoy</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Comisiones</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{currentMonthCommissions.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Este mes</p>
-            </CardContent>
-          </Card>
+        {/* Comisiones del Mes */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Comisiones del Mes</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total del Mes</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${totalMonth.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground mt-1">{currentMonthName}</p>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Promedio por Comisión</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ${currentMonthCommissions.length > 0 
-                  ? (totalMonth / currentMonthCommissions.length).toFixed(2)
-                  : '0.00'}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Promedio</p>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cantidad de Comisiones</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{currentMonthCommissions.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">Este mes</p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Comisiones por empleado */}
@@ -164,7 +204,9 @@ export default function OwnerCommissionsView() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div>
-                        <CardTitle className="text-lg">{employee.full_name}</CardTitle>
+                        <CardTitle className="text-lg">
+                          {employee.full_name || employee.email || `Empleado ${employee.id.substring(0, 8)}`}
+                        </CardTitle>
                         <CardDescription>
                           {empCommissions.length} {empCommissions.length === 1 ? 'comisión' : 'comisiones'}
                         </CardDescription>
@@ -241,7 +283,7 @@ export default function OwnerCommissionsView() {
                                 <div className="flex-1">
                                   <p className="font-medium">${comm.amount.toFixed(2)}</p>
                                   <p className="text-sm text-muted-foreground">
-                                    {employee?.full_name || 'Empleado desconocido'} - {comm.commission_rate}%
+                                    {employee?.full_name || employee?.email || `Empleado ${comm.employee_id.substring(0, 8)}`} - {comm.commission_rate}%
                                   </p>
                                 </div>
                                 <div className="text-right">

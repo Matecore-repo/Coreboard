@@ -125,7 +125,7 @@ export function AppointmentDialog({
       return;
     }
     if (!formData.salonId || formData.salonId === 'all') {
-      alert('Selecciona una peluquería');
+      alert('Selecciona un local');
       return;
     }
     onSave(formData);
@@ -148,7 +148,7 @@ export function AppointmentDialog({
 
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="salon_id">Peluquería</Label>
+            <Label htmlFor="salon_id">Local</Label>
             <Select
               value={formData.salonId}
               onValueChange={(value) =>

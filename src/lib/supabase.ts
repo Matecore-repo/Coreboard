@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Demo mode: si está activado, no hacer requests reales
+// PERO: los usuarios reales (iangel.oned@gmail.com, nachoangelone@gmail.com) SIEMPRE usan datos reales
 const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 // Lazy-initialize Supabase client to avoid calling createClient during Next.js server build

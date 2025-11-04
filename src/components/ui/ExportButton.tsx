@@ -11,7 +11,7 @@ import { useFinancialExports } from '../../hooks/useFinancialExports';
 import { toast } from 'sonner';
 
 interface ExportButtonProps {
-  data: any[];
+  data: any[] | { [sheetName: string]: any[] };
   filename: string;
   disabled?: boolean;
 }
@@ -21,7 +21,12 @@ export function ExportButton({ data, filename, disabled }: ExportButtonProps) {
   const { exportToCSV, exportToExcel, exportToPDF } = useFinancialExports();
 
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
-    if (!data || data.length === 0) {
+    // Verificar si hay datos
+    const hasData = Array.isArray(data) 
+      ? data.length > 0 
+      : Object.keys(data).length > 0 && Object.values(data).some((sheet: any) => Array.isArray(sheet) && sheet.length > 0);
+    
+    if (!hasData) {
       toast.error('No hay datos para exportar');
       return;
     }
@@ -30,7 +35,15 @@ export function ExportButton({ data, filename, disabled }: ExportButtonProps) {
     try {
       switch (format) {
         case 'csv':
-          exportToCSV(data, filename);
+          // Para CSV, solo exportamos la primera hoja si es objeto
+          if (Array.isArray(data)) {
+            exportToCSV(data, filename);
+          } else {
+            const firstSheet = Object.values(data)[0];
+            if (Array.isArray(firstSheet) && firstSheet.length > 0) {
+              exportToCSV(firstSheet, filename);
+            }
+          }
           toast.success('Exportado a CSV exitosamente');
           break;
         case 'excel':
@@ -53,7 +66,14 @@ export function ExportButton({ data, filename, disabled }: ExportButtonProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={disabled || exporting || data.length === 0}>
+        <Button 
+          variant="outline" 
+          disabled={
+            disabled || 
+            exporting || 
+            (Array.isArray(data) ? data.length === 0 : Object.values(data).every((sheet: any) => !Array.isArray(sheet) || sheet.length === 0))
+          }
+        >
           <Download className="h-4 w-4 mr-2" />
           {exporting ? 'Exportando...' : 'Exportar'}
         </Button>

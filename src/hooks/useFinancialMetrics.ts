@@ -57,7 +57,12 @@ export function useFinancialMetrics(
   const filteredAppointments = useMemo(() => {
     if (!dateRange) return appointments;
     return appointments.filter(apt => {
-      const aptDate = new Date(apt.starts_at).toISOString().split('T')[0];
+      const aptAny = apt as any;
+      const aptDate = aptAny.starts_at 
+        ? new Date(aptAny.starts_at).toISOString().split('T')[0]
+        : aptAny.date 
+          ? new Date(aptAny.date).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
       return aptDate >= dateRange.startDate && aptDate <= dateRange.endDate;
     });
   }, [appointments, dateRange]);
@@ -82,11 +87,11 @@ export function useFinancialMetrics(
     const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');
     
     // Ingreso bruto: suma de total_amount de turnos completados
-    const grossRevenue = completedAppointments.reduce((sum, apt) => sum + (apt.total_amount || 0), 0);
+    const grossRevenue = completedAppointments.reduce((sum, apt) => sum + ((apt as any).total_amount || 0), 0);
     
     // Ingreso neto: bruto - descuentos - impuestos (asumiendo que están en payments)
     const netRevenue = filteredPayments.reduce((sum, payment) => {
-      return sum + payment.amount - (payment.discount_amount || 0) - (payment.tax_amount || 0);
+      return sum + payment.amount - (payment.discountAmount || 0) - (payment.taxAmount || 0);
     }, 0);
     
     // Costos directos: comisiones + costos directos de appointments
@@ -117,9 +122,9 @@ export function useFinancialMetrics(
     const todayPayments = filteredPayments.filter(p => p.date === today);
     const dailyCash = todayPayments.reduce((sum, p) => sum + p.amount, 0);
     
-    // Saldo por liquidar: pagos con gateway_settlement_date pendiente
+    // Saldo por liquidar: pagos con gatewaySettlementDate pendiente
     const pendingSettlement = filteredPayments
-      .filter(p => p.gateway_settlement_date === null || p.gateway_settlement_date === undefined)
+      .filter(p => p.gatewaySettlementDate === null || p.gatewaySettlementDate === undefined)
       .reduce((sum, p) => sum + p.amount, 0);
     
     return {

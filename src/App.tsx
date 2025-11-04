@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
-import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors, Wallet } from "lucide-react";
+import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors, Wallet, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
@@ -489,6 +489,8 @@ export default function App() {
         if (updated) {
           setSelectedAppointment(updated);
           try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'completed' as any); } catch {}
+          // Disparar evento para refrescar comisiones
+          window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: id } }));
         }
         toast.success("Turno completado");
       } catch (error) {
@@ -634,7 +636,7 @@ export default function App() {
     { id: "clients", label: "Clientes", icon: Users },
     { id: "commissions", label: "Comisiones", icon: Wallet },
     { id: "organization", label: "Organización", icon: Building2 },
-    { id: "salons", label: "Locales", icon: Scissors },
+    { id: "salons", label: "Locales", icon: MapPin },
     { id: "finances", label: "Finanzas", icon: DollarSign },
     { id: "settings", label: "Configuración", icon: Settings },
   ];
@@ -669,6 +671,16 @@ export default function App() {
     // Owners ven todo
     return allNavItems;
   }, [currentRole, isDemo]);
+
+  // Leer parámetro view de la URL al inicializar
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    if (viewParam && allNavItems.some(n => n.id === viewParam)) {
+      setActiveNavItem(viewParam);
+    }
+  }, []);
 
   const selectedSalonName = useMemo(() => {
     if (!selectedSalon) return "Ninguna peluquería seleccionada";

@@ -6,7 +6,8 @@ import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
 import { SalonCarousel } from "../SalonCarousel";
 import type { Salon } from "../../types/salon";
-import { Appointment } from "../features/appointments/AppointmentCard";
+import { Appointment as AppointmentCardType } from "../features/appointments/AppointmentCard";
+import type { Appointment } from "../../types";
 import { useAuth } from "../../contexts/AuthContext";
 import { useFinancialPermissions } from "../../hooks/useFinancialPermissions";
 import OwnerDashboard from "./OwnerDashboard";
@@ -16,7 +17,7 @@ import AccountingDashboard from "./AccountingDashboard";
 import ClientDashboard from "./ClientDashboard";
 
 interface FinancesViewProps {
-  appointments: Appointment[];
+  appointments: AppointmentCardType[] | Appointment[];
   selectedSalon: string | null;
   salonName?: string;
   salons?: Salon[];
@@ -77,7 +78,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
           
           <TabsContent value="owner">
             <OwnerDashboard 
-              appointments={appointments}
+              appointments={appointments as any}
               selectedSalon={selectedSalon}
               salonName={salonName}
             />
@@ -85,14 +86,14 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
           
           <TabsContent value="sales">
             <SalesMarketingDashboard 
-              appointments={appointments}
+              appointments={appointments as any}
               selectedSalon={selectedSalon}
             />
           </TabsContent>
           
           <TabsContent value="operations">
             <OperationsDashboard 
-              appointments={appointments}
+              appointments={appointments as any}
               selectedSalon={selectedSalon}
             />
           </TabsContent>
@@ -105,7 +106,7 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
           
           <TabsContent value="clients">
             <ClientDashboard 
-              appointments={appointments}
+              appointments={appointments as any}
               selectedSalon={selectedSalon}
             />
           </TabsContent>
