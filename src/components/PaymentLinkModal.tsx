@@ -3,10 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Textarea } from "./ui/textarea";
 import { Copy, Check, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { usePaymentLinks } from "../hooks/usePaymentLinks";
 import { useAuth } from "../contexts/AuthContext";
+import { useSalons } from "../hooks/useSalons";
+import { supabase } from "../lib/supabase";
 
 interface PaymentLinkModalProps {
   isOpen: boolean;
@@ -14,36 +18,72 @@ interface PaymentLinkModalProps {
 }
 
 export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
-  const { currentOrgId } = useAuth();
-  const { generatePaymentLink, isLoading } = usePaymentLinks();
-  const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const { currentOrgId, user } = useAuth();
+  const { salons, isLoading: salonsLoading } = useSalons(currentOrgId || undefined);
+  const [selectedSalonId, setSelectedSalonId] = useState<string>('');
+  const [title, setTitle] = useState('Reserva tu turno');
+  const [description, setDescription] = useState('');
+  const [paymentLink, setPaymentLink] = useState<string | undefined>(undefined);
   const [copied, setCopied] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
-      setPaymentLink(null);
+      setPaymentLink(undefined);
       setCopied(false);
+      setSelectedSalonId('');
+      setTitle('Reserva tu turno');
+      setDescription('');
     }
   }, [isOpen]);
 
   const handleGenerateLink = async () => {
-    if (!currentOrgId) {
-      toast.error('No hay organización seleccionada');
+    if (!currentOrgId || !selectedSalonId) {
+      toast.error('Selecciona un salón');
       return;
     }
 
     try {
-      // Por ahora, generamos un token simple para el link de pago
-      // Más adelante, esto llamará a la Edge Function para crear una preferencia de MP
-      const token = crypto.getRandomValues(new Uint8Array(32))
-        .reduce((acc, byte) => acc + byte.toString(16).padStart(2, '0'), '');
+      setIsGenerating(true);
       
-      const link = `${window.location.origin}/payment/${token}`;
-      setPaymentLink(link);
+      // Obtener token de sesión
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No hay sesión activa');
+      }
+
+      // Llamar a Edge Function
+      const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || 
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1`;
+      
+      const response = await fetch(`${functionsUrl}/create-payment-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          org_id: currentOrgId,
+          salon_id: selectedSalonId,
+          title,
+          description: description || undefined,
+          metadata: {},
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error generando link');
+      }
+
+      const data = await response.json();
+      setPaymentLink(data.url);
       toast.success('Link de pago generado correctamente');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generando link de pago:', error);
-      toast.error('Error al generar link de pago');
+      toast.error(error.message || 'Error al generar link de pago');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -61,10 +101,6 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
     }
   };
 
-  const fullPaymentUrl = paymentLink 
-    ? `${window.location.origin}/payment/${paymentLink.split('/').pop()}`
-    : '';
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-lg w-[90vw] sm:w-full">
@@ -78,16 +114,50 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
         <div className="space-y-6 py-2">
           {!paymentLink ? (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground px-1">
-                Al generar el link, se creará un token único que puedes compartir con tus clientes.
-              </p>
+              <div className="space-y-2">
+                <Label htmlFor="salon">Salón</Label>
+                <Select value={selectedSalonId} onValueChange={setSelectedSalonId} disabled={salonsLoading}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un salón" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salons.map((salon) => (
+                      <SelectItem key={salon.id} value={salon.id}>
+                        {salon.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="title">Título</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Reserva tu turno"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Descripción (opcional)</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Descripción del link de pago"
+                  rows={3}
+                />
+              </div>
+
               <Button 
                 onClick={handleGenerateLink} 
-                disabled={isLoading}
+                disabled={isGenerating || !selectedSalonId || salonsLoading}
                 className="w-full mt-4"
               >
                 <LinkIcon className="h-4 w-4 mr-2" />
-                {isLoading ? 'Generando...' : 'Generar link'}
+                {isGenerating ? 'Generando...' : 'Generar link'}
               </Button>
             </div>
           ) : (
@@ -96,7 +166,7 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
                 <Label className="mb-2 block">Link de pago</Label>
                 <div className="flex gap-3">
                   <Input
-                    value={fullPaymentUrl}
+                    value={paymentLink}
                     readOnly
                     className="flex-1 font-mono text-sm px-3 py-2"
                   />
@@ -128,8 +198,7 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
               <div className="flex gap-3 pt-2">
                 <Button
                   onClick={() => {
-                    setPaymentLink(null);
-                    handleGenerateLink();
+                    setPaymentLink(undefined);
                   }}
                   variant="outline"
                   className="flex-1"

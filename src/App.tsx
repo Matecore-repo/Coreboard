@@ -443,7 +443,7 @@ export default function App() {
   const handleCancelAppointment = useCallback(async (id: string) => {
     if (isDemo) {
       setAppointments((prev) => {
-        const updated = prev.map((apt) => 
+        const updated = prev.map((apt) =>
           apt.id === id ? { ...apt, status: "cancelled" as const } : apt
         );
         const updatedAppointment = updated.find(apt => apt.id === id);
@@ -460,14 +460,16 @@ export default function App() {
         if (updated) {
           setSelectedAppointment(updated);
           try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'cancelled' as any); } catch {}
-    }
-    toast.success("Turno cancelado");
+        }
+        // Refrescar lista de turnos
+        await fetchAppointments();
+        toast.success("Turno cancelado");
       } catch (e) {
         console.error('Error cancelling appointment:', e);
         toast.error('No se pudo cancelar el turno');
       }
     }
-  }, [isDemo, updateAppointment, selectedAppointment]);
+  }, [isDemo, updateAppointment, selectedAppointment, fetchAppointments]);
 
   const handleCompleteAppointment = useCallback(async (id: string) => {
     if (isDemo) {
@@ -492,13 +494,15 @@ export default function App() {
           // Disparar evento para refrescar comisiones
           window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: id } }));
         }
+        // Refrescar lista de turnos
+        await fetchAppointments();
         toast.success("Turno completado");
       } catch (error) {
         console.error('Error completing appointment:', error);
         toast.error("Error al completar el turno");
       }
     }
-  }, [isDemo, updateAppointment, selectedAppointment]);
+  }, [isDemo, updateAppointment, selectedAppointment, fetchAppointments]);
 
   const handleDeleteAppointment = useCallback(async () => {
     if (!selectedAppointment) {
@@ -1098,6 +1102,8 @@ export default function App() {
                 if (updated) {
                   setSelectedAppointment(updated);
                 }
+                // Refrescar lista de turnos
+                await fetchAppointments();
                 toast.success('Turno restaurado'); 
               } catch (e) {
                 console.error('Error restoring appointment:', e);

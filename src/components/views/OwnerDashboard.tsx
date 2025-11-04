@@ -3,10 +3,14 @@ import {
   DollarSign, 
   TrendingUp,
   TrendingDown,
-  Target,
-  Wallet,
-  AlertCircle,
+  Building2,
+  Users,
+  Receipt,
   Download,
+  ArrowUpRight,
+  ArrowDownRight,
+  Wallet,
+  Calendar,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -15,17 +19,14 @@ import { useFinancialMetrics } from '../../hooks/useFinancialMetrics';
 import { usePayments } from '../../hooks/usePayments';
 import { useExpenses } from '../../hooks/useExpenses';
 import { useAppointments } from '../../hooks/useAppointments';
-import { useFinancialAlerts } from '../../hooks/useFinancialAlerts';
+import { useCommissions } from '../../hooks/useCommissions';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useSalons } from '../../hooks/useSalons';
+import { useAuth } from '../../contexts/AuthContext';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
-import { FinancialAlertsPanel } from '../FinancialAlertsPanel';
 import { 
   IncomeExpenseChart, 
-  CashFlowChart, 
-  ProfitByMonthChart,
-  PaymentMethodChart,
-  CancellationsChart,
-  ProjectionChart,
-  BreakEvenChart,
+  CashFlowChart,
 } from '../features/finances/FinancesCharts';
 import { toast } from 'sonner';
 import type { Appointment } from '../../types';
@@ -43,21 +44,81 @@ export default function OwnerDashboard({
   salonName,
   dateRange 
 }: OwnerDashboardProps) {
+  const { currentOrgId } = useAuth();
   const { payments } = usePayments({ enabled: true });
   const { expenses } = useExpenses({ enabled: true });
   const metrics = useFinancialMetrics(selectedSalon, dateRange);
   const { appointments: allAppointments } = useAppointments(selectedSalon || undefined, { enabled: true });
-  const { alerts } = useFinancialAlerts(selectedSalon);
+  const { commissions } = useCommissions({ enabled: true });
+  const { employees } = useEmployees(currentOrgId || undefined, { enabled: true });
+  const { salons } = useSalons(currentOrgId || undefined, { enabled: true });
 
   const { exportToExcel } = useFinancialExports();
 
-  const filteredAppointments = useMemo(() => {
-    if (!selectedSalon) return appointments;
-    return appointments.filter(apt => {
-      // Appointment del tipo usado en AppointmentCard tiene salonId, no salon_id
-      return (apt as any).salonId === selectedSalon || apt.salon_id === selectedSalon;
+  // Cálculo de gastos por categoría
+  const expensesByCategory = useMemo(() => {
+    const map: Record<string, number> = {};
+    expenses.forEach(exp => {
+      const category = exp.category || 'Otros';
+      map[category] = (map[category] || 0) + exp.amount;
     });
-  }, [appointments, selectedSalon]);
+    return Object.entries(map)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [expenses]);
+
+  // Alquileres de locales (gastos con categoría "rent" o "alquiler")
+  const rentExpenses = useMemo(() => {
+    const rentCategories = ['rent', 'alquiler', 'renta', 'alquileres'];
+    return expenses
+      .filter(exp => {
+        const cat = (exp.category || '').toLowerCase();
+        return rentCategories.some(r => cat.includes(r));
+      })
+      .reduce((sum, exp) => sum + exp.amount, 0);
+  }, [expenses]);
+
+  // Salarios de empleados (gastos con categoría "salary" o "salario")
+  const salaryExpenses = useMemo(() => {
+    const salaryCategories = ['salary', 'salario', 'salarios', 'sueldo', 'sueldos'];
+    return expenses
+      .filter(exp => {
+        const cat = (exp.category || '').toLowerCase();
+        return salaryCategories.some(s => cat.includes(s));
+      })
+      .reduce((sum, exp) => sum + exp.amount, 0);
+  }, [expenses]);
+
+  // Comisiones por empleado
+  const commissionsByEmployee = useMemo(() => {
+    const map: Record<string, { employeeName: string; total: number; count: number }> = {};
+    commissions.forEach(comm => {
+      const employee = employees.find(emp => emp.id === comm.employee_id);
+      const employeeName = employee?.full_name || 'Empleado desconocido';
+      if (!map[comm.employee_id]) {
+        map[comm.employee_id] = { employeeName, total: 0, count: 0 };
+      }
+      map[comm.employee_id].total += comm.amount;
+      map[comm.employee_id].count += 1;
+    });
+    return Object.values(map)
+      .sort((a, b) => b.total - a.total);
+  }, [commissions, employees]);
+
+  // Pagos por método
+  const paymentsByMethod = useMemo(() => {
+    const map: Record<string, number> = {};
+    payments.forEach(payment => {
+      const method = payment.paymentMethod;
+      map[method] = (map[method] || 0) + payment.amount;
+    });
+    return Object.entries(map)
+      .map(([method, amount]) => ({ 
+        method: method === 'cash' ? 'Efectivo' : method === 'card' ? 'Tarjeta' : method === 'transfer' ? 'Transferencia' : 'Otro',
+        amount 
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [payments]);
 
   // Datos para gráficos
   const incomeExpenseData = useMemo(() => {
@@ -113,155 +174,33 @@ export default function OwnerDashboard({
       .map(([date, cash]) => ({ date, cash }));
   }, [payments]);
 
-  const profitByMonthData = useMemo(() => {
-    const map: Record<string, { revenue: number; expenses: number }> = {};
-    
-    payments.forEach(payment => {
-      const date = new Date(payment.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!map[monthKey]) {
-        map[monthKey] = { revenue: 0, expenses: 0 };
-      }
-      map[monthKey].revenue += payment.amount;
-    });
-    
-    expenses.forEach(expense => {
-      const date = new Date(expense.incurred_at);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!map[monthKey]) {
-        map[monthKey] = { revenue: 0, expenses: 0 };
-      }
-      map[monthKey].expenses += expense.amount;
-    });
-    
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, data]) => ({ 
-        month: new Date(month + '-01').toLocaleDateString('es-AR', { month: 'short', year: 'numeric' }), 
-        profit: data.revenue - data.expenses 
-      }));
+  // Resultado financiero (Ingresos - Gastos)
+  const netResult = useMemo(() => {
+    const totalIncome = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    return totalIncome - totalExpenses;
   }, [payments, expenses]);
-
-  const paymentMethodData = useMemo(() => {
-    const map: Record<string, number> = {};
-    payments.forEach(payment => {
-      const method = payment.paymentMethod;
-      map[method] = (map[method] || 0) + payment.amount;
-    });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [payments]);
-
-  const cancellationsData = useMemo(() => {
-    const map: Record<string, { cancelled: number; noShow: number }> = {};
-    
-    filteredAppointments.forEach(apt => {
-      const date = apt.starts_at.split('T')[0];
-      if (!map[date]) {
-        map[date] = { cancelled: 0, noShow: 0 };
-      }
-      if (apt.status === 'cancelled') {
-        map[date].cancelled += 1;
-      }
-      // Asumimos que no-show está representado de alguna manera
-      // En producción, esto debería venir del campo específico
-    });
-    
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, data]) => ({ date, ...data }));
-  }, [filteredAppointments]);
-
-  const breakEvenData = useMemo(() => {
-    const dailyFixedCost = metrics.breakEven.dailyFixedCost;
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const map: Record<string, number> = {};
-    
-    payments
-      .filter(p => p.date >= thirtyDaysAgo.toISOString().split('T')[0] && p.date <= now.toISOString().split('T')[0])
-      .forEach(payment => {
-        map[payment.date] = (map[payment.date] || 0) + payment.amount;
-      });
-    
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, revenue]) => ({ date, revenue, fixedCost: dailyFixedCost }));
-  }, [payments, metrics.breakEven.dailyFixedCost]);
-
-  const projectionData = useMemo(() => {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const actual = payments
-      .filter(p => p.date >= thirtyDaysAgo.toISOString().split('T')[0] && p.date <= now.toISOString().split('T')[0])
-      .map(p => ({ date: p.date, revenue: p.amount }));
-    
-    const dailyAverage = actual.length > 0 
-      ? actual.reduce((sum, p) => sum + p.revenue, 0) / actual.length 
-      : 0;
-    
-    const projected = Array.from({ length: 30 }, (_, i) => {
-      const date = new Date(now);
-      date.setDate(date.getDate() + i + 1);
-      return {
-        date: date.toISOString().split('T')[0],
-        revenue: dailyAverage,
-      };
-    });
-    
-    return [
-      ...actual.map(p => ({ date: p.date, actual: p.revenue, projected: dailyAverage })),
-      ...projected.map(p => ({ date: p.date, actual: 0, projected: p.revenue })),
-    ];
-  }, [payments]);
 
   const handleExportAll = async () => {
     try {
       const exportData = {
-        'KPIs': [
-          { 'Indicador': 'Ingreso Bruto', 'Valor': metrics.kpis.grossRevenue.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
-          { 'Indicador': 'Ingreso Neto', 'Valor': metrics.kpis.netRevenue.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
-          { 'Indicador': 'Margen Bruto', 'Valor': metrics.kpis.grossMargin.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
-          { 'Indicador': 'Margen Neto', 'Valor': metrics.kpis.netMargin.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
-          { 'Indicador': 'Ticket Promedio', 'Valor': metrics.kpis.averageTicket.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
-          { 'Indicador': '% Ocupación', 'Valor': `${metrics.kpis.occupancyRate.toFixed(1)}%` },
-          { 'Indicador': 'Caja del Día', 'Valor': metrics.kpis.dailyCash.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
-          { 'Indicador': 'Saldo por Liquidar', 'Valor': metrics.kpis.pendingSettlement.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+        'Resumen Financiero': [
+          { 'Concepto': 'Ingresos Totales', 'Valor': metrics.kpis.grossRevenue.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Concepto': 'Gastos Totales', 'Valor': expenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
+          { 'Concepto': 'Resultado Neto', 'Valor': netResult.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) },
         ],
-        'Ingresos vs Gastos': incomeExpenseData.map(d => ({
-          'Fecha': d.date,
-          'Ingresos': d.income,
-          'Gastos': d.expense,
+        'Alquileres': salons.map(s => ({
+          'Local': s.name,
+          'Alquiler Mensual': rentExpenses / salons.length,
         })),
-        'Flujo de Caja': cashFlowData.map(d => ({
-          'Fecha': d.date,
-          'Caja': d.cash,
+        'Comisiones por Empleado': commissionsByEmployee.map(c => ({
+          'Empleado': c.employeeName,
+          'Total Comisiones': c.total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }),
+          'Cantidad': c.count,
         })),
-        'Utilidad por Mes': profitByMonthData.map(d => ({
-          'Mes': d.month,
-          'Utilidad': d.profit,
-        })),
-        'Métodos de Pago': paymentMethodData.map(d => ({
-          'Método': d.name,
-          'Monto': d.value,
-        })),
-        'Cancelaciones': cancellationsData.map(d => ({
-          'Fecha': d.date,
-          'Canceladas': d.cancelled,
-          'No Show': d.noShow || 0,
-        })),
-        'Proyección': projectionData.map(d => ({
-          'Fecha': d.date,
-          'Real': d.actual || 0,
-          'Proyectado': d.projected || 0,
-        })),
-        'Break-Even': breakEvenData.map(d => ({
-          'Fecha': d.date,
-          'Ingresos': d.revenue,
-          'Costo Fijo': d.fixedCost,
+        'Gastos por Categoría': expensesByCategory.map(e => ({
+          'Categoría': e.category,
+          'Monto': e.amount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }),
         })),
       };
       
@@ -273,115 +212,318 @@ export default function OwnerDashboard({
     }
   };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Alertas */}
-      {alerts.length > 0 && <FinancialAlertsPanel alerts={alerts} />}
-      
-      {/* Botón de exportación global */}
+    <div className="space-y-8">
+      {/* Botón de exportación */}
       <div className="flex justify-end">
         <Button onClick={handleExportAll} variant="outline" className="gap-2">
           <Download className="h-4 w-4" />
-          Exportar Todo a Excel
+          Exportar a Excel
         </Button>
       </div>
-      
-      {/* KPIs */}
+
+      {/* Resumen Principal - 4 tarjetas principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ingreso Bruto</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Ingresos Totales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${metrics.kpis.grossRevenue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Total de ventas</p>
+            <div className="text-3xl font-bold">{formatCurrency(metrics.kpis.grossRevenue)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total de ventas</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ingreso Neto</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+        <Card className="border-l-4 border-l-red-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Gastos Totales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${metrics.kpis.netRevenue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Después de descuentos e impuestos</p>
+            <div className="text-3xl font-bold">{formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}</div>
+            <p className="text-xs text-muted-foreground mt-1">Todos los gastos</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Margen Bruto</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
+        <Card className={`border-l-4 ${netResult >= 0 ? 'border-l-green-500' : 'border-l-orange-500'}`}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Resultado Neto</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${metrics.kpis.grossMargin.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.margins.grossMarginPercent.toFixed(1)}% del ingreso neto
-            </p>
+            <div className={`text-3xl font-bold ${netResult >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
+              {formatCurrency(netResult)}
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+              {netResult >= 0 ? (
+                <ArrowUpRight className="h-3 w-3 text-green-600" />
+              ) : (
+                <ArrowDownRight className="h-3 w-3 text-orange-600" />
+              )}
+              <p className="text-xs text-muted-foreground">
+                {netResult >= 0 ? 'Ganancia' : 'Pérdida'}
+              </p>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Margen Neto</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+        <Card className="border-l-4 border-l-purple-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Comisiones Pagadas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${metrics.kpis.netMargin.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.margins.netMarginPercent.toFixed(1)}% del ingreso neto
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Promedio</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${metrics.kpis.averageTicket.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
-            <p className="text-xs text-muted-foreground">Por turno completado</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">% Ocupación</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.kpis.occupancyRate.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">Horas vendidas vs disponibles</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Caja del Día</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${metrics.kpis.dailyCash.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Ingresos de hoy</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo por Liquidar</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${metrics.kpis.pendingSettlement.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Pendiente de pasarelas</p>
+            <div className="text-3xl font-bold">{formatCurrency(commissions.reduce((sum, c) => sum + c.amount, 0))}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total a empleados</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Gráficos */}
+      {/* Resultados Financieros Detallados */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Resultados Financieros</CardTitle>
+          <CardDescription>Desglose de ingresos y gastos</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Ingresos Brutos</span>
+                <span className="font-semibold">{formatCurrency(metrics.kpis.grossRevenue)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Descuentos</span>
+                <span className="font-semibold">{formatCurrency(0)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Impuestos</span>
+                <span className="font-semibold">{formatCurrency(0)}</span>
+              </div>
+              <div className="border-t pt-2 flex items-center justify-between">
+                <span className="text-sm font-medium">Ingresos Netos</span>
+                <span className="font-bold text-lg">{formatCurrency(metrics.kpis.netRevenue)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Gastos Fijos</span>
+                <span className="font-semibold">{formatCurrency(rentExpenses + salaryExpenses)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Comisiones</span>
+                <span className="font-semibold">{formatCurrency(commissions.reduce((sum, c) => sum + c.amount, 0))}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Otros Gastos</span>
+                <span className="font-semibold">{formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0) - rentExpenses - salaryExpenses - commissions.reduce((sum, c) => sum + c.amount, 0))}</span>
+              </div>
+              <div className="border-t pt-2 flex items-center justify-between">
+                <span className="text-sm font-medium">Gastos Totales</span>
+                <span className="font-bold text-lg">{formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0) + commissions.reduce((sum, c) => sum + c.amount, 0))}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Margen Bruto</span>
+                <span className={`font-semibold ${metrics.kpis.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(metrics.kpis.grossMargin)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Margen Neto</span>
+                <span className={`font-semibold ${metrics.kpis.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(metrics.kpis.netMargin)}
+                </span>
+              </div>
+              <div className="border-t-2 pt-2 flex items-center justify-between">
+                <span className="text-base font-semibold">Resultado Final</span>
+                <span className={`font-bold text-xl ${netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(netResult)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Gastos por Categoría */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Alquileres de Locales
+            </CardTitle>
+            <CardDescription>Costos mensuales de alquiler</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {salons.map(salon => (
+                <div key={salon.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div>
+                    <p className="font-medium">{salon.name}</p>
+                    <p className="text-xs text-muted-foreground">{salon.address}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{formatCurrency(rentExpenses / salons.length)}</p>
+                    <p className="text-xs text-muted-foreground">mensual</p>
+                  </div>
+                </div>
+              ))}
+              {salons.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No hay locales registrados</p>
+              )}
+              <div className="border-t pt-3 flex items-center justify-between">
+                <span className="font-semibold">Total Alquileres</span>
+                <span className="font-bold text-lg">{formatCurrency(rentExpenses)}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Salarios de Empleados
+            </CardTitle>
+            <CardDescription>Costos de personal</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {salaryExpenses > 0 ? (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Salarios Totales</span>
+                      <span className="font-semibold">{formatCurrency(salaryExpenses)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {employees.length} empleado{employees.length !== 1 ? 's' : ''} activo{employees.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="border-t pt-3">
+                    <p className="text-xs text-muted-foreground">
+                      Nota: Los salarios se registran como gastos con categoría "salario"
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground">No hay salarios registrados</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Registra gastos con categoría "salario" para verlos aquí
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Comisiones por Empleado */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="h-5 w-5" />
+            Comisiones por Empleado
+          </CardTitle>
+          <CardDescription>Total de comisiones pagadas por empleado</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {commissionsByEmployee.length > 0 ? (
+            <div className="space-y-3">
+              {commissionsByEmployee.map((comm, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                  <div className="flex-1">
+                    <p className="font-medium">{comm.employeeName}</p>
+                    <p className="text-xs text-muted-foreground">{comm.count} comisión{comm.count !== 1 ? 'es' : ''}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-lg">{formatCurrency(comm.total)}</p>
+                    <Badge variant="secondary" className="mt-1">
+                      {((comm.total / (commissions.reduce((sum, c) => sum + c.amount, 0) || 1)) * 100).toFixed(1)}%
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+              <div className="border-t pt-3 flex items-center justify-between">
+                <span className="font-semibold">Total Comisiones</span>
+                <span className="font-bold text-lg">{formatCurrency(commissions.reduce((sum, c) => sum + c.amount, 0))}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">No hay comisiones registradas</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Gastos por Categoría y Pagos por Método */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Gastos por Categoría</CardTitle>
+            <CardDescription>Distribución de gastos</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {expensesByCategory.length > 0 ? (
+              <div className="space-y-3">
+                {expensesByCategory.slice(0, 5).map((exp, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary"></div>
+                      <span className="text-sm">{exp.category}</span>
+                    </div>
+                    <span className="font-semibold">{formatCurrency(exp.amount)}</span>
+                  </div>
+                ))}
+                {expensesByCategory.length > 5 && (
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    Y {expensesByCategory.length - 5} categoría{expensesByCategory.length - 5 !== 1 ? 's' : ''} más
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No hay gastos registrados</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pagos por Método</CardTitle>
+            <CardDescription>Distribución de ingresos</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {paymentsByMethod.length > 0 ? (
+              <div className="space-y-3">
+                {paymentsByMethod.map((payment, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{payment.method}</span>
+                    </div>
+                    <span className="font-semibold">{formatCurrency(payment.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No hay pagos registrados</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gráficos Principales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -414,88 +556,7 @@ export default function OwnerDashboard({
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Utilidad por Mes</CardTitle>
-            <CardDescription>Ingresos - Gastos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {profitByMonthData.length > 0 ? (
-              <ProfitByMonthChart data={profitByMonthData} />
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Sin datos para mostrar
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Ingresos por Método de Pago</CardTitle>
-            <CardDescription>Distribución de pagos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {paymentMethodData.length > 0 ? (
-              <PaymentMethodChart data={paymentMethodData} />
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Sin datos para mostrar
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Cancelaciones y No-Shows</CardTitle>
-            <CardDescription>Tasa de pérdida</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {cancellationsData.length > 0 ? (
-              <CancellationsChart data={cancellationsData} />
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Sin datos para mostrar
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Proyección 30/90 Días</CardTitle>
-            <CardDescription>Pronóstico basado en tendencia</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {projectionData.length > 0 ? (
-              <ProjectionChart data={projectionData} />
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Sin datos para mostrar
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Break-Even Diario</CardTitle>
-            <CardDescription>Costo fijo vs ingreso del día</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {breakEvenData.length > 0 ? (
-              <BreakEvenChart data={breakEvenData} />
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Sin datos para mostrar
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
 }
-

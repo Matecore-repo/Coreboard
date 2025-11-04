@@ -1,4 +1,4 @@
-﻿import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel";
+﻿import { GenericCarousel } from "./GenericCarousel";
 import { SalonCard } from "./SalonCard";
 
 interface Salon {
@@ -20,53 +20,37 @@ export function SalonCarousel({
   selectedSalon, 
   onSelectSalon,
 }: SalonCarouselProps) {
-  const hasSelection = selectedSalon !== null && selectedSalon !== undefined;
-  
   return (
-    <div className="relative py-4">
-      <Carousel 
-        className="w-full" 
-        opts={{ 
-          align: 'start', 
-          containScroll: 'keepSnaps', 
-          loop: false,
-          duration: 20,
-        }}
-      >
-        <CarouselContent className="-ml-4 py-2">
-          {/* Virtual card for All salons */}
-          <CarouselItem 
-            key="all" 
-            className="pl-4 md:basis-1/2 lg:basis-1/3 min-w-0"
-          >
-            <SalonCard
-              name="Todas"
-              address="Todos los locales"
-              image="/imagenlogin.jpg"
-              onClick={() => onSelectSalon('all', 'Todas')}
-              isSelected={selectedSalon === 'all' || selectedSalon === null}
-              isDimmed={hasSelection && selectedSalon !== 'all'}
-            />
-          </CarouselItem>
-          {salons.map((salon) => (
-            <CarouselItem 
-              key={salon.id} 
-              className="pl-4 last:pr-4 md:basis-1/2 lg:basis-1/3 min-w-0"
-            >
-              <SalonCard
-                name={salon.name}
-                address={salon.address}
-                image={salon.image}
-                onClick={() => onSelectSalon(salon.id, salon.name)}
-                isSelected={selectedSalon === salon.id}
-                isDimmed={hasSelection && selectedSalon !== salon.id}
-              />
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        <CarouselPrevious className="left-2 md:left-4 h-8 w-8" />
-        <CarouselNext className="right-2 md:right-4 h-8 w-8" />
-      </Carousel>
-    </div>
+    <GenericCarousel
+      items={salons}
+      selectedItem={selectedSalon}
+      onSelectItem={onSelectSalon}
+      getItemId={(salon) => salon.id}
+      getItemName={(salon) => salon.name}
+      renderItem={(salon, isSelected, isDimmed) => (
+        <SalonCard
+          name={salon.name}
+          address={salon.address}
+          image={salon.image}
+          onClick={() => onSelectSalon(salon.id, salon.name)}
+          isSelected={isSelected}
+          isDimmed={isDimmed}
+        />
+      )}
+      specialItem={{
+        id: 'all',
+        name: 'Todas',
+        render: (isSelected, isDimmed) => (
+          <SalonCard
+            name="Todas"
+            address="Todos los locales"
+            image="/imagenlogin.jpg"
+            onClick={() => onSelectSalon('all', 'Todas')}
+            isSelected={isSelected}
+            isDimmed={isDimmed}
+          />
+        ),
+      }}
+    />
   );
 }

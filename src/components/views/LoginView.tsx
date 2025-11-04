@@ -19,6 +19,7 @@ function LoginView() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [currentImage, setCurrentImage] = useState<string>(salonImageAsset);
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -64,8 +65,16 @@ function LoginView() {
     }
 
     if (mode === "register") {
-      if (!email || !password) {
-        toast.error("Ingresa email y contraseña");
+      if (!email || !password || !confirmPassword) {
+        toast.error("Completa todos los campos");
+        return;
+      }
+      if (password !== confirmPassword) {
+        toast.error("Las contraseñas no coinciden");
+        return;
+      }
+      if (password.length < 6) {
+        toast.error("La contraseña debe tener al menos 6 caracteres");
         return;
       }
       try {
@@ -73,6 +82,8 @@ function LoginView() {
         await signUp(email, password);
         toast.success("¡Cuenta creada! Revisa tu email para verificar tu cuenta.");
         setMode("login");
+        setPassword("");
+        setConfirmPassword("");
         setIsLoggingIn(false);
       } catch (error: any) {
         setIsLoggingIn(false);
@@ -131,10 +142,35 @@ function LoginView() {
         <div className="flex-1 flex items-center justify-center px-6 sm:px-8 lg:px-12 py-8 lg:py-12 relative">
           <div className="w-full max-w-md space-y-6 relative pt-8">
             <div className="space-y-2 text-center sm:text-left">
-              <h1 className="text-4xl sm:text-5xl tracking-tight">Bienvenido de nuevo</h1>
-              <p className="text-base sm:text-lg text-muted-foreground">
-                Ingresa tus credenciales para acceder al sistema
-              </p>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={mode}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
+                  <h1 className="text-4xl sm:text-5xl tracking-tight">
+                    {mode === "login"
+                      ? "Bienvenido de nuevo"
+                      : mode === "register"
+                      ? "Únete al gestor de turnos"
+                      : "Ops, perdiste tu contraseña"}
+                  </h1>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.1, duration: 0.3 }}
+                    className="text-base sm:text-lg text-muted-foreground mt-2"
+                  >
+                    {mode === "login"
+                      ? "Ingresa tus credenciales para acceder al sistema"
+                      : mode === "register"
+                      ? "Crea tu cuenta y comienza a gestionar tus turnos"
+                      : "No te preocupes, te ayudamos a recuperarla"}
+                  </motion.p>
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -158,34 +194,78 @@ function LoginView() {
               </div>
 
               {mode !== "reset" && (
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-base">
-                    Contraseña
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-12 text-base md:text-base"
-                      autoComplete="current-password"
-                      required
-                    />
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-base">
+                      Contraseña
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 h-12 text-base md:text-base"
+                        autoComplete={mode === "register" ? "new-password" : "current-password"}
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
+
+                  {mode === "register" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword" className="text-base">
+                        Confirmar Contraseña
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          placeholder="••••••••"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="pl-10 h-12 text-base md:text-base"
+                          autoComplete="new-password"
+                          required
+                        />
+                      </div>
+                      {confirmPassword && password !== confirmPassword && (
+                        <p className="text-sm text-destructive">Las contraseñas no coinciden</p>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
-                <button type="button" className={actionButtonClass("login")} onClick={() => setMode("login")}>
+                <button 
+                  type="button" 
+                  className={actionButtonClass("login")} 
+                  onClick={() => {
+                    setMode("login");
+                    setConfirmPassword("");
+                  }}
+                >
                   Iniciar sesión
                 </button>
-                <button type="button" className={actionButtonClass("register")} onClick={() => setMode("register")}>
+                <button 
+                  type="button" 
+                  className={actionButtonClass("register")} 
+                  onClick={() => setMode("register")}
+                >
                   Crear cuenta
                 </button>
-                <button type="button" className={actionButtonClass("reset")} onClick={() => setMode("reset")}>
+                <button 
+                  type="button" 
+                  className={actionButtonClass("reset")} 
+                  onClick={() => {
+                    setMode("reset");
+                    setConfirmPassword("");
+                  }}
+                >
                   Recuperar contraseña
                 </button>
               </div>

@@ -5,7 +5,8 @@
  */
 
 import { createServiceRoleClient } from '../_shared/supabase-client.ts';
-import { verifyMPSignatureSimple } from '../_shared/mp-signature.ts';
+import { verifyMPSignature } from '../_shared/mp-signature.ts';
+import { refreshAccessToken } from '../_shared/mp-token-refresh.ts';
 
 const MP_API_URL = 'https://api.mercadopago.com';
 const MP_TOKEN_KEY = Deno.env.get('MP_TOKEN_KEY');
@@ -28,10 +29,13 @@ Deno.serve(async (req) => {
 
     // Validar firma (si está configurada)
     if (MP_WEBHOOK_SECRET && signature) {
-      const isValid = verifyMPSignatureSimple(signature, body, MP_WEBHOOK_SECRET);
+      const isValid = await verifyMPSignature(signature, body, MP_WEBHOOK_SECRET);
       if (!isValid) {
         console.warn('Firma de webhook inválida:', signature);
-        // En producción, podrías rechazar aquí, pero por ahora solo logueamos
+        return new Response('Unauthorized', {
+          status: 401,
+          headers: { 'Content-Type': 'text/plain' },
+        });
       }
     }
 
@@ -64,7 +68,6 @@ Deno.serve(async (req) => {
  */
 async function processWebhookEvent(event: any) {
   const supabase = createServiceRoleClient();
-  const { decrypt, base64ToUint8Array } = await import('../_shared/crypto.ts');
 
   // El tipo de evento puede ser 'payment' o 'merchant_order'
   const type = event.type;
@@ -125,22 +128,14 @@ async function processWebhookEvent(event: any) {
 
     const orgId = appointment.org_id;
 
-    // Obtener credenciales de MP
-    const { data: creds, error: credsError } = await supabase
-      .from('mercadopago_credentials')
-      .select('*')
-      .eq('org_id', orgId)
-      .single();
-
-    if (credsError || !creds) {
-      console.error('No se encontraron credenciales para la org:', orgId);
+    // Obtener access token (se refresca automáticamente si expiró)
+    let accessToken: string;
+    try {
+      accessToken = await refreshAccessToken(orgId);
+    } catch (error: any) {
+      console.error('Error obteniendo token de MP para org:', orgId, error);
       return;
     }
-
-    // Descifrar access_token
-    const accessTokenCiphertext = base64ToUint8Array(creds.access_token_ct);
-    const accessTokenNonce = base64ToUint8Array(creds.access_token_nonce);
-    const accessToken = await decrypt(accessTokenCiphertext, accessTokenNonce, MP_TOKEN_KEY!);
 
     // Consultar pago completo desde MP
     const mpPaymentResponse = await fetch(`${MP_API_URL}/v1/payments/${paymentId}`, {

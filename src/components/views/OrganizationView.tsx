@@ -423,14 +423,29 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
         const profileMap = new Map((profiles || []).map(p => [p.id, { email: p.email, full_name: p.full_name }]));
 
-        // Solo cargar membresías, sin mezclar con empleados
+        // Obtener nombres de employees si no están en profiles (por user_id)
+        const { data: employees } = await supabase
+          .from('employees')
+          .select('user_id, full_name, email')
+          .in('user_id', userIds)
+          .not('user_id', 'is', null);
+
+        const employeeMap = new Map((employees || []).map(e => [e.user_id, { full_name: e.full_name, email: e.email }]));
+
+        // Combinar información de profiles y employees
         setMemberships(members.map((m: any) => {
           const profile = profileMap.get(m.user_id);
+          const employee = employeeMap.get(m.user_id);
+          
+          // Priorizar: profile -> employee -> fallback
+          const email = profile?.email || employee?.email || `Usuario ${m.user_id.substring(0, 8)}`;
+          const full_name = profile?.full_name || employee?.full_name || undefined;
+
           return {
             ...m,
             user: {
-              email: profile?.email || `Usuario ${m.user_id.substring(0, 8)}`,
-              full_name: profile?.full_name || undefined
+              email,
+              full_name
             }
           };
         }));
@@ -604,48 +619,97 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     setSearching(true);
     try {
       const searchTerm = query.trim().toLowerCase();
+      const isEmail = searchTerm.includes('@');
       
-      // Buscar en profiles por email
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .ilike('email', `%${searchTerm}%`)
-        .limit(10);
+      // Buscar en profiles por email (exacto primero, luego parcial)
+      let profiles: any[] = [];
+      if (isEmail) {
+        // Si parece un email, buscar exacto primero
+        const { data: exactProfiles } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .eq('email', searchTerm)
+          .limit(10);
+        
+        if (exactProfiles && exactProfiles.length > 0) {
+          profiles = exactProfiles;
+        } else {
+          // Si no hay exacto, buscar parcial
+          const { data: partialProfiles } = await supabase
+            .from('profiles')
+            .select('id, email, full_name')
+            .ilike('email', `%${searchTerm}%`)
+            .limit(10);
+          profiles = partialProfiles || [];
+        }
+      } else {
+        // Si no es email, buscar por coincidencia parcial
+        const { data: partialProfiles } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .ilike('email', `%${searchTerm}%`)
+          .limit(10);
+        profiles = partialProfiles || [];
+      }
 
-      if (profilesError) {
-        console.error('Error searching profiles:', profilesError);
+      // Buscar en employees por email (si tienen user_id)
+      let employeesByEmail: any[] = [];
+      if (isEmail) {
+        const { data: empByEmail } = await supabase
+          .from('employees')
+          .select('user_id, full_name, email')
+          .ilike('email', `%${searchTerm}%`)
+          .not('user_id', 'is', null)
+          .limit(10);
+        employeesByEmail = empByEmail || [];
       }
 
       // Buscar en employees por full_name (solo si tienen user_id)
-      const { data: employees, error: employeesError } = await supabase
+      const { data: employeesByName } = await supabase
         .from('employees')
         .select('user_id, full_name, email')
         .ilike('full_name', `%${searchTerm}%`)
         .not('user_id', 'is', null)
         .limit(10);
 
-      if (employeesError) {
-        console.error('Error searching employees:', employeesError);
-      }
-
       // Combinar resultados
       const userMap = new Map<string, SearchedUser>();
       
+      // Agregar profiles
       (profiles || []).forEach((p: any) => {
         if (!userMap.has(p.id)) {
           userMap.set(p.id, {
             id: p.id,
             email: p.email || '',
-            full_name: undefined
+            full_name: p.full_name || undefined
           });
         }
       });
 
-      (employees || []).forEach((e: any) => {
+      // Agregar employees encontrados por email
+      (employeesByEmail || []).forEach((e: any) => {
+        if (e.user_id) {
+          const existing = userMap.get(e.user_id);
+          if (existing) {
+            existing.full_name = e.full_name || existing.full_name;
+            existing.email = e.email || existing.email;
+          } else {
+            userMap.set(e.user_id, {
+              id: e.user_id,
+              email: e.email || '',
+              full_name: e.full_name || undefined
+            });
+          }
+        }
+      });
+
+      // Agregar employees encontrados por nombre
+      (employeesByName || []).forEach((e: any) => {
         if (e.user_id && e.full_name) {
           const existing = userMap.get(e.user_id);
           if (existing) {
-            existing.full_name = e.full_name;
+            existing.full_name = e.full_name || existing.full_name;
+            existing.email = e.email || existing.email;
           } else {
             userMap.set(e.user_id, {
               id: e.user_id,
@@ -663,6 +727,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setSearchResults(filteredResults);
     } catch (error) {
       console.error('Error searching users:', error);
+      toast.error('Error al buscar usuarios. Intenta de nuevo.');
       setSearchResults([]);
     } finally {
       setSearching(false);

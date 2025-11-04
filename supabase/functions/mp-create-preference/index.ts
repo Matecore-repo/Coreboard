@@ -5,7 +5,7 @@
  */
 
 import { createServiceRoleClient } from '../_shared/supabase-client.ts';
-import { decrypt, base64ToUint8Array } from '../_shared/crypto.ts';
+import { refreshAccessToken } from '../_shared/mp-token-refresh.ts';
 
 const MP_API_URL = 'https://api.mercadopago.com';
 const MP_TOKEN_KEY = Deno.env.get('MP_TOKEN_KEY');
@@ -41,25 +41,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Obtener credenciales de la organización
-    const supabase = createServiceRoleClient();
-    const { data: creds, error: credsError } = await supabase
-      .from('mercadopago_credentials')
-      .select('*')
-      .eq('org_id', org_id)
-      .single();
-
-    if (credsError || !creds) {
+    // Obtener access token (se refresca automáticamente si expiró)
+    let accessToken: string;
+    try {
+      accessToken = await refreshAccessToken(org_id);
+    } catch (error: any) {
       return new Response(
-        JSON.stringify({ error: 'Organización no tiene cuenta de Mercado Pago conectada' }),
+        JSON.stringify({ error: 'Error obteniendo token de Mercado Pago', details: error.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Descifrar access_token
-    const accessTokenCiphertext = base64ToUint8Array(creds.access_token_ct);
-    const accessTokenNonce = base64ToUint8Array(creds.access_token_nonce);
-    const accessToken = await decrypt(accessTokenCiphertext, accessTokenNonce, MP_TOKEN_KEY);
+    const supabase = createServiceRoleClient();
 
     // URLs de callback por defecto
     const defaultBackUrls = {

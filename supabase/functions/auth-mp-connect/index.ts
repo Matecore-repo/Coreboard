@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
     authUrl.searchParams.set('platform_id', 'mp');
     authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
     authUrl.searchParams.set('state', stateData);
+    authUrl.searchParams.set('scope', 'offline_access'); // Necesario para obtener refresh_token
 
     // Redirigir al usuario a MP
     return new Response(null, {

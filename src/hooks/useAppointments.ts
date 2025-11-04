@@ -276,14 +276,41 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     }
     
     // Si solo se está actualizando status, usar RPC directamente
+    // Si el RPC falla (por ejemplo, si el enum no existe), usar update directo
     if (Object.keys(updates).length === 1 && updates.status) {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('update_appointment_status', {
-        p_appointment_id: id,
-        p_status: updates.status
-      });
-      if (rpcError) throw rpcError;
-      await fetchAppointments();
-      return rpcData ? mapRowToAppointment(rpcData) : null;
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('update_appointment_status', {
+          p_appointment_id: id,
+          p_status: updates.status
+        });
+        if (rpcError) throw rpcError;
+        await fetchAppointments();
+        return rpcData ? mapRowToAppointment(rpcData) : null;
+      } catch (error: any) {
+        // Si el RPC falla (por ejemplo, error de tipo enum), usar update directo como fallback
+        if (error?.code === '42804' || error?.message?.includes('appointment_status')) {
+          // Solo actualizar el estado sin select, luego refrescar la lista
+          const { error: updateError } = await supabase
+            .from('appointments')
+            .update({ status: updates.status, updated_at: new Date().toISOString() })
+            .eq('id', id);
+          if (updateError) throw updateError;
+          // Refrescar la lista para obtener el estado actualizado
+          await fetchAppointments();
+          // El estado se actualiza en el estado local, retornar el appointment actualizado
+          const updatedAppointment = appointments.find(apt => apt.id === id);
+          if (updatedAppointment) {
+            // Actualizar el estado local antes de retornar
+            if (updates.status) {
+              setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: updates.status! } : apt));
+              return { ...updatedAppointment, status: updates.status };
+            }
+            return updatedAppointment;
+          }
+          return null;
+        }
+        throw error;
+      }
     }
     
     // Para otros updates, usar mapAppointmentToRow
