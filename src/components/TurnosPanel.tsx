@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { DollarSign, Clock } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Appointment } from "./features/appointments/AppointmentCard";
+import { useCommissions } from "../hooks/useCommissions";
+import { useAuth } from "../contexts/AuthContext";
+import { useEmployees } from "../hooks/useEmployees";
 
 interface TurnosPanelProps {
   appointments: Appointment[];
@@ -11,15 +14,35 @@ interface TurnosPanelProps {
 }
 
 export function TurnosPanel({ appointments, selectedSalon, variant = "all" }: TurnosPanelProps) {
-  const [commissions, setCommissions] = useState(0);
   const [nextAppointmentTime, setNextAppointmentTime] = useState<string | null>(null);
+  const { user, currentOrgId } = useAuth();
+  const { commissions, loading: loadingCommissions } = useCommissions({ enabled: true });
+  const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
+
+  // Encontrar el empleado actual por user_id
+  const currentEmployee = useMemo(() => {
+    if (!user?.id) return null;
+    return employees.find(emp => emp.user_id === user.id);
+  }, [employees, user?.id]);
+
+  // Calcular comisiones del día de hoy
+  const todayCommissions = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const todayComms = commissions.filter(comm => {
+      const commDate = new Date(comm.date).toISOString().split("T")[0];
+      if (commDate !== today) return false;
+      // Si hay un empleado actual, filtrar solo sus comisiones
+      if (currentEmployee) {
+        return comm.employee_id === currentEmployee.id;
+      }
+      return true;
+    });
+    return todayComms.reduce((sum, comm) => sum + comm.amount, 0);
+  }, [commissions, currentEmployee]);
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
     const salonAppointments = !selectedSalon ? appointments : appointments.filter(a => a.salonId === selectedSalon);
-
-    const todayCompleted = salonAppointments.filter(apt => apt.date === today && apt.status === "completed");
-    setCommissions(todayCompleted.length * 500);
 
     const upcoming = salonAppointments
       .filter(apt => apt.date >= today && apt.status !== "cancelled" && apt.status !== "completed")
@@ -36,7 +59,7 @@ export function TurnosPanel({ appointments, selectedSalon, variant = "all" }: Tu
         </div>
         <div className="min-w-0">
           <p className="text-muted-foreground truncate">Comisiones Hoy</p>
-          <p className="font-medium">${commissions}</p>
+          <p className="font-medium">${todayCommissions.toFixed(2)}</p>
         </div>
       </div>
     </div>

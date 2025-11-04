@@ -4,8 +4,10 @@
 // Gestión completa de organizaciones: ver, renombrar, invitar miembros y eliminar
 // Layout simplificado consistente con HomeView
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useSalons } from '../../hooks/useSalons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -17,9 +19,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
+import { GenericActionBar } from '../GenericActionBar';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
-import { Trash2, Pencil, Save, X, Users, Mail, UserPlus, Search, Check } from 'lucide-react';
+import { Trash2, Pencil, Save, X, Users, Mail, UserPlus, Search, Check, DollarSign, Phone, Building2, Settings, Edit3 } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -37,6 +40,17 @@ interface Membership {
   user?: {
     email: string;
     full_name?: string;
+  };
+  employee?: {
+    id: string;
+    user_id?: string;
+    full_name: string;
+    email?: string;
+    phone?: string;
+    commission_type?: 'percentage' | 'fixed';
+    default_commission_pct?: number;
+    default_commission_amount?: number;
+    active: boolean;
   };
 }
 
@@ -84,6 +98,22 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const [leaveOrgDialogOpen, setLeaveOrgDialogOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
+  // Estados para gestión de empleados
+  const { employees, isLoading: loadingEmployees, createEmployee, updateEmployee, deleteEmployee } = useEmployees(currentOrgId ?? undefined);
+  const { salons } = useSalons(currentOrgId ?? undefined, { enabled: true });
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<any>(null);
+  const [selectedSalons, setSelectedSalons] = useState<Set<string>>(new Set());
+  const [employeeFormData, setEmployeeFormData] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    commission_type: 'percentage' as 'percentage' | 'fixed',
+    default_commission_pct: 50.0,
+    default_commission_amount: 0,
+  });
+
   // Refs para evitar cargas múltiples
   const loadingRef = useRef(false);
   const loadedOrgIdRef = useRef<string | null>(null);
@@ -96,6 +126,328 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const canManageMembers = isAdmin || isOwner;
   const canDelete = isOwner;
   const canViewMembers = true; // Todos los usuarios pueden ver miembros
+
+  // ============================================================================
+  // FUNCIONES DE GESTIÓN DE EMPLEADOS
+  // ============================================================================
+
+  const handleSelectEmployee = useCallback(async (membership: Membership) => {
+    if (membership.role === 'owner') return; // No mostrar action bar para owner
+    
+    // Buscar empleado por user_id o crear uno nuevo si no existe
+    let employee = membership.employee;
+    
+    if (!employee && membership.user_id) {
+      // Buscar empleado existente por user_id
+      const existingEmployee = employees.find(emp => emp.user_id === membership.user_id);
+      if (existingEmployee) {
+        employee = existingEmployee;
+      }
+    }
+    
+    if (employee) {
+      // Cargar salones asignados
+      const { data: assignments } = await supabase
+        .from('salon_employees')
+        .select('salon_id')
+        .eq('employee_id', employee.id)
+        .eq('is_active', true);
+      
+      const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
+      setSelectedSalons(assignedSalonIds);
+    }
+    
+    setSelectedEmployee({
+      ...membership,
+      employee: employee || null
+    });
+  }, [employees]);
+
+  const handleSaveEmployee = async () => {
+    try {
+      if (editingEmployee) {
+        await updateEmployee(editingEmployee.id, employeeFormData);
+        
+        // Actualizar asignación a salones
+        if (selectedSalons.size > 0) {
+          const { data: userData } = await supabase.auth.getUser();
+          const assignmentPromises = Array.from(selectedSalons).map(async (salonId) => {
+            const { data: existing } = await supabase
+              .from('salon_employees')
+              .select('id')
+              .eq('salon_id', salonId)
+              .eq('employee_id', editingEmployee.id)
+              .single();
+            
+            if (!existing) {
+              const { error: assignError } = await supabase
+                .from('salon_employees')
+                .insert([{
+                  salon_id: salonId,
+                  employee_id: editingEmployee.id,
+                  assigned_by: userData?.data?.user?.id,
+                  is_active: true,
+                }]);
+              
+              if (assignError) throw assignError;
+            }
+          });
+          
+          await Promise.all(assignmentPromises);
+        }
+        
+        toast.success('Empleado actualizado correctamente');
+      } else {
+        if (!currentOrgId) {
+          toast.error('No se puede crear empleado: organización no encontrada');
+          return;
+        }
+
+        // Buscar usuario por email si se proporciona
+        let userId: string | null = null;
+        if (employeeFormData.email) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, email')
+            .eq('email', employeeFormData.email.toLowerCase().trim())
+            .limit(1);
+          
+          if (profiles && profiles.length > 0) {
+            userId = profiles[0].id;
+            
+            // Verificar que el usuario tiene membresía en esta organización
+            const { data: membership } = await supabase
+              .from('memberships')
+              .select('user_id')
+              .eq('org_id', currentOrgId)
+              .eq('user_id', userId)
+              .single();
+            
+            if (!membership) {
+              toast.error('El usuario con ese email no tiene membresía en esta organización');
+              return;
+            }
+          }
+        }
+
+        const createdEmployee = await createEmployee({
+          ...employeeFormData,
+          org_id: currentOrgId,
+          user_id: userId,
+          active: true,
+        });
+        
+        // Asignar empleado a salones seleccionados
+        if (createdEmployee && selectedSalons.size > 0) {
+          const { data: userData } = await supabase.auth.getUser();
+          const assignmentPromises = Array.from(selectedSalons).map(async (salonId) => {
+            const { error: assignError } = await supabase
+              .from('salon_employees')
+              .insert([{
+                salon_id: salonId,
+                employee_id: createdEmployee.id,
+                assigned_by: userData?.data?.user?.id,
+                is_active: true,
+              }]);
+            
+            if (assignError) throw assignError;
+          });
+          
+          await Promise.all(assignmentPromises);
+        }
+        
+        toast.success('Empleado creado correctamente');
+      }
+
+      setEmployeeDialogOpen(false);
+      setEditingEmployee(null);
+      setSelectedSalons(new Set());
+      setSelectedEmployee(null);
+      setEmployeeFormData({ full_name: '', email: '', phone: '', commission_type: 'percentage', default_commission_pct: 50.0, default_commission_amount: 0 });
+      await loadMemberships(currentOrgId!);
+    } catch (error) {
+      console.error('Error saving employee:', error);
+      toast.error('Error al guardar el empleado');
+    }
+  };
+
+  const handleEditEmployee = async (membership: Membership) => {
+    if (membership.role === 'owner') return;
+    
+    // Cerrar action bar primero
+    setSelectedEmployee(null);
+    
+    const employee = membership.employee;
+    if (!employee) {
+      // Si no tiene empleado, crear uno nuevo
+      setEditingEmployee(null);
+      setEmployeeFormData({
+        full_name: membership.user?.full_name || '',
+        email: membership.user?.email || '',
+        phone: '',
+        commission_type: 'percentage',
+        default_commission_pct: 50.0,
+        default_commission_amount: 0,
+      });
+      setSelectedSalons(new Set());
+      // Abrir modal después de cerrar action bar
+      setTimeout(() => {
+        setEmployeeDialogOpen(true);
+      }, 200);
+      return;
+    }
+    
+    setEditingEmployee(employee);
+    setEmployeeFormData({
+      full_name: employee.full_name,
+      email: employee.email || '',
+      phone: employee.phone || '',
+      commission_type: employee.commission_type || 'percentage',
+      default_commission_pct: employee.default_commission_pct || 0,
+      default_commission_amount: employee.default_commission_amount || 0,
+    });
+    
+    // Cargar salones asignados
+    const { data: assignments } = await supabase
+      .from('salon_employees')
+      .select('salon_id')
+      .eq('employee_id', employee.id)
+      .eq('is_active', true);
+    
+    const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
+    setSelectedSalons(assignedSalonIds);
+    // Abrir modal después de cerrar action bar y cargar datos
+    setTimeout(() => {
+      setEmployeeDialogOpen(true);
+    }, 200);
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este empleado?')) return;
+
+    try {
+      await deleteEmployee(employeeId);
+      toast.success('Empleado eliminado correctamente');
+      setSelectedEmployee(null);
+      await loadMemberships(currentOrgId!);
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      toast.error('Error al eliminar el empleado');
+    }
+  };
+
+  const handleToggleSalon = (salonId: string) => {
+    setSelectedSalons(prev => {
+      const next = new Set(prev);
+      if (next.has(salonId)) {
+        next.delete(salonId);
+      } else {
+        next.add(salonId);
+      }
+      return next;
+    });
+  };
+
+  const handleAssociateUserId = async () => {
+    if (!selectedEmployee?.user_id || !employeeFormData.email) {
+      toast.error('Email requerido para asociar usuario');
+      return;
+    }
+
+    try {
+      // Buscar el usuario por email
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('email', employeeFormData.email.toLowerCase().trim())
+        .limit(1);
+      
+      if (!profiles || profiles.length === 0) {
+        toast.error('No se encontró un usuario con ese email');
+        return;
+      }
+      
+      const userId = profiles[0].id;
+      
+      // Verificar que el usuario tiene membresía en esta organización
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('user_id')
+        .eq('org_id', currentOrgId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (!membership) {
+        toast.error('El usuario no tiene membresía en esta organización');
+        return;
+      }
+      
+      // Asociar el user_id al empleado
+      if (editingEmployee) {
+        await updateEmployee(editingEmployee.id, { user_id: userId });
+        toast.success('Usuario asociado correctamente');
+        setEmployeeDialogOpen(false);
+        await loadMemberships(currentOrgId!);
+      }
+    } catch (error) {
+      console.error('Error asociando usuario:', error);
+      toast.error('Error al asociar usuario');
+    }
+  };
+
+  // Obtener datos del empleado seleccionado para el action bar
+  const employeeActionBarData = useMemo(() => {
+    if (!selectedEmployee) return null;
+    
+    const employee = selectedEmployee.employee;
+    const membership = selectedEmployee;
+    
+    if (!employee && membership.role !== 'owner') {
+      // Empleado sin registro en tabla employees
+      return {
+        title: membership.user?.full_name || membership.user?.email || 'Nuevo Empleado',
+        subtitle: membership.user?.email || '',
+        badge: {
+          text: membership.role === 'employee' ? 'Empleado' : membership.role === 'admin' ? 'Administrador' : 'Visualizador',
+          variant: membership.role === 'admin' ? 'default' : 'outline' as const
+        },
+        detailFields: [
+          { label: 'Email', value: membership.user?.email || 'N/A' },
+          { label: 'Rol', value: membership.role === 'employee' ? 'Empleado' : membership.role === 'admin' ? 'Administrador' : 'Visualizador' },
+          { label: 'Estado', value: 'Sin registro de empleado' },
+        ]
+      };
+    }
+    
+    if (!employee) return null;
+    
+    // Obtener nombres de salones asignados
+    const assignedSalonNames = salons
+      .filter(s => selectedSalons.has(s.id))
+      .map(s => s.name)
+      .join(', ') || 'Ninguno';
+    
+    return {
+      title: employee.full_name,
+      subtitle: employee.email || membership.user?.email || '',
+      badge: {
+        text: employee.active ? 'Activo' : 'Inactivo',
+        variant: employee.active ? 'default' : 'outline' as const
+      },
+      detailFields: [
+        { label: 'Email', value: employee.email || membership.user?.email || 'N/A' },
+        { label: 'Teléfono', value: employee.phone || 'N/A' },
+        { 
+          label: 'Comisión', 
+          value: employee.commission_type === 'fixed' 
+            ? `$${employee.default_commission_amount?.toFixed(2) || 0}`
+            : `${employee.default_commission_pct || 0}%`
+        },
+        { label: 'Salones Asignados', value: assignedSalonNames },
+        { label: 'Rol', value: membership.role === 'employee' ? 'Empleado' : membership.role === 'admin' ? 'Administrador' : 'Visualizador' },
+      ]
+    };
+  }, [selectedEmployee, selectedSalons, salons]);
 
   // ============================================================================
   // FUNCIONES DE CARGA (Memoizadas y optimizadas)
@@ -118,30 +470,36 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       if (members && members.length > 0) {
         const userIds = members.map(m => m.user_id);
         
-        // Obtener emails de profiles
+        // Obtener emails y nombres de profiles
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('id, email')
+          .select('id, email, full_name')
           .in('id', userIds);
 
-        // Obtener nombres completos de employees si tienen user_id
-        const { data: employees } = await supabase
+        // Obtener datos completos de employees (con user_id y sin user_id)
+        const { data: employeesData } = await supabase
           .from('employees')
-          .select('user_id, full_name')
-          .eq('org_id', orgId)
-          .in('user_id', userIds)
-          .not('user_id', 'is', null);
+          .select('id, user_id, full_name, email, phone, commission_type, default_commission_pct, default_commission_amount, active')
+          .eq('org_id', orgId);
 
-        const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
-        const employeeMap = new Map((employees || []).map(e => [e.user_id, e.full_name]));
+        const profileMap = new Map((profiles || []).map(p => [p.id, { email: p.email, full_name: p.full_name }]));
+        
+        // Mapear employees por user_id y por id
+        const employeeByUserIdMap = new Map((employeesData || []).filter(e => e.user_id).map(e => [e.user_id, e]));
+        const employeeByIdMap = new Map((employeesData || []).map(e => [e.id, e]));
 
-        setMemberships(members.map((m: any) => ({
-          ...m,
-          user: {
-            email: profileMap.get(m.user_id) || `Usuario ${m.user_id.substring(0, 8)}`,
-            full_name: employeeMap.get(m.user_id)
-          }
-        })));
+        setMemberships(members.map((m: any) => {
+          const employee = employeeByUserIdMap.get(m.user_id);
+          const profile = profileMap.get(m.user_id);
+          return {
+            ...m,
+            user: {
+              email: profile?.email || employee?.email || `Usuario ${m.user_id.substring(0, 8)}`,
+              full_name: profile?.full_name || employee?.full_name || undefined
+            },
+            employee: employee // Agregar datos completos del empleado
+          };
+        }));
       } else {
         setMemberships([]);
       }
@@ -834,63 +1192,100 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {memberships.map((membership) => (
-                      <div key={membership.user_id} className="flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card">
-                        <div className="flex items-center space-x-3">
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Users className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium">
-                              {membership.user?.full_name || membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}
-                            </p>
-                            {membership.user?.full_name && membership.user?.email && (
-                              <p className="text-sm text-muted-foreground">{membership.user.email}</p>
-                            )}
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Badge variant={
-                                membership.role === 'admin' ? 'default' :
-                                membership.role === 'owner' ? 'secondary' : 'outline'
-                              }>
-                                {membership.role === 'owner' ? 'Propietario' :
-                                 membership.role === 'admin' ? 'Administrador' :
-                                 membership.role === 'employee' ? 'Empleado' :
-                                 'Visualizador'}
-                              </Badge>
-                              {membership.is_primary && (
-                                <Badge variant="outline">Principal</Badge>
+                    {memberships.map((membership) => {
+                      const employee = membership.employee;
+                      const hasEmployeeRecord = !!employee;
+                      const isOwner = membership.role === 'owner';
+                      
+                      return (
+                        <div 
+                          key={membership.user_id} 
+                          className={`flex items-center justify-between p-4 border border-border/60 dark:border-border/40 rounded-2xl bg-card ${!isOwner && canManageMembers ? 'cursor-pointer hover:bg-accent/50 transition-colors' : ''}`}
+                          onClick={() => !isOwner && canManageMembers && handleSelectEmployee(membership)}
+                        >
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <Users className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">
+                                {membership.user?.full_name || employee?.full_name || membership.user?.email || `Usuario ${membership.user_id.substring(0, 8)}`}
+                              </p>
+                              {(membership.user?.email || employee?.email) && (
+                                <p className="text-sm text-muted-foreground truncate">{employee?.email || membership.user?.email}</p>
                               )}
+                              <div className="flex items-center space-x-2 mt-1 flex-wrap gap-1">
+                                <Badge variant={
+                                  membership.role === 'admin' ? 'default' :
+                                  membership.role === 'owner' ? 'secondary' : 'outline'
+                                }>
+                                  {membership.role === 'owner' ? 'Propietario' :
+                                   membership.role === 'admin' ? 'Administrador' :
+                                   membership.role === 'employee' ? 'Empleado' :
+                                   'Visualizador'}
+                                </Badge>
+                                {membership.is_primary && (
+                                  <Badge variant="outline">Principal</Badge>
+                                )}
+                                {hasEmployeeRecord && (
+                                  <>
+                                    <Badge variant={employee.active ? 'default' : 'outline'}>
+                                      {employee.active ? 'Activo' : 'Inactivo'}
+                                    </Badge>
+                                    {employee.commission_type && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {employee.commission_type === 'fixed' 
+                                          ? `$${employee.default_commission_amount?.toFixed(2) || 0}`
+                                          : `${employee.default_commission_pct || 0}%`}
+                                      </Badge>
+                                    )}
+                                  </>
+                                )}
+                                {!hasEmployeeRecord && !isOwner && (
+                                  <Badge variant="outline" className="text-xs">Sin registro</Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {/* Botón para salir de la organización (solo para el usuario actual, no owners) */}
+                            {membership.user_id === currentUser?.id && membership.role !== 'owner' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setLeaveOrgDialogOpen(true)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                Salir de la organización
+                              </Button>
+                            )}
+                            {/* Botón para gestionar empleado (solo para admin/owner, no owners) */}
+                            {canManageMembers && !isOwner && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditEmployee(membership)}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {/* Botón para quitar miembro (solo para admin/owner, no el usuario actual, no owners) */}
+                            {canManageMembers && membership.role !== 'owner' && membership.user_id !== currentUser?.id && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setMemberToRemove(membership);
+                                  setRemoveMemberDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {/* Botón para salir de la organización (solo para el usuario actual, no owners) */}
-                          {membership.user_id === currentUser?.id && membership.role !== 'owner' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setLeaveOrgDialogOpen(true)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              Salir de la organización
-                            </Button>
-                          )}
-                          {/* Botón para quitar miembro (solo para admin/owner, no el usuario actual) */}
-                          {canManageMembers && membership.role !== 'owner' && membership.user_id !== currentUser?.id && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setMemberToRemove(membership);
-                                setRemoveMemberDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {memberships.length === 0 && (
                       <p className="text-muted-foreground text-center py-8">
@@ -970,6 +1365,203 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog para crear/editar empleado */}
+      <Dialog 
+        open={employeeDialogOpen} 
+        onOpenChange={(open) => {
+          setEmployeeDialogOpen(open);
+          // Si se cierra el modal, cerrar también el action bar si está abierto
+          if (!open) {
+            setSelectedEmployee(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingEmployee ? 'Editar Empleado' : 'Nuevo Empleado'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingEmployee
+                ? 'Modifica los datos del empleado.'
+                : 'Agrega un nuevo empleado a tu organización.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="full_name">Nombre completo</Label>
+              <Input
+                id="full_name"
+                value={employeeFormData.full_name}
+                onChange={(e) => setEmployeeFormData({ ...employeeFormData, full_name: e.target.value })}
+                placeholder="Juan Pérez"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email (opcional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="email"
+                  type="email"
+                  value={employeeFormData.email}
+                  onChange={(e) => setEmployeeFormData({ ...employeeFormData, email: e.target.value })}
+                  placeholder="juan@email.com"
+                />
+                {employeeFormData.email && editingEmployee && !editingEmployee.user_id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAssociateUserId}
+                  >
+                    Asociar Usuario
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {editingEmployee && !editingEmployee.user_id 
+                  ? 'Ingresa el email del empleado invitado para asociar su cuenta'
+                  : 'Email del empleado'}
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="phone">Teléfono (opcional)</Label>
+              <Input
+                id="phone"
+                value={employeeFormData.phone}
+                onChange={(e) => setEmployeeFormData({ ...employeeFormData, phone: e.target.value })}
+                placeholder="+54911234567"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="commission_type">Tipo de comisión</Label>
+              <Select
+                value={employeeFormData.commission_type}
+                onValueChange={(value: 'percentage' | 'fixed') => {
+                  setEmployeeFormData({
+                    ...employeeFormData,
+                    commission_type: value,
+                  });
+                }}
+              >
+                <SelectTrigger id="commission_type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Porcentaje (%)</SelectItem>
+                  <SelectItem value="fixed">Monto fijo ($)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {employeeFormData.commission_type === 'percentage' ? (
+              <div className="grid gap-2">
+                <Label htmlFor="commission_pct">Tasa de comisión (%)</Label>
+                <Input
+                  id="commission_pct"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={employeeFormData.default_commission_pct}
+                  onChange={(e) => setEmployeeFormData({
+                    ...employeeFormData,
+                    default_commission_pct: parseFloat(e.target.value) || 0
+                  })}
+                />
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label htmlFor="commission_amount">Monto fijo de comisión ($)</Label>
+                <Input
+                  id="commission_amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={employeeFormData.default_commission_amount}
+                  onChange={(e) => setEmployeeFormData({
+                    ...employeeFormData,
+                    default_commission_amount: parseFloat(e.target.value) || 0
+                  })}
+                />
+              </div>
+            )}
+
+            <div className="grid gap-2">
+              <Label>Asignar a Salones</Label>
+              {salons.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay salones disponibles</p>
+              ) : (
+                <div className="space-y-2 border rounded-lg p-3 max-h-48 overflow-y-auto">
+                  {salons.map((salon) => (
+                    <div key={salon.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`salon-${salon.id}`}
+                        checked={selectedSalons.has(salon.id)}
+                        onChange={() => handleToggleSalon(salon.id)}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <label
+                        htmlFor={`salon-${salon.id}`}
+                        className="flex-1 cursor-pointer text-sm"
+                      >
+                        <div className="font-medium">{salon.name}</div>
+                        {salon.address && (
+                          <div className="text-xs text-muted-foreground">{salon.address}</div>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setEmployeeDialogOpen(false);
+              setEditingEmployee(null);
+              setSelectedEmployee(null);
+              setSelectedSalons(new Set());
+              setEmployeeFormData({ full_name: '', email: '', phone: '', commission_type: 'percentage', default_commission_pct: 50.0, default_commission_amount: 0 });
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEmployee} disabled={!employeeFormData.full_name.trim()}>
+              {editingEmployee ? 'Actualizar' : 'Crear'} Empleado
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* GenericActionBar para empleado seleccionado - Solo mostrar si el modal NO está abierto */}
+      {employeeActionBarData && selectedEmployee && !employeeDialogOpen && (
+        <GenericActionBar
+          title={employeeActionBarData.title}
+          subtitle={employeeActionBarData.subtitle}
+          badge={employeeActionBarData.badge}
+          isOpen={!!selectedEmployee && !employeeDialogOpen}
+          onClose={() => setSelectedEmployee(null)}
+          onEdit={() => {
+            if (selectedEmployee) {
+              handleEditEmployee(selectedEmployee);
+            }
+          }}
+          onDelete={selectedEmployee.employee ? () => {
+            if (selectedEmployee.employee) {
+              setSelectedEmployee(null); // Cerrar action bar
+              handleDeleteEmployee(selectedEmployee.employee.id);
+            }
+          } : undefined}
+          detailFields={employeeActionBarData.detailFields}
+        />
+      )}
     </PageContainer>
   );
 };

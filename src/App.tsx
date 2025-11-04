@@ -41,7 +41,6 @@ const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
 const OrganizationView = lazy(() => import("./components/views/OrganizationView"));
-const EmployeesView = lazy(() => import("./components/sections/EmployeesView"));
 const EmployeeCommissionsView = lazy(() => import("./components/views/EmployeeCommissionsView"));
 const OwnerCommissionsView = lazy(() => import("./components/views/OwnerCommissionsView"));
 
@@ -634,7 +633,6 @@ export default function App() {
     { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
     { id: "clients", label: "Clientes", icon: Users },
     { id: "commissions", label: "Comisiones", icon: Wallet },
-    { id: "employees", label: "Empleados", icon: UserCog },
     { id: "organization", label: "Organización", icon: Building2 },
     { id: "salons", label: "Locales", icon: Scissors },
     { id: "finances", label: "Finanzas", icon: DollarSign },
@@ -646,7 +644,6 @@ export default function App() {
     appointments: "Turnos",
     clients: "Clientes",
     commissions: "Comisiones",
-    employees: "Empleados",
     organization: "Organización",
     salons: "Locales",
     finances: "Finanzas",
@@ -669,7 +666,7 @@ export default function App() {
       return allNavItems.filter(it => it.id !== 'finances');
     }
     
-    // Owners ven todo (incluyendo empleados)
+    // Owners ven todo
     return allNavItems;
   }, [currentRole, isDemo]);
 
@@ -748,24 +745,6 @@ export default function App() {
         return (
           <Suspense fallback={<LoadingView />}>
             <OwnerCommissionsView />
-          </Suspense>
-        );
-      case "employees":
-        // Solo owners/admin pueden gestionar empleados
-        if (currentRole === 'employee') {
-          return (
-            <div className="pb-20 p-4 md:p-6">
-              <Card className="rounded-2xl">
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground">No tienes permisos para acceder a esta sección.</p>
-                </CardContent>
-              </Card>
-            </div>
-          );
-        }
-        return (
-          <Suspense fallback={<LoadingView />}>
-            <EmployeesView />
           </Suspense>
         );
       case "salons":

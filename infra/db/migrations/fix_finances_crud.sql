@@ -100,3 +100,99 @@ CREATE OR REPLACE VIEW public.invoices AS SELECT * FROM app.invoices;
 -- ============================================================================
 ALTER TABLE app.invoices ENABLE ROW LEVEL SECURITY;
 
+-- ============================================================================
+-- 8. FUNCIÓN PARA GENERAR COMISIÓN AUTOMÁTICAMENTE AL COMPLETAR TURNO
+-- ============================================================================
+CREATE OR REPLACE FUNCTION app.generate_commission_on_complete()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_employee_id uuid;
+  v_employee_record app.employees%ROWTYPE;
+  v_commission_amount numeric;
+  v_commission_pct numeric;
+  v_appointment_total numeric;
+  v_commission_exists boolean;
+BEGIN
+  -- Solo generar comisión cuando turno se completa y no había estado completado antes
+  IF NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed') THEN
+    -- Verificar si ya existe una comisión para este appointment
+    SELECT EXISTS(
+      SELECT 1 FROM app.commissions
+      WHERE appointment_id = NEW.id
+    ) INTO v_commission_exists;
+    
+    -- Si no existe comisión, crear una automáticamente
+    IF NOT v_commission_exists THEN
+      -- Obtener el employee_id del appointment (stylist_id)
+      -- La tabla appointments tiene stylist_id que referencia a app.employees
+      v_employee_id := NEW.stylist_id;
+      
+      -- Si no hay stylist_id, intentar buscar por user_id del creador del appointment
+      IF v_employee_id IS NULL THEN
+        SELECT id INTO v_employee_id
+        FROM app.employees
+        WHERE user_id = NEW.created_by
+          AND org_id = NEW.org_id
+          AND active = true
+        LIMIT 1;
+      END IF;
+      
+      -- Si encontramos un empleado, generar la comisión
+      IF v_employee_id IS NOT NULL THEN
+        -- Obtener datos del empleado
+        SELECT * INTO v_employee_record
+        FROM app.employees
+        WHERE id = v_employee_id;
+        
+        -- Obtener total del appointment
+        v_appointment_total := COALESCE(NEW.total_amount, 0);
+        
+        -- Calcular comisión según tipo (percentage o fixed)
+        IF v_employee_record.commission_type = 'fixed' THEN
+          -- Comisión fija
+          v_commission_amount := COALESCE(v_employee_record.default_commission_amount, 0);
+          v_commission_pct := 0;
+        ELSE
+          -- Comisión por porcentaje
+          v_commission_pct := COALESCE(v_employee_record.default_commission_pct, 0);
+          v_commission_amount := (v_appointment_total * v_commission_pct / 100);
+        END IF;
+        
+        -- Solo crear comisión si hay un monto mayor a cero
+        IF v_commission_amount > 0 THEN
+          INSERT INTO app.commissions (
+            org_id,
+            employee_id,
+            appointment_id,
+            amount,
+            pct,
+            date,
+            created_at
+          ) VALUES (
+            NEW.org_id,
+            v_employee_id,
+            NEW.id,
+            v_commission_amount,
+            v_commission_pct,
+            CURRENT_DATE,
+            NOW()
+          );
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Trigger para generar comisiones automáticamente
+DROP TRIGGER IF EXISTS generate_commission_on_complete_trigger ON app.appointments;
+CREATE TRIGGER generate_commission_on_complete_trigger
+  AFTER UPDATE ON app.appointments
+  FOR EACH ROW
+  WHEN (NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed'))
+  EXECUTE FUNCTION app.generate_commission_on_complete();
+
