@@ -23,7 +23,7 @@ function mapRowToCommission(row: any): Commission {
     employee_id: String(row.employee_id),
     appointment_id: row.appointment_id ? String(row.appointment_id) : undefined,
     amount: Number(row.amount ?? 0),
-    commission_rate: Number(row.commission_rate ?? row.commission_pct ?? 0),
+    commission_rate: Number(row.commission_rate ?? row.pct ?? row.commission_pct ?? 0),
     date,
     created_at: row.created_at || new Date().toISOString(),
   };
@@ -42,7 +42,7 @@ function mapCommissionToRow(payload: Partial<Commission>) {
     row.amount = payload.amount;
   }
   if (payload.commission_rate !== undefined) {
-    row.commission_pct = payload.commission_rate;
+    row.pct = payload.commission_rate;
   }
   if (payload.date !== undefined) {
     row.date = payload.date;
@@ -58,12 +58,13 @@ export function useCommissions(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true;
 
   const fetchCommissions = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabled || !currentOrgId) return;
     setLoading(true);
     try {
       let query = supabase
         .from('commissions')
-        .select('id, org_id, employee_id, appointment_id, amount, commission_pct, date, created_at');
+        .select('id, org_id, employee_id, appointment_id, appointment_item_id, amount, pct, date, created_at')
+        .eq('org_id', currentOrgId);
       
       const { data, error } = await query.order('date', { ascending: false });
       
@@ -80,7 +81,7 @@ export function useCommissions(options?: { enabled?: boolean }) {
     } finally {
       setLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, currentOrgId]);
 
   useEffect(() => {
     if (!enabled) return;

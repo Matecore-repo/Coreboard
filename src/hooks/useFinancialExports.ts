@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import * as XLSX from 'xlsx';
 
 export function useFinancialExports() {
   const exportToCSV = useCallback((data: any[], filename: string) => {
@@ -32,10 +33,30 @@ export function useFinancialExports() {
   }, []);
 
   const exportToExcel = useCallback(async (data: any[], filename: string) => {
-    // Por ahora, exportamos como CSV ya que requiere librería adicional
-    // En producción, usar xlsx o exceljs
-    exportToCSV(data, filename);
-  }, [exportToCSV]);
+    if (!data || data.length === 0) {
+      throw new Error('No hay datos para exportar');
+    }
+
+    // Crear workbook y worksheet
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
+
+    // Generar archivo Excel
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    
+    // Descargar archivo
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}.xlsx`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
 
   const exportToPDF = useCallback(async (elementId: string, filename: string) => {
     // Por ahora, solo se puede exportar como imagen

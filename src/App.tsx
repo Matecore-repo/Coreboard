@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
-import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors } from "lucide-react";
+import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors, Wallet } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
@@ -21,7 +21,6 @@ import { useAppointments as useDbAppointments } from "./hooks/useAppointments";
 import { useSalons as useDbSalons } from "./hooks/useSalons";
 import { useEmployees } from "./hooks/useEmployees";
 import { OnboardingModal } from "./components/OnboardingModal";
-import { EmployeeOnboardingModal } from "./components/EmployeeOnboardingModal";
 import { PaymentLinkModal } from "./components/PaymentLinkModal";
 import { LoadingView } from "./components/layout/LoadingView";
 import { SidebarContent } from "./components/layout/SidebarContent";
@@ -42,6 +41,9 @@ const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
 const OrganizationView = lazy(() => import("./components/views/OrganizationView"));
+const EmployeesView = lazy(() => import("./components/sections/EmployeesView"));
+const EmployeeCommissionsView = lazy(() => import("./components/views/EmployeeCommissionsView"));
+const OwnerCommissionsView = lazy(() => import("./components/views/OwnerCommissionsView"));
 
 import { ProfileModal } from "./components/ProfileModal";
 
@@ -126,7 +128,6 @@ export default function App() {
   const [showPaymentLinkModal, setShowPaymentLinkModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showEmployeeOnboarding, setShowEmployeeOnboarding] = useState(false);
   const [showDemoWelcome, setShowDemoWelcome] = useState(false);
   const [prevUser, setPrevUser] = useState<User | null>(null);
   const [services, setServices] = useState<SalonService[]>([
@@ -321,17 +322,7 @@ export default function App() {
     }
   }, [user?.isNewUser, user?.memberships, currentRole, showOnboarding, isDemo, currentOrgId]);
 
-  // Mostrar EmployeeOnboardingModal si es employee con membresía pero sin registro en employees
-  useEffect(() => {
-    if (currentRole === 'employee' && currentOrgId && user?.id && !isDemo) {
-      const hasEmployeeRecord = employees.some(emp => emp.user_id === user.id);
-      const hasMembership = user?.memberships && user.memberships.length > 0;
-      
-      if (hasMembership && !hasEmployeeRecord && !showEmployeeOnboarding) {
-        setShowEmployeeOnboarding(true);
-      }
-    }
-  }, [currentRole, currentOrgId, user?.id, user?.memberships, employees, isDemo, showEmployeeOnboarding]);
+  // El empleado no necesita completar ningún perfil - el owner se encarga de todo
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -642,6 +633,8 @@ export default function App() {
     { id: "home", label: "Inicio", icon: Home },
     { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
     { id: "clients", label: "Clientes", icon: Users },
+    { id: "commissions", label: "Comisiones", icon: Wallet },
+    { id: "employees", label: "Empleados", icon: UserCog },
     { id: "organization", label: "Organización", icon: Building2 },
     { id: "salons", label: "Locales", icon: Scissors },
     { id: "finances", label: "Finanzas", icon: DollarSign },
@@ -652,6 +645,8 @@ export default function App() {
     home: "Inicio",
     appointments: "Turnos",
     clients: "Clientes",
+    commissions: "Comisiones",
+    employees: "Empleados",
     organization: "Organización",
     salons: "Locales",
     finances: "Finanzas",
@@ -662,10 +657,10 @@ export default function App() {
     const role = isDemo ? 'demo' : (currentRole ?? 'viewer');
     if (role === 'demo') return allNavItems;
     
-    // Empleados pueden ver: Inicio, Turnos, Clientes, Organización (solo lectura)
+    // Empleados pueden ver: Inicio, Turnos, Clientes, Comisiones, Organización (solo lectura)
     if (role === 'employee') {
       return allNavItems.filter(it => 
-        ['home', 'appointments', 'clients', 'organization'].includes(it.id)
+        ['home', 'appointments', 'clients', 'commissions', 'organization'].includes(it.id)
       );
     }
     
@@ -674,7 +669,7 @@ export default function App() {
       return allNavItems.filter(it => it.id !== 'finances');
     }
     
-    // Owners ven todo
+    // Owners ven todo (incluyendo empleados)
     return allNavItems;
   }, [currentRole, isDemo]);
 
@@ -739,6 +734,38 @@ export default function App() {
               selectedSalon={selectedSalon}
               onSelectSalon={handleSelectSalon}
             />
+          </Suspense>
+        );
+      case "commissions":
+        // Empleados ven sus comisiones, owners/admin ven todas las comisiones
+        if (currentRole === 'employee') {
+          return (
+            <Suspense fallback={<LoadingView />}>
+              <EmployeeCommissionsView />
+            </Suspense>
+          );
+        }
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <OwnerCommissionsView />
+          </Suspense>
+        );
+      case "employees":
+        // Solo owners/admin pueden gestionar empleados
+        if (currentRole === 'employee') {
+          return (
+            <div className="pb-20 p-4 md:p-6">
+              <Card className="rounded-2xl">
+                <CardContent className="pt-6">
+                  <p className="text-muted-foreground">No tienes permisos para acceder a esta sección.</p>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        }
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <EmployeesView />
           </Suspense>
         );
       case "salons":
@@ -1126,10 +1153,6 @@ export default function App() {
       <OnboardingModal
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
-      />
-      <EmployeeOnboardingModal
-        isOpen={showEmployeeOnboarding}
-        onClose={() => setShowEmployeeOnboarding(false)}
       />
       {isDemo && (
         <DemoWelcomeModal

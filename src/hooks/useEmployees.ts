@@ -12,6 +12,8 @@ export type Employee = {
   email?: string;
   phone?: string;
   default_commission_pct: number;
+  commission_type?: 'percentage' | 'fixed';
+  default_commission_amount?: number;
   active: boolean;
   created_at: string;
   updated_at?: string;
@@ -56,6 +58,8 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
           email,
           phone,
           default_commission_pct,
+          commission_type,
+          default_commission_amount,
           active,
           created_at,
           updated_at

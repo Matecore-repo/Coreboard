@@ -78,6 +78,8 @@ export type Employee = {
   phone?: string;
   role: 'owner' | 'admin' | 'employee';
   default_commission_pct: number;
+  commission_type?: 'percentage' | 'fixed';
+  default_commission_amount?: number;
   active: boolean;
   created_at: string;
   updated_at: string;
