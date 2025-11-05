@@ -4,4 +4,4 @@ nachoangelone@gmail.com (empleado)
 contraseñas: 123456
 
 localhost: http://localhost:3000/login 
-ip: http://192.168.0.15:3000/dashboard?view=commissions
+ip: http://192.168.100.50:3000

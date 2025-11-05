@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import supabase from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { queryWithCache, invalidateCache } from '../lib/queryCache';
 
 export type Commission = {
   id: string;
@@ -61,20 +62,26 @@ export function useCommissions(options?: { enabled?: boolean }) {
     if (!enabled || !currentOrgId) return;
     setLoading(true);
     try {
-      let query = supabase
-        .from('commissions')
-        .select('id, org_id, employee_id, amount, pct, calculated_at')
-        .eq('org_id', currentOrgId);
+      const cacheKey = `commissions:${currentOrgId}`;
       
-      const { data, error } = await query.order('id', { ascending: false });
+      // Usar caché para evitar consultas duplicadas
+      const mapped = await queryWithCache<Commission[]>(cacheKey, async () => {
+        let query = supabase
+          .from('commissions')
+          .select('id, org_id, employee_id, amount, pct, calculated_at')
+          .eq('org_id', currentOrgId);
+        
+        const { data, error } = await query.order('id', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching commissions:', error);
+          throw error;
+        }
+        
+        return ((data as any[]) || []).map(mapRowToCommission);
+      });
       
-      if (error) {
-        console.error('Error fetching commissions:', error);
-        setCommissions([]);
-      } else {
-        const mapped = ((data as any[]) || []).map(mapRowToCommission);
-        setCommissions(mapped);
-      }
+      setCommissions(mapped);
     } catch (error) {
       console.error('Error fetching commissions:', error);
       setCommissions([]);
@@ -109,6 +116,9 @@ export function useCommissions(options?: { enabled?: boolean }) {
     };
     const { data, error } = await supabase.from('commissions').insert([toInsert]).select();
     if (error) throw error;
+    if (currentOrgId) {
+      invalidateCache(`commissions:${currentOrgId}`);
+    }
     await fetchCommissions();
     return data ? data.map(mapRowToCommission) : [];
   };
@@ -117,6 +127,9 @@ export function useCommissions(options?: { enabled?: boolean }) {
     const toUpdate = mapCommissionToRow(updates);
     const { data, error } = await supabase.from('commissions').update(toUpdate).eq('id', id).select();
     if (error) throw error;
+    if (currentOrgId) {
+      invalidateCache(`commissions:${currentOrgId}`);
+    }
     await fetchCommissions();
     return data ? data.map(mapRowToCommission) : [];
   };
@@ -124,6 +137,9 @@ export function useCommissions(options?: { enabled?: boolean }) {
   const deleteCommission = async (id: string) => {
     const { error } = await supabase.from('commissions').delete().eq('id', id);
     if (error) throw error;
+    if (currentOrgId) {
+      invalidateCache(`commissions:${currentOrgId}`);
+    }
     await fetchCommissions();
   };
 

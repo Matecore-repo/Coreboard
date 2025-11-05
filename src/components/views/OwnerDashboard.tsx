@@ -224,7 +224,7 @@ export default function OwnerDashboard({
   return (
     <div className="space-y-8">
       {/* Botón de exportación */}
-      <div className="flex justify-end">
+      <div className="flex justify-end my-4">
         <Button onClick={handleExportAll} variant="outline" className="gap-2">
           <Download className="h-4 w-4" />
           Exportar a Excel
@@ -286,7 +286,7 @@ export default function OwnerDashboard({
       </div>
 
       {/* Resultados Financieros Detallados */}
-      <Card>
+      <Card className="my-4">
         <CardHeader>
           <CardTitle>Resultados Financieros</CardTitle>
           <CardDescription>Desglose de ingresos y gastos</CardDescription>
@@ -356,7 +356,7 @@ export default function OwnerDashboard({
       </Card>
 
       {/* Gastos por Categoría */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -431,7 +431,7 @@ export default function OwnerDashboard({
       </div>
 
       {/* Comisiones por Empleado */}
-      <Card>
+      <Card className="my-4">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5" />
@@ -468,7 +468,7 @@ export default function OwnerDashboard({
       </Card>
 
       {/* Gastos por Categoría y Pagos por Método */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-4">
         <Card>
           <CardHeader>
             <CardTitle>Gastos por Categoría</CardTitle>
@@ -524,7 +524,7 @@ export default function OwnerDashboard({
       </div>
 
       {/* Gráficos Principales */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-4">
         <Card>
           <CardHeader>
             <CardTitle>Ingresos vs Gastos</CardTitle>

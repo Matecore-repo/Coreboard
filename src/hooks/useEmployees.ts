@@ -3,6 +3,7 @@ import supabase from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { demoStore } from '../demo/store';
 import { isValidUUID } from '../lib/uuid';
+import { queryWithCache, invalidateCache } from '../lib/queryCache';
 
 export type Employee = {
   id: string;
@@ -48,27 +49,34 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('employees')
-        .select(`
-          id,
-          org_id,
-          user_id,
-          full_name,
-          email,
-          phone,
-          default_commission_pct,
-          active,
-          created_at,
-          updated_at
-        `)
-        .eq('org_id', orgId)
-        .eq('active', true)
-        .is('deleted_at', null)
-        .order('full_name', { ascending: true });
+      const cacheKey = `employees:${orgId}`;
+      
+      // Usar caché para evitar consultas duplicadas
+      const employeesData = await queryWithCache<Employee[]>(cacheKey, async () => {
+        const { data, error } = await supabase
+          .from('employees')
+          .select(`
+            id,
+            org_id,
+            user_id,
+            full_name,
+            email,
+            phone,
+            default_commission_pct,
+            active,
+            created_at,
+            updated_at
+          `)
+          .eq('org_id', orgId)
+          .eq('active', true)
+          .is('deleted_at', null)
+          .order('full_name', { ascending: true });
 
-      if (error) throw error;
-      setEmployees(data || []);
+        if (error) throw error;
+        return data || [];
+      });
+
+      setEmployees(employeesData);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Unknown error'));
@@ -104,9 +112,11 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
     if (!orgId || (!isDemo && !isValidUUID(orgId))) {
       throw new Error('Organización inválida');
     }
+    const cacheKey = `employees:${orgId}`;
     if (isDemo && orgId) {
       const { org_id: _ignored, ...rest } = employeeData as any;
       const created = await demoStore.employees.create(orgId, rest);
+      invalidateCache(cacheKey);
       await fetchEmployees();
       return created;
     }
@@ -117,6 +127,7 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
       .single();
 
     if (error) throw error;
+    invalidateCache(cacheKey);
     await fetchEmployees();
     return data;
   };
@@ -125,8 +136,10 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
     if (!isDemo && (!orgId || !isValidUUID(orgId))) {
       throw new Error('Organización inválida');
     }
+    const cacheKey = orgId ? `employees:${orgId}` : null;
     if (isDemo) {
       const updated = await demoStore.employees.update(id, updates);
+      if (cacheKey) invalidateCache(cacheKey);
       await fetchEmployees();
       return updated;
     }
@@ -138,6 +151,7 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
       .single();
 
     if (error) throw error;
+    if (cacheKey) invalidateCache(cacheKey);
     await fetchEmployees();
     return data;
   };
@@ -146,8 +160,10 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
     if (!isDemo && (!orgId || !isValidUUID(orgId))) {
       throw new Error('Organización inválida');
     }
+    const cacheKey = orgId ? `employees:${orgId}` : null;
     if (isDemo) {
       await demoStore.employees.remove(id);
+      if (cacheKey) invalidateCache(cacheKey);
       await fetchEmployees();
       return;
     }
@@ -157,6 +173,7 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
       .eq('id', id);
 
     if (error) throw error;
+    if (cacheKey) invalidateCache(cacheKey);
     await fetchEmployees();
   };
 

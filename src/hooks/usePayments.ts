@@ -21,22 +21,21 @@ export type Payment = {
 };
 
 function mapRowToPayment(row: any): Payment {
-  const processedAt = row.received_at || row.processed_at || row.date || row.created_at;
+  const processedAt = row.processed_at || row.date || row.received_at || row.created_at;
   const dateValue = processedAt ? new Date(processedAt) : new Date();
   const yyyy = dateValue.getFullYear();
   const mm = String(dateValue.getMonth() + 1).padStart(2, '0');
   const dd = String(dateValue.getDate()).padStart(2, '0');
   const date = `${yyyy}-${mm}-${dd}`;
-  const settlementDate = row.gateway_settlement_date ? new Date(row.gateway_settlement_date).toISOString().split('T')[0] : undefined;
 
-  // Mapear method (enum) a paymentMethod (text)
+  // Mapear payment_method (text) a paymentMethod
   const methodMap: Record<string, 'cash' | 'card' | 'transfer' | 'other'> = {
     'cash': 'cash',
     'card': 'card',
     'transfer': 'transfer',
     'mp': 'card', // Mercado Pago se mapea a card
   };
-  const paymentMethod = methodMap[row.method] || 'cash';
+  const paymentMethod = methodMap[row.payment_method || row.method] || 'cash';
 
   return {
     id: String(row.id),
@@ -46,14 +45,14 @@ function mapRowToPayment(row: any): Payment {
     date,
     notes: row.notes || undefined,
     orgId: row.org_id ? String(row.org_id) : undefined,
-    discountAmount: row.discount_amount ? Number(row.discount_amount) : undefined,
-    taxAmount: row.tax_amount ? Number(row.tax_amount) : undefined,
-    tipAmount: row.tip_amount ? Number(row.tip_amount) : undefined,
-    gatewayFee: row.gateway_fee ? Number(row.gateway_fee) : undefined,
-    paymentMethodDetail: row.payment_method_detail || undefined,
-    gatewayTransactionId: row.gateway_transaction_id || undefined,
-    gatewaySettlementDate: settlementDate,
-    gatewaySettlementAmount: row.gateway_settlement_amount ? Number(row.gateway_settlement_amount) : undefined,
+    discountAmount: undefined,
+    taxAmount: undefined,
+    tipAmount: undefined,
+    gatewayFee: undefined,
+    paymentMethodDetail: undefined,
+    gatewayTransactionId: undefined,
+    gatewaySettlementDate: undefined,
+    gatewaySettlementAmount: undefined,
   };
 }
 
@@ -67,17 +66,17 @@ function mapPaymentToRow(payload: Partial<Payment>) {
     row.amount = payload.amount;
   }
   if (payload.paymentMethod !== undefined) {
-    // Mapear paymentMethod a method (enum)
+    // Mapear paymentMethod a payment_method (text)
     const methodMap: Record<string, string> = {
       'cash': 'cash',
       'card': 'card',
       'transfer': 'transfer',
       'other': 'card', // other se mapea a card
     };
-    row.method = methodMap[payload.paymentMethod] || 'cash';
+    row.payment_method = methodMap[payload.paymentMethod] || 'cash';
   }
   if (payload.date !== undefined) {
-    row.received_at = new Date(payload.date).toISOString();
+    row.processed_at = new Date(payload.date).toISOString();
   }
   if (payload.notes !== undefined) {
     row.notes = payload.notes || null;
@@ -130,14 +129,14 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     try {
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, method, received_at, notes, org_id, discount_amount, tax_amount, tip_amount, gateway_fee, payment_method_detail, gateway_transaction_id, gateway_settlement_date, gateway_settlement_amount, created_by')
-        .order('received_at', { ascending: false });
+        .select('id, appointment_id, amount, payment_method, processed_at, notes, org_id, created_at')
+        .order('processed_at', { ascending: false });
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
       }
       
-      const { data, error } = await query.order('received_at', { ascending: false });
+      const { data, error } = await query.order('date', { ascending: false });
       
       if (error) {
         console.error('Error fetching payments:', error);

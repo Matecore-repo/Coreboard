@@ -60,7 +60,7 @@ function mapExpenseToRow(payload: Partial<Expense>) {
     row.due_date = payload.due_date || null;
   }
   if (payload.incurred_at !== undefined) {
-    row.incurred_at = new Date(payload.incurred_at).toISOString();
+    row.incurred_at = new Date(payload.incurred_at).toISOString().split('T')[0];
   }
   
   return row;
@@ -92,7 +92,7 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
     try {
       let query = supabase
         .from('expenses')
-        .select('id, org_id, salon_id, amount, description, category, type, supplier_id, invoice_number, invoice_date, payment_status, due_date, incurred_at, created_by, created_at');
+        .select('id, org_id, salon_id, amount, description, category, incurred_at, created_by, created_at');
       
       if (options?.filters) {
         const filters = options.filters;
@@ -102,9 +102,7 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
         if (filters.category) {
           query = query.eq('category', filters.category);
         }
-        if (filters.type) {
-          query = query.eq('type', filters.type);
-        }
+        // Nota: filtro por type removido porque la columna no existe en la BD
         if (filters.paymentStatus) {
           query = query.eq('payment_status', filters.paymentStatus);
         }

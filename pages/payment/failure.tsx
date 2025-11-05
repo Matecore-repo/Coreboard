@@ -1,21 +1,11 @@
-import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../src/components/ui/card';
 import { Button } from '../../src/components/ui/button';
-import { XCircle } from 'lucide-react';
+import { XCircle, AlertCircle, Phone } from 'lucide-react';
 
 export default function PaymentFailurePage() {
   const router = useRouter();
   const { appointment_id, status, status_detail } = router.query;
-
-  useEffect(() => {
-    // Redirigir al dashboard después de 10 segundos
-    const timer = setTimeout(() => {
-      router.push('/dashboard');
-    }, 10000);
-
-    return () => clearTimeout(timer);
-  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
@@ -33,39 +23,58 @@ export default function PaymentFailurePage() {
           <p className="text-center text-muted-foreground">
             El pago no pudo ser procesado. Por favor, intenta nuevamente o usa otro método de pago.
           </p>
+          
           {status && (
             <div className="bg-muted p-3 rounded-md">
-              <p className="text-sm font-medium">Estado: {status}</p>
-              {status_detail && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Detalle: {status_detail}
-                </p>
-              )}
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Estado: {status}</p>
+                  {status_detail && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Detalle: {status_detail}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
+          
           {appointment_id && (
-            <p className="text-center text-sm text-muted-foreground">
-              ID de turno: {appointment_id}
-            </p>
+            <div className="bg-muted p-3 rounded-md">
+              <p className="text-sm text-muted-foreground text-center">
+                ID de turno: <span className="font-medium">{appointment_id}</span>
+              </p>
+            </div>
           )}
-          <div className="flex flex-col gap-2">
+
+          <div className="bg-muted/50 p-4 rounded-md border border-muted">
+            <div className="flex items-start gap-2">
+              <Phone className="w-4 h-4 text-muted-foreground mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">¿Necesitas ayuda?</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Contacta con el establecimiento para obtener asistencia o intentar con otro método de pago.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-4">
             <Button
-              onClick={() => router.push('/dashboard')}
-              className="w-full"
-            >
-              Volver al Dashboard
-            </Button>
-            <Button
-              variant="outline"
               onClick={() => router.back()}
               className="w-full"
             >
               Intentar nuevamente
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push('/')}
+              className="w-full"
+            >
+              Volver al inicio
+            </Button>
           </div>
-          <p className="text-center text-xs text-muted-foreground">
-            Serás redirigido automáticamente en unos segundos...
-          </p>
         </CardContent>
       </Card>
     </div>

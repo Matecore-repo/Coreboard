@@ -90,7 +90,7 @@ export default function ClientDashboard({ appointments, selectedSalon }: ClientD
   return (
     <div className="space-y-6">
       {/* Botón de exportación */}
-      <div className="flex justify-end">
+      <div className="flex justify-end my-4">
         <Button onClick={handleExport} variant="outline" className="gap-2">
           <Download className="h-4 w-4" />
           Exportar a Excel
