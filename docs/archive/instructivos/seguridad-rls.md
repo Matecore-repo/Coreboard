@@ -34,112 +34,149 @@ COREBOARD implementa **Row Level Security (RLS)** enterprise-grade para aislamie
 
 ## 📋 Políticas RLS por Tabla
 
-### 🏢 Organizaciones (`app.orgs`)
+### 🏢 Organizaciones (`app.organizations`)
 
 ```sql
 -- Lectura: Solo miembros de la org
-CREATE POLICY "orgs_read_members" ON app.orgs
+CREATE POLICY "orgs_read_members" ON app.organizations
   FOR SELECT USING (
     id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
     )
+    AND deleted_at IS NULL
   );
 
 -- Escritura: Solo owners pueden modificar
-CREATE POLICY "orgs_write_owners" ON app.orgs
+CREATE POLICY "orgs_write_owners" ON app.organizations
   FOR ALL USING (
     id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
         AND role = 'owner'
     )
   );
 ```
 
-### 👥 Membresías (`public.memberships`)
+### 👥 Membresías (`app.memberships`)
 
 ```sql
 -- Lectura: Solo las propias membresías
-CREATE POLICY "memberships_read_own" ON public.memberships
+CREATE POLICY "memberships_read_own" ON app.memberships
   FOR SELECT USING (user_id = auth.uid());
 
 -- Gestión: Owners pueden invitar, admins pueden modificar
-CREATE POLICY "memberships_manage_admins" ON public.memberships
+CREATE POLICY "memberships_manage_admins" ON app.memberships
   FOR ALL USING (
     org_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
         AND role IN ('owner', 'admin')
     )
   );
 ```
 
-### 🏪 Salones (`public.salons`)
+### 🏪 Salones (`app.salons`)
 
 ```sql
 -- Acceso completo para miembros de la org
-CREATE POLICY "salons_org_access" ON public.salons
+CREATE POLICY "salons_org_access" ON app.salons
   FOR ALL USING (
     org_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
     )
+    AND deleted_at IS NULL
   );
 
 -- Eliminación: Solo owners/admins
-CREATE POLICY "salons_delete_restricted" ON public.salons
+CREATE POLICY "salons_delete_restricted" ON app.salons
   FOR DELETE USING (
     org_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
         AND role IN ('owner', 'admin')
     )
   );
 ```
 
-### ✂️ Servicios (`public.services`)
+### ✂️ Servicios (`app.services`)
 
 ```sql
 -- Acceso completo para miembros de la org
-CREATE POLICY "services_org_access" ON public.services
+CREATE POLICY "services_org_access" ON app.services
   FOR ALL USING (
     org_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
     )
+    AND deleted_at IS NULL
   );
 
 -- Modificación: Owners/admins
-CREATE POLICY "services_modify_restricted" ON public.services
+CREATE POLICY "services_modify_restricted" ON app.services
   FOR UPDATE USING (
     org_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
         AND role IN ('owner', 'admin')
     )
   );
 ```
 
-### 👷 Empleados (`public.employees`)
+### 👷 Empleados (`app.employees`)
 
 ```sql
 -- Lectura: Todos los miembros de la org ven empleados
-CREATE POLICY "employees_org_read" ON public.employees
+CREATE POLICY "employees_org_read" ON app.employees
   FOR SELECT USING (
     org_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
     )
+    AND deleted_at IS NULL  -- Solo activos
+    AND user_id IS NOT NULL  -- Regla de oro: debe tener user_id
+    AND active = true  -- Solo empleados activos
   );
 
 -- Gestión: Solo owners/admins
-CREATE POLICY "employees_manage_admins" ON public.employees
+CREATE POLICY "employees_manage_admins" ON app.employees
   FOR ALL USING (
     org_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
         AND role IN ('owner', 'admin')
+    )
+    AND user_id IS NOT NULL  -- Regla de oro: no permitir sin user_id
+  );
+```
+
+### 🏪 Asignaciones Salón-Empleado (`public.salon_employees`)
+
+```sql
+-- Lectura: Miembros de la org del salón
+CREATE POLICY "salon_employees_read" ON public.salon_employees
+  FOR SELECT USING (
+    salon_id IN (
+      SELECT id FROM app.salons
+      WHERE org_id IN (
+        SELECT org_id FROM app.memberships
+        WHERE user_id = auth.uid()
+      )
+    )
+    AND active = true  -- Solo asignaciones activas
+  );
+
+-- Gestión: Solo owners/admins
+CREATE POLICY "salon_employees_manage_admins" ON public.salon_employees
+  FOR ALL USING (
+    salon_id IN (
+      SELECT id FROM app.salons
+      WHERE org_id IN (
+        SELECT org_id FROM app.memberships
+        WHERE user_id = auth.uid()
+          AND role IN ('owner', 'admin')
+      )
     )
   );
 ```
@@ -265,7 +302,7 @@ CREATE POLICY "invitations_no_select" ON public.invitations
 CREATE POLICY "invitations_admin_manage" ON public.invitations
   FOR ALL USING (
     organization_id IN (
-      SELECT org_id FROM public.memberships
+      SELECT org_id FROM app.memberships
       WHERE user_id = auth.uid()
         AND role IN ('owner', 'admin')
     )
@@ -282,10 +319,10 @@ CREATE OR REPLACE FUNCTION public.user_is_member_of(org_id uuid)
 RETURNS boolean
 LANGUAGE sql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, app
 AS $$
   SELECT EXISTS (
-    SELECT 1 FROM public.memberships
+    SELECT 1 FROM app.memberships
     WHERE user_id = auth.uid()
       AND org_id = $1
   );
@@ -296,10 +333,10 @@ CREATE OR REPLACE FUNCTION public.user_has_role_in_org(org_id uuid, required_rol
 RETURNS boolean
 LANGUAGE sql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, app
 AS $$
   SELECT EXISTS (
-    SELECT 1 FROM public.memberships
+    SELECT 1 FROM app.memberships
     WHERE user_id = auth.uid()
       AND org_id = $1
       AND role = $2
@@ -311,10 +348,10 @@ $$;
 
 ```sql
 -- Ejemplo simplificado usando helper
-CREATE POLICY "services_org_access" ON public.services
+CREATE POLICY "services_org_access" ON app.services
   FOR ALL USING (user_is_member_of(org_id));
 
-CREATE POLICY "services_modify_admin" ON public.services
+CREATE POLICY "services_modify_admin" ON app.services
   FOR UPDATE USING (user_has_role_in_org(org_id, 'admin'));
 ```
 
@@ -340,8 +377,8 @@ CREATE POLICY "services_modify_admin" ON public.services
 ```sql
 -- Test 1: Usuario A no ve datos de Usuario B
 -- (Ejecutar como usuario A)
-SELECT COUNT(*) FROM public.clients WHERE org_id != (
-  SELECT org_id FROM public.memberships WHERE user_id = auth.uid()
+SELECT COUNT(*) FROM public.clients WHERE org_id NOT IN (
+  SELECT org_id FROM app.memberships WHERE user_id = auth.uid()
 );
 -- Debe retornar 0
 
@@ -435,11 +472,25 @@ ORDER BY created_at DESC LIMIT 100;
 -- Usuarios sin membresías (potencial problema)
 SELECT u.email, u.created_at
 FROM auth.users u
-LEFT JOIN public.memberships m ON u.id = m.user_id
+LEFT JOIN app.memberships m ON u.id = m.user_id
 WHERE m.id IS NULL
   AND u.created_at < now() - interval '1 hour';
-```</contents>
-</xai:function_call">**Versión:** 1.0.0
-**Última actualización:** Octubre 2025</contents>
-</xai:function_call name="write">
-<parameter name="file_path">instructivos/base-datos.md
+
+-- Empleados sin user_id (violación de regla de oro)
+SELECT e.id, e.full_name, e.email, o.name as org_name
+FROM app.employees e
+JOIN app.organizations o ON e.org_id = o.id
+WHERE e.user_id IS NULL
+  AND e.deleted_at IS NULL
+ORDER BY o.name, e.full_name;
+```
+
+**Versión:** 2.0.0
+**Última actualización:** Noviembre 2025
+
+## 📋 Cambios Recientes (v2.0.0)
+
+### Validaciones de Empleados en RLS
+- ✅ **Regla de oro**: Políticas RLS verifican `user_id IS NOT NULL`
+- ✅ **Tabla `salon_employees`**: Políticas RLS para asignaciones
+- ✅ **Validación en triggers**: `validate_appointment()` valida asignación antes de insertar turno

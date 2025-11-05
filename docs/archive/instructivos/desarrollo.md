@@ -19,10 +19,14 @@ coreboard/
 │   ├── components/          # Componentes reutilizables
 │   │   ├── ui/             # Componentes base (shadcn/ui)
 │   │   ├── views/          # Páginas completas
-│   │   └── figma/          # Componentes desde diseño
+│   │   └── features/       # Features complejos
 │   ├── contexts/           # Context providers (Auth, etc.)
-│   ├── hooks/              # Custom hooks
+│   ├── stores/             # Estado global (turnosStore)
+│   ├── hooks/              # Custom hooks (useTurnos, useAppointments, etc.)
 │   ├── lib/                # Utilidades y configuración
+│   │   ├── employeeValidator.ts  # Validaciones de empleados
+│   │   ├── contextValidator.ts    # Validación de contexto
+│   │   └── ...             # Otros validadores
 │   ├── types/              # TypeScript definitions
 │   └── styles/             # CSS global y themes
 ├── pages/                  # Next.js pages (App Router)
@@ -146,16 +150,39 @@ export const createAdminSupabaseClient = () => {
 ### Queries Tipos
 ```typescript
 // Tipos seguros para queries
-interface Appointment {
+interface Turno {
+  id: string
+  clientName: string
+  service: string
+  date: string        // YYYY-MM-DD
+  time: string        // HH:mm
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
+  stylist: string
+  salonId: string
+  notes?: string
+  created_by?: string
+  total_amount?: number
+}
+
+interface Employee {
   id: string
   org_id: string
+  user_id: string     // OBLIGATORIO - regla de oro
+  full_name: string
+  email?: string
+  phone?: string
+  default_commission_pct?: number
+  active: boolean
+  deleted_at?: string | null
+}
+
+interface SalonEmployee {
+  id: string
   salon_id: string
-  client_name: string
-  date: string
-  time: string
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
-  total_amount: number
-  services: Service[]
+  employee_id: string
+  active: boolean
+  assigned_at: string
+  assigned_by: string
 }
 
 // Query con RLS automático
@@ -207,9 +234,45 @@ const AuthContext = createContext<{
 ```
 
 ### Hooks de Uso Común
+
+#### useTurnos (Hook Principal) ⭐
+```typescript
+// src/hooks/useTurnos.ts
+export const useTurnos = (salonId?: string) => {
+  const { turnos, loading, filters, setFilters, selectedSalon, setSelectedSalon } = useTurnosStore()
+  
+  // Selectores
+  const turnosByDate = useMemo(() => turnosStore.getByDate(...), [turnos])
+  const turnosByStatus = useMemo(() => turnosStore.getByStatus(...), [turnos])
+  
+  // Acciones
+  const createTurno = async (data: Partial<Turno>) => {
+    const validation = turnosStore.validateTurno(data)
+    if (!validation.valid) throw new Error(validation.message)
+    
+    const appointment = await createAppointment(data)
+    turnosStore.upsert(appointment)
+    return appointment
+  }
+  
+  return {
+    turnos: filteredTurnos,
+    loading,
+    filters,
+    setFilters,
+    createTurno,
+    updateTurno,
+    deleteTurno,
+    validateTurno: turnosStore.validateTurno,
+    checkConflicts: turnosStore.checkConflicts
+  }
+}
+```
+
+#### useAppointments (Legacy - Sincroniza con turnosStore)
 ```typescript
 // src/hooks/useAppointments.ts
-export const useAppointments = (orgId: string) => {
+export const useAppointments = (salonId?: string) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -218,11 +281,16 @@ export const useAppointments = (orgId: string) => {
       const { data, error } = await supabase
         .from('appointments')
         .select('*')
-        .eq('org_id', orgId)
+        .eq('salon_id', salonId)
         .order('date', { ascending: true })
 
       if (error) throw error
       setAppointments(data || [])
+      
+      // Sincronizar con turnosStore
+      const turnos = mapAppointmentsToTurnos(data || [])
+      turnosStore.setAll(turnos)
+      
       setLoading(false)
     }
 
@@ -235,17 +303,33 @@ export const useAppointments = (orgId: string) => {
         event: '*',
         schema: 'public',
         table: 'appointments',
-        filter: `org_id=eq.${orgId}`
+        filter: `salon_id=eq.${salonId}`
       }, (payload) => {
-        // Actualizar estado en tiempo real
         fetchAppointments()
       })
       .subscribe()
 
     return () => subscription.unsubscribe()
-  }, [orgId])
+  }, [salonId])
 
-  return { appointments, loading }
+  return { appointments, loading, createAppointment, updateAppointment, deleteAppointment }
+}
+```
+
+#### useEmployees y useSalonEmployees
+```typescript
+// src/hooks/useEmployees.ts
+export const useEmployees = (orgId: string) => {
+  // Filtra automáticamente empleados sin user_id (regla de oro)
+  const employees = useMemo(() => {
+    return filterValidEmployees(rawEmployees)
+  }, [rawEmployees])
+}
+
+// src/hooks/useSalonEmployees.ts
+export const useSalonEmployees = (salonId: string) => {
+  // Gestiona asignaciones many-to-many entre salones y empleados
+  return { salonEmployees, assignEmployee, unassignEmployee }
 }
 ```
 
@@ -574,8 +658,17 @@ const sanitizeHtml = (html: string) => {
 
 ---
 
-**Versión:** 1.0.0
-**Última actualización:** Octubre 2025</contents>
-</xai:function_call">**Última actualización:** Octubre 2025</contents>
-</xai:function_call name="write">
-<parameter name="file_path">instructivos/diagramas-rls.md
+**Versión:** 2.0.0
+**Última actualización:** Noviembre 2025
+
+## 📋 Cambios Recientes (v2.0.0)
+
+### Sistema Global de Turnos
+- ✅ **`src/stores/turnosStore.ts`**: Estado centralizado para turnos
+- ✅ **`src/hooks/useTurnos.ts`**: Hook de alto nivel (recomendado usar este)
+- ✅ **`useAppointments`**: Mantenido para compatibilidad, sincroniza con turnosStore
+
+### Gestión de Empleados
+- ✅ **`src/lib/employeeValidator.ts`**: Validaciones centralizadas
+- ✅ **Tabla `salon_employees`**: Asignaciones many-to-many
+- ✅ **Regla de oro**: user_id obligatorio en `app.employees`

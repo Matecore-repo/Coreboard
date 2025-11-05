@@ -18,7 +18,7 @@ import { Button } from '../ui/button';
 import { useFinancialMetrics } from '../../hooks/useFinancialMetrics';
 import { usePayments } from '../../hooks/usePayments';
 import { useExpenses } from '../../hooks/useExpenses';
-import { useAppointments } from '../../hooks/useAppointments';
+import { useTurnos } from '../../hooks/useTurnos';
 import { useCommissions } from '../../hooks/useCommissions';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useSalons } from '../../hooks/useSalons';
@@ -32,14 +32,12 @@ import { toast } from 'sonner';
 import type { Appointment } from '../../types';
 
 interface OwnerDashboardProps {
-  appointments: Appointment[];
   selectedSalon: string | null;
   salonName?: string;
   dateRange?: { startDate: string; endDate: string };
 }
 
 export default function OwnerDashboard({ 
-  appointments, 
   selectedSalon, 
   salonName,
   dateRange 
@@ -48,7 +46,29 @@ export default function OwnerDashboard({
   const { payments } = usePayments({ enabled: true });
   const { expenses } = useExpenses({ enabled: true });
   const metrics = useFinancialMetrics(selectedSalon, dateRange);
-  const { appointments: allAppointments } = useAppointments(selectedSalon || undefined, { enabled: true });
+  const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  
+  // Convertir turnos a appointments para compatibilidad
+  const allAppointments = React.useMemo(() => {
+    return turnos.map(t => ({
+      id: t.id,
+      clientName: t.clientName,
+      service: t.service,
+      date: t.date,
+      time: t.time,
+      status: t.status,
+      stylist: t.stylist,
+      salonId: t.salonId,
+      notes: t.notes,
+      created_by: t.created_by,
+      org_id: t.org_id,
+      salon_id: t.salonId,
+      service_id: '',
+      client_name: t.clientName,
+      starts_at: `${t.date}T${t.time}:00`,
+      total_amount: t.total_amount || 0,
+    } as unknown as Appointment));
+  }, [turnos]);
   const { commissions } = useCommissions({ enabled: true });
   const { employees } = useEmployees(currentOrgId || undefined, { enabled: true });
   const { salons } = useSalons(currentOrgId || undefined, { enabled: true });

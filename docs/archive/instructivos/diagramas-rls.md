@@ -16,11 +16,13 @@ graph TB
         end
 
         subgraph "Public Schema"
-            MEM[public.memberships<br/>- user_id → auth.users<br/>- org_id → app.orgs<br/>- role]
-            SAL[public.salons<br/>- org_id<br/>- name<br/>- address]
-            APT[public.appointments<br/>- org_id<br/>- salon_id<br/>- client_id]
+            MEM[app.memberships<br/>- user_id → auth.users<br/>- org_id → app.orgs<br/>- role]
+            SAL[app.salons<br/>- org_id<br/>- name<br/>- address<br/>- staff: string[] ELIMINADO]
+            EMP[app.employees<br/>- org_id<br/>- user_id OBLIGATORIO<br/>- full_name<br/>- active]
+            SEM[salon_employees<br/>- salon_id<br/>- employee_id<br/>- active<br/>many-to-many]
+            APT[public.appointments<br/>- org_id<br/>- salon_id<br/>- employee_id<br/>- client_id]
             CLI[public.clients<br/>- org_id<br/>- name<br/>- phone]
-            SRV[public.services<br/>- org_id<br/>- name<br/>- price]
+            SRV[app.services<br/>- org_id<br/>- name<br/>- price]
             PAY[public.payments<br/>- org_id<br/>- amount<br/>- method]
         end
     end
@@ -35,6 +37,8 @@ graph TB
     APP --> RLS
     RLS --> MEM
     RLS --> SAL
+    RLS --> EMP
+    RLS --> SEM
     RLS --> APT
     RLS --> CLI
     RLS --> SRV
@@ -440,7 +444,11 @@ WHERE schemaname IN ('public', 'app');
 ---
 
 **Diagrama generado con Mermaid**
-**Última actualización:** Octubre 2025</contents>
-</xai:function_call">**Última actualización:** Octubre 2025</contents>
-</xai:function_call name="write">
-<parameter name="file_path">instructivos/triggers-automacion.md
+**Última actualización:** Noviembre 2025
+
+## 📋 Cambios Recientes (v2.0.0)
+
+### Actualizaciones en Diagramas
+- ✅ **Tabla `salon_employees`**: Agregada en diagramas de arquitectura
+- ✅ **Regla de oro**: Empleados requieren `user_id` (documentado en flujos)
+- ✅ **Validaciones**: Diagramas de flujo incluyen validación de asignación empleado-salón

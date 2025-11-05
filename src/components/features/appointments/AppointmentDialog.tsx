@@ -13,8 +13,10 @@ import {
 } from "../../ui/select";
 import { useSalonEmployees } from "../../../hooks/useSalonEmployees";
 import { useSalonServices } from "../../../hooks/useSalonServices";
+import { useTurnos } from "../../../hooks/useTurnos";
 import { Appointment } from "./AppointmentCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+import { toast } from "sonner";
 
 interface Salon {
   id: string;
@@ -76,6 +78,12 @@ export function AppointmentDialog({
   const currentSalonId = (formData.salonId || salonId || undefined) === 'all' ? undefined : (formData.salonId || salonId || undefined);
   const { assignments: salonEmployees, isLoading: loadingEmployees } = useSalonEmployees(currentSalonId, { enabled: open && !!currentSalonId });
   const { services: salonServices, loading: loadingServices } = useSalonServices(currentSalonId, { enabled: open && !!currentSalonId });
+  
+  // Usar useTurnos para validaciones y acciones
+  const { createTurno, updateTurno, validateTurno, checkConflicts } = useTurnos({
+    salonId: currentSalonId,
+    enabled: open && !!currentSalonId
+  });
 
   useEffect(() => {
     if (appointment) {
@@ -119,17 +127,68 @@ export function AppointmentDialog({
     }
   }, [appointment, open, salonId, defaultSalonId]);
 
-  const handleSave = () => {
-    if (!formData.clientName || !formData.date || !formData.time) {
-      alert('Por favor completa todos los campos requeridos');
+  const handleSave = async () => {
+    if (!formData.clientName || !formData.date || !formData.time || !formData.service) {
+      toast.error('Por favor completa todos los campos requeridos');
       return;
     }
-    if (!formData.salonId || formData.salonId === 'all') {
-      alert('Selecciona un local');
-      return;
+    // Si no hay salonId seleccionado o es 'all', usar el primer salón disponible
+    let targetSalonId = formData.salonId;
+    if (!targetSalonId || targetSalonId === 'all') {
+      if (salons && salons.length > 0) {
+        targetSalonId = salons[0].id;
+        setFormData({ ...formData, salonId: targetSalonId });
+      } else {
+        toast.error('No hay locales disponibles');
+        return;
+      }
     }
-    onSave(formData);
-    onOpenChange(false);
+    
+    try {
+      // Preparar datos del turno
+      const turnoData = {
+        clientName: formData.clientName,
+        service: formData.service || '',
+        date: formData.date,
+        time: formData.time,
+        status: formData.status || 'pending',
+        stylist: formData.stylist || undefined, // Opcional: usar undefined en lugar de string vacío
+        salonId: targetSalonId,
+        notes: (formData as any).notes || '',
+      };
+      
+      // Validar antes de guardar
+      const validation = validateTurno(turnoData);
+      if (!validation.valid) {
+        toast.error(validation.message || 'Error de validación');
+        return;
+      }
+      
+      // Verificar conflictos (solo para nuevos turnos o cuando cambian fecha/hora/empleado)
+      if (!appointment || formData.date !== appointment.date || formData.time !== appointment.time || formData.stylist !== appointment.stylist) {
+        const conflictCheck = checkConflicts(turnoData, appointment?.id);
+        if (!conflictCheck.valid) {
+          toast.error(conflictCheck.message || 'Hay un conflicto de horarios');
+          return;
+        }
+      }
+      
+      // Guardar usando useTurnos
+      if (appointment) {
+        await updateTurno(appointment.id, turnoData as any);
+        toast.success('Turno actualizado correctamente');
+      } else {
+        await createTurno(turnoData);
+        toast.success('Turno creado correctamente');
+      }
+      
+      // Llamar callback original para compatibilidad
+      onSave(formData);
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error guardando turno:', error);
+      toast.error(error?.message || 'Error al guardar el turno');
+    }
   };
 
   return (
@@ -214,7 +273,10 @@ export function AppointmentDialog({
                 id="date"
                 type="date"
                 value={formData.date || ""}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setFormData((prev) => ({ ...prev, date: newDate }));
+                }}
               />
             </div>
 
@@ -224,7 +286,10 @@ export function AppointmentDialog({
                 id="time"
                 type="time"
                 value={formData.time || ""}
-                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                onChange={(e) => {
+                  const newTime = e.target.value;
+                  setFormData((prev) => ({ ...prev, time: newTime }));
+                }}
               />
             </div>
           </div>

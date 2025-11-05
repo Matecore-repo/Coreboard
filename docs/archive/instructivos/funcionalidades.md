@@ -6,11 +6,19 @@ Sistema completo de gestión para salones de belleza con funcionalidades enterpr
 
 ### 📅 Gestión de Turnos
 
+#### Sistema Global de Turnos
+- **`turnosStore`**: Estado centralizado (fuente única de verdad)
+- **`useTurnos`**: Hook de alto nivel para componentes
+- **Validaciones integradas**: Conflictos horarios, empleados asignados, datos completos
+- **Selectores listos**: Por fecha, estado, salón, empleado
+
 #### Creación de Turnos
 - **Interfaz intuitiva** con drag & drop
 - **Selección de servicios** por salón
 - **Asignación automática** de precios
-- **Validación de horarios** y disponibilidad
+- **Validación de horarios** y disponibilidad (vía `turnosStore.validateTurno()`)
+- **Detección de conflictos** (vía `turnosStore.checkConflicts()`)
+- **Validación de empleado asignado** al salón (vía `employeeValidator`)
 - **Notificaciones** automáticas
 
 #### Estados de Turno
@@ -45,16 +53,20 @@ type AppointmentStatus =
 ### 👷 Empleados y Barberos
 
 #### Perfiles de Empleado
+- **Regla de oro**: Empleado = Usuario autenticado (user_id obligatorio)
+- **Asignación a salones**: Tabla `salon_employees` (many-to-many)
 - **Especialidades** y certificaciones
 - **Horarios de trabajo** por día
 - **Comisiones** configurables por servicio
 - **Evaluaciones** y feedback
+- **Validaciones**: `employeeValidator` valida asignaciones antes de crear turnos
 
 #### Gestión de Horarios
 - **Calendarios individuales** por empleado
 - **Bloqueo de horarios** para capacitaciones
 - **Vacaciones y ausencias** registradas
 - **Sobrecarga automática** prevenida
+- **Validación de conflictos**: `turnosStore.checkConflicts()` detecta solapamientos
 
 ### 💰 Sistema Financiero
 
@@ -283,8 +295,18 @@ POST /api/appointments
 
 ---
 
-**Versión actual:** 1.0.0
-**Próxima release:** v1.1 (Q1 2026)</contents>
-</xai:function_call">**Próxima release:** v1.1 (Q1 2026)</contents>
-</xai:function_call name="write">
-<parameter name="file_path">instructivos/desarrollo.md
+**Versión actual:** 2.0.0
+**Última actualización:** Noviembre 2025
+**Próxima release:** v2.1 (Motor de Compensaciones - Q1 2026)
+
+## 📋 Cambios Recientes (v2.0.0)
+
+### Sistema Global de Turnos
+- ✅ **`turnosStore`**: Fuente única de verdad para turnos
+- ✅ **`useTurnos`**: Hook principal para componentes
+- ✅ **Validaciones integradas**: Conflictos, asignaciones, datos completos
+
+### Gestión de Empleados
+- ✅ **Tabla `salon_employees`**: Asignaciones many-to-many
+- ✅ **Regla de oro**: Empleado = Usuario autenticado
+- ✅ **Validaciones**: `employeeValidator` valida antes de crear turnos

@@ -3,7 +3,7 @@ import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, 
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
-import { appointmentsStore, pendingTodayCountSelector } from './stores/appointments';
+import { turnosStore } from './stores/turnosStore';
 import { AppointmentDialog } from "./components/features/appointments/AppointmentDialog";
 import { AppointmentActionBar } from "./components/features/appointments/AppointmentActionBar";
 import { FloatingQuickActions } from "./components/FloatingQuickActions";
@@ -17,7 +17,7 @@ import type { User } from "./contexts/AuthContext";
 import ThemeBubble from "./components/ThemeBubble";
 import DemoDataBubble from "./components/DemoDataBubble";
 import DemoWelcomeModal from "./components/DemoWelcomeModal";
-import { useAppointments as useDbAppointments } from "./hooks/useAppointments";
+import { useTurnos } from "./hooks/useTurnos";
 import { useSalons as useDbSalons } from "./hooks/useSalons";
 import { useEmployees } from "./hooks/useEmployees";
 import { OnboardingModal } from "./components/OnboardingModal";
@@ -100,14 +100,7 @@ export default function App() {
   const [selectedSalon, setSelectedSalon] = useState<string | null>('all');
   const [salons, setSalons] = useState<Salon[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [unsyncedAppointments, setUnsyncedAppointments] = useState<Appointment[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const key = `unsynced:appointments:${user?.id || 'local'}`;
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as Appointment[]) : [];
-    } catch { return []; }
-  });
+  // unsyncedAppointments ya no es necesario - todo se sincroniza con turnosStore
   const [demoName, setDemoName] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try { return localStorage.getItem('demo:name'); } catch { return null; }
@@ -137,12 +130,12 @@ export default function App() {
   const isMobile = useIsMobile();
 
   // =========================================================================
-  // DATOS REMOTOS (Supabase)
+  // DATOS REMOTOS (Supabase) - Usando useTurnos como fuente única de verdad
   // =========================================================================
-  const { appointments: remoteAppointments, createAppointment, updateAppointment, deleteAppointment, fetchAppointments } = useDbAppointments(
-    undefined,
-    { enabled: !!session }
-  );
+  const { turnos: remoteTurnos, loading: loadingTurnos, createTurno, updateTurno, deleteTurno, setSelectedSalon: setTurnosSelectedSalon, turnosByDate, turnosByStatus } = useTurnos({
+    salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
+    enabled: !!session
+  });
   const { salons: remoteSalons, createSalon: createRemoteSalon, updateSalon: updateRemoteSalon, deleteSalon: deleteRemoteSalon } = useDbSalons(
     currentOrgId ?? undefined,
     { enabled: !!session && !!currentOrgId }
@@ -153,39 +146,15 @@ export default function App() {
   // REFRESH COORDINADO AL CAMBIAR ORGANIZACIÓN
   // =========================================================================
   useEffect(() => {
-    const handleOrgChange = async () => {
-      // Refrescar todas las vistas cuando cambia la organización
-      if (currentOrgId && session) {
-        try {
-          // Refrescar en paralelo
-          await Promise.all([
-            fetchAppointments(),
-            // Los hooks de salons y employees se refrescan automáticamente por currentOrgId
-          ]);
-        } catch (error) {
-          console.error('Error refrescando datos al cambiar org:', error);
-        }
-      }
-    };
-
-    // Escuchar evento de cambio de organización
-    const handler = (event: CustomEvent) => {
-      handleOrgChange();
-    };
-
-    window.addEventListener('org:changed', handler as EventListener);
-
-    return () => {
-      window.removeEventListener('org:changed', handler as EventListener);
-    };
-  }, [currentOrgId, session, fetchAppointments]);
+    // Los hooks de salons, employees y turnos se refrescan automáticamente por currentOrgId
+    // No necesitamos refrescar manualmente ya que useTurnos se actualiza automáticamente
+  }, [currentOrgId, session]);
 
   // =========================================================================
   // DATOS EFECTIVOS (Demo vs Real)
   // =========================================================================
-  const effectiveAppointments: Appointment[] = isDemo
-    ? appointments
-    : ([...unsyncedAppointments, ...((remoteAppointments as any) || [])] as Appointment[]);
+  // Para modo demo: usar appointments locales
+  // Para modo real: usar turnosStore directamente (no necesitamos effectiveAppointments)
   const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
 
   // =========================================================================
@@ -204,16 +173,17 @@ export default function App() {
       setPrevUser(user);
       welcomeToastShownRef.current = true;
       
-      // Esperar a que los appointments se carguen antes de mostrar el toast
+      // Esperar a que los turnos se carguen antes de mostrar el toast
       const showWelcomeToast = () => {
         const userName = user?.email?.split('@')[0] || 'Usuario';
         const now = new Date();
         const hours = now.getHours().toString().padStart(2, '0');
         const minutes = now.getMinutes().toString().padStart(2, '0');
         
-        // Usar store global de appointments para contar turnos pendientes de hoy
-        const appointments = appointmentsStore.appointments;
-        const pendingCount = pendingTodayCountSelector(appointments, null);
+        // Usar turnosStore para contar turnos pendientes de hoy
+        const today = new Date().toISOString().split('T')[0];
+        const todayTurnos = turnosStore.getByDate(today);
+        const pendingCount = todayTurnos.filter(t => t.status === 'pending' || t.status === 'confirmed').length;
         
         // Mostrar toast completo
         toast.success(
@@ -222,17 +192,17 @@ export default function App() {
         );
       };
       
-      // Esperar un momento para que los appointments se carguen y se hidraten en el store
+      // Esperar un momento para que los turnos se carguen y se hidraten en el store
       // Verificar periódicamente hasta que haya datos o timeout
       let attempts = 0;
       const maxAttempts = 10;
       let toastShown = false;
       
       const checkInterval = setInterval(() => {
-        const appointments = appointmentsStore.appointments;
+        const turnos = turnosStore.appointments;
         attempts++;
         
-        if (appointments.length > 0 || attempts >= maxAttempts) {
+        if (turnos.length > 0 || attempts >= maxAttempts) {
           clearInterval(checkInterval);
           if (!toastShown) {
             toastShown = true;
@@ -295,15 +265,34 @@ export default function App() {
     return () => window.removeEventListener('demo:create-org', handler as EventListener);
   }, [isDemo]);
 
-  // Sincronizar selectedAppointment cuando cambian los effectiveAppointments
+  // Sincronizar selectedAppointment cuando cambian los turnos en el store
   useEffect(() => {
-    if (selectedAppointment) {
-      const updated = effectiveAppointments.find(apt => apt.id === selectedAppointment.id);
+    if (selectedAppointment && !isDemo) {
+      const updated = turnosStore.appointments.find(apt => apt.id === selectedAppointment.id);
+      if (updated) {
+        const updatedAppointment = {
+          id: updated.id,
+          clientName: updated.clientName,
+          service: updated.service,
+          date: updated.date,
+          time: updated.time,
+          status: updated.status,
+          stylist: updated.stylist,
+          salonId: updated.salonId,
+          notes: updated.notes,
+          created_by: updated.created_by,
+        } as Appointment;
+        if (JSON.stringify(updatedAppointment) !== JSON.stringify(selectedAppointment)) {
+          setSelectedAppointment(updatedAppointment);
+        }
+      }
+    } else if (selectedAppointment && isDemo) {
+      const updated = appointments.find(apt => apt.id === selectedAppointment.id);
       if (updated && JSON.stringify(updated) !== JSON.stringify(selectedAppointment)) {
         setSelectedAppointment(updated);
       }
     }
-  }, [effectiveAppointments, selectedAppointment?.id]);
+  }, [turnosStore.appointments, appointments, selectedAppointment?.id, isDemo]);
 
   useEffect(() => {
     // Solo mostrar onboarding si NO hay membresía aún ni org seleccionada.
@@ -323,13 +312,7 @@ export default function App() {
 
   // El empleado no necesita completar ningún perfil - el owner se encarga de todo
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const key = `unsynced:appointments:${user?.id || 'local'}`;
-      localStorage.setItem(key, JSON.stringify(unsyncedAppointments));
-    } catch {}
-  }, [unsyncedAppointments, user?.id]);
+  // localStorage para unsyncedAppointments ya no es necesario - todo se sincroniza con turnosStore
 
   // =========================================================================
   // CALLBACKS
@@ -363,7 +346,7 @@ export default function App() {
     setSelectedSalon(null);
     setSelectedAppointment(null);
     setShowQuickActions(false);
-    try { localStorage.removeItem(`unsynced:appointments:${user?.id || 'local'}`); } catch {}
+    // Limpiar localStorage ya no es necesario - todo se sincroniza con turnosStore
       // Redirigir al login después de cerrar sesión
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
@@ -379,6 +362,21 @@ export default function App() {
         return;
       }
 
+      // Determinar el salón a usar: si viene en appointmentData, usarlo; si no, usar selectedSalon si no es 'all'; si es 'all', usar el primer salón disponible
+      let salonToUse = appointmentData.salonId;
+      if (!salonToUse || salonToUse === 'all') {
+        salonToUse = selectedSalon !== 'all' ? selectedSalon : null;
+        // Si aún no hay salón y hay salones disponibles, usar el primero
+        if (!salonToUse && salons && salons.length > 0) {
+          salonToUse = salons[0].id;
+        }
+      }
+      
+      if (!salonToUse) {
+        toast.error('Debes seleccionar una peluquería');
+        return;
+      }
+
       if (isDemo) {
         if (editingAppointment) {
           setAppointments((prev) =>
@@ -387,11 +385,6 @@ export default function App() {
           setEditingAppointment(null);
           toast.success("Turno actualizado correctamente");
         } else {
-          const salonToUse = appointmentData.salonId || (selectedSalon !== 'all' ? selectedSalon : null);
-          if (!salonToUse) {
-            toast.error('Debes seleccionar una peluquería');
-            return;
-          }
           const newAppointment: Appointment = {
             id: Date.now().toString(),
             clientName: appointmentData.clientName || "",
@@ -408,32 +401,27 @@ export default function App() {
         return;
       }
       
-      // Remote - Usar el hook correctamente
+      // Remote - Usar useTurnos
+      
       if (editingAppointment) {
-        await (updateAppointment as any)(editingAppointment.id, appointmentData);
+        await updateTurno(editingAppointment.id, {
+          ...appointmentData,
+          salonId: salonToUse,
+        } as any);
         setEditingAppointment(null);
         toast.success("Turno actualizado correctamente");
       } else {
-        const salonToUse = appointmentData.salonId || (selectedSalon !== 'all' ? selectedSalon : null);
-        if (!salonToUse) {
-          toast.error('Debes seleccionar una peluquería');
-          return;
-        }
-        
-        // Agregar org_id y created_by al payload
-        const payloadWithOrg = {
+        await createTurno({
           ...appointmentData,
           salonId: salonToUse,
-        };
-        
-        await (createAppointment as any)(payloadWithOrg);
+        } as any);
         toast.success("Turno creado correctamente");
       }
     } catch (e: any) {
       console.error('Error al guardar turno:', e);
       toast.error(e?.message || 'No se pudo guardar el turno');
     }
-  }, [isDemo, editingAppointment, selectedSalon, createAppointment, updateAppointment]);
+  }, [isDemo, editingAppointment, selectedSalon, createTurno, updateTurno]);
 
   const handleEditAppointment = useCallback((appointment: Appointment) => {
     setEditingAppointment(appointment);
@@ -456,20 +444,18 @@ export default function App() {
       toast.success("Turno cancelado");
     } else {
       try {
-        const updated = await (updateAppointment as any)(id, { status: 'cancelled' as const });
+        const updated = await updateTurno(id, { status: 'cancelled' as const } as any);
         if (updated) {
-          setSelectedAppointment(updated);
-          try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'cancelled' as any); } catch {}
+          setSelectedAppointment(updated as any);
+          turnosStore.updateStatus(id, 'cancelled');
         }
-        // Refrescar lista de turnos
-        await fetchAppointments();
         toast.success("Turno cancelado");
       } catch (e) {
         console.error('Error cancelling appointment:', e);
         toast.error('No se pudo cancelar el turno');
       }
     }
-  }, [isDemo, updateAppointment, selectedAppointment, fetchAppointments]);
+  }, [isDemo, updateTurno, selectedAppointment]);
 
   const handleCompleteAppointment = useCallback(async (id: string) => {
     if (isDemo) {
@@ -487,22 +473,20 @@ export default function App() {
     toast.success("Turno completado");
     } else {
       try {
-        const updated = await (updateAppointment as any)(id, { status: 'completed' as const });
+        const updated = await updateTurno(id, { status: 'completed' as const } as any);
         if (updated) {
-          setSelectedAppointment(updated);
-          try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'completed' as any); } catch {}
+          setSelectedAppointment(updated as any);
+          turnosStore.updateStatus(id, 'completed');
           // Disparar evento para refrescar comisiones
           window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: id } }));
         }
-        // Refrescar lista de turnos
-        await fetchAppointments();
         toast.success("Turno completado");
       } catch (error) {
         console.error('Error completing appointment:', error);
         toast.error("Error al completar el turno");
       }
     }
-  }, [isDemo, updateAppointment, selectedAppointment, fetchAppointments]);
+  }, [isDemo, updateTurno, selectedAppointment]);
 
   const handleDeleteAppointment = useCallback(async () => {
     if (!selectedAppointment) {
@@ -516,7 +500,7 @@ export default function App() {
       setSelectedAppointment(null);
     } else {
       try {
-        await deleteAppointment(selectedAppointment.id);
+        await deleteTurno(selectedAppointment.id);
         toast.success("Turno eliminado correctamente");
         setSelectedAppointment(null);
       } catch (error) {
@@ -524,12 +508,31 @@ export default function App() {
         toast.error("Error al eliminar el turno");
       }
     }
-  }, [selectedAppointment, isDemo, deleteAppointment]);
+  }, [selectedAppointment, isDemo, deleteTurno]);
 
   const handleUpdateAppointment = useCallback(() => {
-    const salonAppointments = !selectedSalon
-      ? effectiveAppointments
-      : effectiveAppointments.filter(apt => apt.salonId === selectedSalon);
+    let salonAppointments: Appointment[] = [];
+    if (isDemo) {
+      salonAppointments = !selectedSalon
+        ? appointments
+        : appointments.filter(apt => apt.salonId === selectedSalon);
+    } else {
+      const turnos = !selectedSalon
+        ? turnosStore.appointments
+        : turnosStore.appointments.filter(t => t.salonId === selectedSalon);
+      salonAppointments = turnos.map(t => ({
+        id: t.id,
+        clientName: t.clientName,
+        service: t.service,
+        date: t.date,
+        time: t.time,
+        status: t.status,
+        stylist: t.stylist,
+        salonId: t.salonId,
+        notes: t.notes,
+        created_by: t.created_by,
+      } as Appointment));
+    }
     if (salonAppointments.length === 0) {
       toast.error("No hay turnos para actualizar");
       return;
@@ -538,44 +541,58 @@ export default function App() {
     setEditingAppointment(lastAppointment);
     setDialogOpen(true);
     setShowQuickActions(false);
-  }, [effectiveAppointments, selectedSalon]);
+  }, [appointments, selectedSalon, isDemo]);
 
+  // Usar filtros del store cuando no es demo, usar filtrado local para demo
   const filteredAppointments = useMemo(() => {
-    return effectiveAppointments.filter((apt) => {
-      if (selectedSalon && selectedSalon !== 'all' && apt.salonId !== selectedSalon) return false;
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch =
-          apt.clientName.toLowerCase().includes(query) ||
-          apt.service.toLowerCase().includes(query);
-        if (!matchesSearch) return false;
-      }
-      if (statusFilter !== "all" && apt.status !== statusFilter) return false;
-      if (stylistFilter !== "all" && apt.stylist !== stylistFilter) return false;
-      if (dateFilter !== "all") {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const aptDate = new Date(apt.date);
-        aptDate.setHours(0, 0, 0, 0);
-        if (dateFilter === "today") {
-          if (aptDate.getTime() !== today.getTime()) return false;
-        } else if (dateFilter === "tomorrow") {
-          const tomorrow = new Date(today);
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          if (aptDate.getTime() !== tomorrow.getTime()) return false;
-        } else if (dateFilter === "week") {
-          const weekFromNow = new Date(today);
-          weekFromNow.setDate(weekFromNow.getDate() + 7);
-          if (aptDate < today || aptDate > weekFromNow) return false;
-        } else if (dateFilter === "month") {
-          const monthFromNow = new Date(today);
-          monthFromNow.setMonth(monthFromNow.getMonth() + 1);
-          if (aptDate < today || aptDate > monthFromNow) return false;
+    if (isDemo) {
+      return appointments.filter((apt) => {
+        if (selectedSalon && selectedSalon !== 'all' && apt.salonId !== selectedSalon) return false;
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          const matchesSearch =
+            apt.clientName.toLowerCase().includes(query) ||
+            apt.service.toLowerCase().includes(query);
+          if (!matchesSearch) return false;
         }
-      }
-      return true;
+        if (statusFilter !== "all" && apt.status !== statusFilter) return false;
+        if (stylistFilter !== "all" && apt.stylist !== stylistFilter) return false;
+        if (dateFilter !== "all") {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const aptDate = new Date(apt.date);
+          aptDate.setHours(0, 0, 0, 0);
+          if (dateFilter === "today") {
+            if (aptDate.getTime() !== today.getTime()) return false;
+          } else if (dateFilter === "tomorrow") {
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            if (aptDate.getTime() !== tomorrow.getTime()) return false;
+          } else if (dateFilter === "week") {
+            const weekFromNow = new Date(today);
+            weekFromNow.setDate(weekFromNow.getDate() + 7);
+            if (aptDate < today || aptDate > weekFromNow) return false;
+          } else if (dateFilter === "month") {
+            const monthFromNow = new Date(today);
+            monthFromNow.setMonth(monthFromNow.getMonth() + 1);
+            if (aptDate < today || aptDate > monthFromNow) return false;
+          }
+        }
+        return true;
+      });
+    }
+    
+    // Para modo real, usar los filtros del store
+    turnosStore.setFilters({
+      salonId: selectedSalon === 'all' ? 'all' : selectedSalon || 'all',
+      status: statusFilter as any,
+      employeeId: stylistFilter === 'all' ? 'all' : stylistFilter,
+      text: searchQuery || '',
+      date: dateFilter === 'all' ? undefined : dateFilter,
     });
-  }, [effectiveAppointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
+    
+    return turnosStore.getFiltered() as any as Appointment[];
+  }, [isDemo, appointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
 
   const handleAddSalon = useCallback(async (salonData: Omit<Salon, 'id'>) => {
     if (isDemo) {
@@ -633,7 +650,12 @@ export default function App() {
   // =========================================================================
   // DEFINICIONES DE NAVEGACIÓN
   // =========================================================================
-  const pendingToday = pendingTodayCountSelector(appointmentsStore.appointments as any, selectedSalon);
+  const today = new Date().toISOString().split('T')[0];
+  const todayTurnos = turnosStore.getByDate ? turnosStore.getByDate(today) : [];
+  const pendingToday = todayTurnos.filter(t => 
+    (t.status === 'pending' || t.status === 'confirmed') &&
+    (!selectedSalon || selectedSalon === 'all' || t.salonId === selectedSalon)
+  ).length;
   const allNavItems = [
     { id: "home", label: "Inicio", icon: Home },
     { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
@@ -701,7 +723,6 @@ export default function App() {
         return (
           <Suspense fallback={<LoadingView />}>
             <HomeView
-              appointments={effectiveAppointments}
               selectedSalon={selectedSalon}
               salons={effectiveSalons}
               onSelectSalon={handleSelectSalon}
@@ -731,7 +752,6 @@ export default function App() {
         return (
           <Suspense fallback={<LoadingView />}>
             <FinancesView 
-              appointments={effectiveAppointments} 
               selectedSalon={selectedSalon} 
               salonName={selectedSalonName}
               salons={effectiveSalons}
@@ -875,7 +895,7 @@ export default function App() {
           </PageContainer>
         );
     }
-  }, [activeNavItem, effectiveAppointments, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, selectedAppointment, currentRole]);
+  }, [activeNavItem, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, selectedAppointment, currentRole]);
 
 
   // =========================================================================
@@ -1072,9 +1092,9 @@ export default function App() {
           } else {
             (async () => { 
               try { 
-                const updated = await (updateAppointment as any)(selectedAppointment.id, { date, time });
+                const updated = await updateTurno(selectedAppointment.id, { date, time } as any);
                 if (updated) {
-                  setSelectedAppointment(updated);
+                  setSelectedAppointment(updated as any);
                 }
                 toast.success('Turno reprogramado'); 
               } catch (e) {
@@ -1098,12 +1118,11 @@ export default function App() {
           } else {
             (async () => { 
               try { 
-                const updated = await (updateAppointment as any)(id, { status: 'confirmed' as const });
+                const updated = await updateTurno(id, { status: 'confirmed' as const } as any);
                 if (updated) {
-                  setSelectedAppointment(updated);
+                  setSelectedAppointment(updated as any);
+                  turnosStore.updateStatus(id, 'confirmed');
                 }
-                // Refrescar lista de turnos
-                await fetchAppointments();
                 toast.success('Turno restaurado'); 
               } catch (e) {
                 console.error('Error restoring appointment:', e);
@@ -1128,11 +1147,10 @@ export default function App() {
           } else {
             (async () => { 
               try { 
-                const updated = await (updateAppointment as any)(selectedAppointment.id, { status });
+                const updated = await updateTurno(selectedAppointment.id, { status } as any);
                 if (updated) {
-                  setSelectedAppointment(updated);
-                  // Refrescar lista de appointments para asegurar sincronización
-                  await fetchAppointments();
+                  setSelectedAppointment(updated as any);
+                  turnosStore.updateStatus(selectedAppointment.id, status as any);
                   try { (await import('./stores/appointments')).appointmentsStore.updateStatus(selectedAppointment.id, status as any); } catch {}
                 }
                 toast.success('Estado actualizado'); 

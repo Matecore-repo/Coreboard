@@ -18,16 +18,27 @@ src/
 ├── App.tsx                 # Shell principal - routing y estado global
 ├── contexts/
 │   └── AuthContext.tsx     # Gestión de sesión, usuario, organización
+├── stores/
+│   └── turnosStore.ts      # Estado global de turnos (fuente única de verdad)
 ├── hooks/
-│   ├── useAppointments.ts  # CRUD de turnos
+│   ├── useAppointments.ts  # CRUD de turnos (legacy, sincroniza con turnosStore)
+│   ├── useTurnos.ts        # Hook de alto nivel para turnos (usa turnosStore)
 │   ├── useSalons.ts        # Gestión de salones
 │   ├── useClients.ts       # Gestión de clientes
 │   ├── useEmployees.ts     # Gestión de empleados
+│   ├── useSalonEmployees.ts # Asignaciones salón-empleado
 │   ├── useSalonServices.ts # Servicios por salón
 │   ├── useServices.ts      # Servicios globales
 │   └── useCommissions.ts   # Cálculo de comisiones
 ├── lib/
 │   ├── supabase.ts         # Cliente Supabase (con modo demo)
+│   ├── employeeValidator.ts # Validaciones de empleados (regla de oro)
+│   ├── contextValidator.ts  # Validación de contexto front/back
+│   ├── contextStateManager.ts # Gestión de estado durante transiciones
+│   ├── appointmentValidator.ts # Validación de reglas de negocio
+│   ├── operationValidator.ts   # Orquestador de validaciones
+│   ├── permissionResolver.ts  # RBAC - matriz rol × operación
+│   ├── demoAdapter.ts         # Demo que valida igual a real
 │   ├── theme.ts            # Temas y estilos
 │   ├── demoData.ts         # Datos de ejemplo
 │   └── uuid.ts             # Validación de UUIDs
@@ -102,8 +113,34 @@ if (isDemoMode) {
 
 ## 🎣 Hooks - Acceso a Datos
 
-### useAppointments(salonId?, options?)
-**Responsabilidad**: CRUD de turnos
+### useTurnos(salonId?, options?) ⭐ NUEVO - Hook Principal
+**Responsabilidad**: API simplificada para gestión de turnos (usar este en lugar de useAppointments)
+
+```javascript
+// Hook de alto nivel que consume turnosStore
+const { 
+  turnos,           // Lista filtrada de turnos
+  loading,          // Estado de carga
+  filters,          // Filtros actuales
+  setFilters,       // Cambiar filtros
+  createTurno,      // Crear turno
+  updateTurno,      // Actualizar turno
+  deleteTurno,      // Eliminar turno
+  turnosByDate,     // Selector por fecha
+  turnosByStatus,    // Selector por estado
+  validateTurno,    // Validar turno
+  checkConflicts    // Detectar conflictos
+} = useTurnos(salonId);
+```
+
+**Features**:
+- Consume `turnosStore` (fuente única de verdad)
+- Selectores listos para usar
+- Validaciones integradas
+- Sincronización con `useAppointments` durante migración
+
+### useAppointments(salonId?, options?) ⚠️ LEGACY
+**Responsabilidad**: CRUD de turnos (mantenido para compatibilidad, sincroniza con turnosStore)
 
 ```javascript
 // Obtiene turnos filtrados por salón/organización
@@ -118,6 +155,7 @@ const { appointments, loading, createAppointment, updateAppointment, deleteAppoi
 - Suscripción realtime a cambios
 - Validación de UUIDs
 - Fallback a demo store
+- **Sincroniza automáticamente con `turnosStore`**
 
 ### useSalons(orgId?, options?)
 **Responsabilidad**: Gestión de salones
@@ -137,13 +175,29 @@ const { salons, loading, createSalon, updateSalon } = useSalons(currentOrgId);
 // Usado en ClientsView para listar y administrar clientes
 ```
 
-### useEmployees(salonId?, options?)
-**Responsabilidad**: Gestión de empleados
+### useEmployees(orgId?, options?)
+**Responsabilidad**: Gestión de empleados (organización completa)
 
 ```javascript
-// Obtiene empleados del salón
-// Integra con cálculo de comisiones
+// Obtiene empleados de la organización
+// Filtra automáticamente empleados sin user_id (regla de oro)
+const { employees, loading, createEmployee, updateEmployee } = useEmployees(orgId);
 ```
+
+**Regla de Oro**: Empleado = Usuario autenticado. No existe empleado sin `user_id`.
+
+### useSalonEmployees(salonId?)
+**Responsabilidad**: Asignaciones salón-empleado (many-to-many)
+
+```javascript
+// Obtiene empleados asignados a un salón
+const { salonEmployees, loading, assignEmployee, unassignEmployee } = useSalonEmployees(salonId);
+```
+
+**Features**:
+- Gestión de asignaciones activas/inactivas
+- Validación de empleado activo antes de asignar
+- Integrado con `employeeValidator`
 
 ### useSalonServices(salonId?)
 **Responsabilidad**: Servicios específicos de un salón
@@ -225,12 +279,65 @@ ServicesPanel.tsx         # Panel de servicios
 
 ---
 
+## 🧠 Estado Global de Turnos - turnosStore
+
+### Responsabilidad
+**Fuente única de verdad** para toda la lógica de turnos.
+
+### Estructura
+```typescript
+turnosStore = {
+  turnos: Turno[],           // Lista completa de turnos
+  loading: boolean,          // Estado de carga
+  lastSyncedAt: number,      // Última sincronización
+  filters: {
+    date: 'all' | 'today' | 'week' | 'month',
+    status: 'all' | AppointmentStatus,
+    salonId: 'all' | string,
+    employeeId: 'all' | string,
+    searchQuery: string
+  },
+  selectedSalon: string | null,
+  
+  // Acciones
+  setAll(list: Turno[]),     // Sincronizar lista completa
+  upsert(turno: Turno),      // Crear o actualizar
+  remove(id: string),         // Eliminar
+  updateStatus(id, status),  // Cambiar estado
+  setFilters(filters),       // Actualizar filtros
+  setSelectedSalon(id),      // Cambiar salón seleccionado
+  
+  // Selectores
+  getFiltered(),             // Lista filtrada
+  getByDate(date),           // Por fecha
+  getByStatus(status),       // Por estado
+  getBySalon(salonId),       // Por salón
+  getByEmployee(empId),      // Por empleado
+  
+  // Validaciones
+  validateTurno(turno),      // Validar reglas de negocio
+  checkConflicts(turno),     // Detectar conflictos horarios
+  validateEmployeeInSalon(empId, salonId) // Validar asignación
+}
+```
+
+### Patrón de Uso
+```typescript
+// En componentes: usar useTurnos (recomendado)
+const { turnos, createTurno, updateTurno } = useTurnos(salonId);
+
+// En hooks: sincronizar con turnosStore
+useAppointments() → turnosStore.setAll(appointments);
+```
+
+---
+
 ## 🌍 App.tsx - Orquestador Principal
 
 ### Responsabilidades
 1. **Routing**: Lazy load vistas según tab seleccionado
-2. **Estado global**: Turnos, salones, usuario actual
-3. **Interacciones**: Crear turno, cambiar salón, etc
+2. **Estado global**: Usa `useTurnos` para turnos (fuente única de verdad)
+3. **Interacciones**: Crear turno, cambiar salón, etc (vía `useTurnos`)
 4. **UI layout**: Navbar, sidebar, main content
 
 ### Flujo Render
@@ -255,7 +362,10 @@ App.tsx
 ```javascript
 currentTab = "home" | "clients" | "finances" | "settings" | ...
 selectedSalon = string | null
-appointments = Appointment[]
+
+// Turnos ahora vienen de useTurnos (que consume turnosStore)
+const { turnos, createTurno, updateTurno, deleteTurno } = useTurnos(selectedSalon);
+
 salons = Salon[]
 currentUser = User
 ```
@@ -296,13 +406,21 @@ AppointmentDialog se abre
   ↓
 Llenar: cliente, servicio, empleado, fecha, hora
   ↓
-useAppointments().createAppointment()
+useTurnos().validateTurno() → valida reglas de negocio
   ↓
-Supabase insert() en tabla appointments
+useTurnos().checkConflicts() → detecta conflictos horarios
+  ↓
+useTurnos().createTurno()
+  ↓
+turnosStore.upsert() → actualiza estado global
+  ↓
+useAppointments().createAppointment() → inserta en Supabase
   ↓
 Realtime subscription notifica actualización
   ↓
-CalendarView se re-renderiza
+turnosStore.setAll() → sincroniza con BD
+  ↓
+CalendarView se re-renderiza (consume turnosStore vía useTurnos)
 ```
 
 ### 2️⃣ Login
@@ -330,11 +448,34 @@ onSelectSalon()
   ↓
 App.tsx: setSelectedSalon()
   ↓
+turnosStore.setSelectedSalon() → actualiza estado global
+  ↓
 useAppointments(selectedSalon) re-fetch
+  ↓
+turnosStore.setAll() → sincroniza turnos del nuevo salón
   ↓
 useSalons() re-fetch
   ↓
-UI actualiza con datos del salón
+UI actualiza con datos del salón (consume turnosStore vía useTurnos)
+```
+
+### 4️⃣ Asignar Empleado a Salón
+```
+SalonsManagementView: Editar salón
+  ↓
+useEmployees() → carga empleados de la organización
+  ↓
+useSalonEmployees(salonId) → carga asignaciones actuales
+  ↓
+UI muestra checkboxes con empleados disponibles
+  ↓
+Usuario marca/desmarca empleados
+  ↓
+handleSave() compara asignaciones actuales vs seleccionadas
+  ↓
+assignEmployee() / unassignEmployee() → actualiza tabla salon_employees
+  ↓
+Validación: employeeValidator valida que empleado tenga user_id
 ```
 
 ---
@@ -451,7 +592,7 @@ Membership {
   is_primary?: boolean
 }
 
-Appointment {
+Turno {
   id: string
   clientName: string
   service: string
@@ -460,6 +601,35 @@ Appointment {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
   stylist: string
   salonId: string
+  notes?: string
+  created_by?: string
+  total_amount?: number
+}
+
+Appointment {
+  // Similar a Turno pero con campos adicionales para compatibilidad
+  // Migración gradual: componentes usan Turno, algunos usan Appointment
+}
+
+Employee {
+  id: string
+  org_id: string
+  user_id: string     // OBLIGATORIO - regla de oro
+  full_name: string
+  email?: string
+  phone?: string
+  default_commission_pct?: number
+  active: boolean
+  deleted_at?: string | null
+}
+
+SalonEmployee {
+  id: string
+  salon_id: string
+  employee_id: string
+  active: boolean
+  created_at: string
+  updated_at: string
 }
 
 Salon {
@@ -468,6 +638,7 @@ Salon {
   name: string
   address: string
   phone?: string
+  // staff: string[] ELIMINADO - ahora usa salon_employees
   services?: Service[]
 }
 
@@ -518,7 +689,7 @@ Service {
 
 ## 📝 Summary para Prompts Futuros
 
-> "Coreboard es un CRM multi-org para salones. Auth vía Supabase, datos con RLS, modo demo sin BD. Arquitectura: App.tsx (shell) → AuthContext (sesión) → Hooks (CRUD) → Views (UI). Turnos: CalendarView → AppointmentCard → AppointmentDialog → createAppointment hook. Clientes, Empleados, Finanzas en otras vistas. RLS filtra automáticamente por org_id. Lazy load vistas. Realtime subs en cambios."
+> "Coreboard es un CRM multi-org para salones. Auth vía Supabase, datos con RLS, modo demo sin BD. Arquitectura: App.tsx (shell) → AuthContext (sesión) → turnosStore (estado global) → useTurnos (hook principal) → Views (UI). Turnos: CalendarView → AppointmentCard → AppointmentDialog → useTurnos().createTurno() → turnosStore.upsert(). Empleados: useEmployees() + useSalonEmployees() con validación de user_id obligatorio. Clientes, Finanzas en otras vistas. RLS filtra automáticamente por org_id. Lazy load vistas. Realtime subs en cambios. turnosStore es la fuente única de verdad para turnos."
 
 ---
 
@@ -820,23 +991,46 @@ Caso 3: Token expiró
 
 ---
 
-## ⚠️ Lo que está incompleto
+## ✅ Mejoras Recientes (Refactorización)
+
+### Sistema Global de Turnos
+- ✅ **`turnosStore`**: Estado centralizado (fuente única de verdad)
+- ✅ **`useTurnos`**: Hook de alto nivel para componentes
+- ✅ **Validaciones integradas**: Conflictos horarios, empleados asignados, datos completos
+- ✅ **Migración gradual**: Componentes migrados manteniendo compatibilidad
+
+### Gestión de Empleados
+- ✅ **`employeeValidator.ts`**: Validaciones centralizadas (user_id obligatorio)
+- ✅ **Tabla `salon_employees`**: Asignaciones many-to-many (reemplaza array de strings)
+- ✅ **Regla de oro**: Empleado = Usuario autenticado. No existe empleado sin `user_id`
+- ✅ **`SalonsManagementView`**: Refactorizado para usar empleados reales con checkboxes
+
+### Componentes Migrados
+- ✅ `App.tsx`, `AppointmentDialog.tsx`, `TurnosPanel.tsx`, `CalendarView.tsx`, `ClientsPanel.tsx`
+- ✅ `HomeView.tsx`, `OwnerDashboard.tsx`, `ClientDashboard.tsx`, `OperationsDashboard.tsx`, `SalesMarketingDashboard.tsx`
+- ✅ `useFinancialMetrics.ts`, `useFinancialAlerts.ts`
+
+## ⚠️ Lo que aún está incompleto
 
 ```
 ⚠️ Roles aplicados a nivel org, pero no por recurso
    Necesitás granularidad
 
-⚠️ Validación de negocio (turnos válidos)
-   Hay lógica faltante en BD + frontend
+⚠️ Validación de negocio (turnos válidos) - PARCIALMENTE RESUELTO
+   ✅ turnosStore valida conflictos y asignaciones
+   ⚠️ Falta validación en BD (triggers)
 
 ⚠️ Doble fuente de "org actual"
    Pueden divergir sin detección
+   ✅ contextValidator existe pero no está integrado en todos los flujos
 
 ⚠️ Realtime por lista
    Genera estados intermedios inconsistentes
+   ✅ turnosStore ayuda pero no elimina completamente
 
 ⚠️ Condiciones de carrera suaves
    Existen pero no son catastróficas
+   ✅ contextStateManager ayuda pero no está en todos los flujos
 ```
 
 ---
@@ -861,20 +1055,29 @@ En producción, TODAS estas cosas pasan.
 
 ## 🚀 Qué Falta para Cerrar los Huecos
 
-### 1. Sincronización de contexto
+### 1. Sincronización de contexto ⚠️ PARCIAL
 ```javascript
-// En lugar de:
-useAppointments(salonId) → suscripción A
-useSalons(orgId) → suscripción B
-useClients(salonId) → suscripción C
+// ✅ YA TENEMOS:
+turnosStore → estado global de turnos
+useTurnos → hook unificado para turnos
 
-// Tener:
-const { appointments, salons, clients } = useOrgContext()
+// ⚠️ FALTA:
+useSalons(orgId) → suscripción B (aún independiente)
+useClients(salonId) → suscripción C (aún independiente)
+
+// IDEAL:
+const { turnos, salons, clients } = useOrgContext()
 // Una suscripción que actualiza TODO
 ```
 
-### 2. Validación de negocio en BD
+### 2. Validación de negocio en BD ⚠️ PARCIAL
 ```sql
+-- ✅ YA TENEMOS EN FRONTEND:
+turnosStore.validateTurno() → valida conflictos
+turnosStore.checkConflicts() → detecta solapamientos
+employeeValidator → valida asignaciones
+
+-- ⚠️ FALTA EN BD:
 CREATE TRIGGER validate_appointment_before_insert
 BEFORE INSERT ON appointments
 FOR EACH ROW

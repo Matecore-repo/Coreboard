@@ -6,14 +6,35 @@ import { Appointment } from "./features/appointments/AppointmentCard";
 import { useCommissions } from "../hooks/useCommissions";
 import { useAuth } from "../contexts/AuthContext";
 import { useEmployees } from "../hooks/useEmployees";
+import { useTurnos } from "../hooks/useTurnos";
 
 interface TurnosPanelProps {
-  appointments: Appointment[];
   selectedSalon: string | null;
   variant?: "all" | "commissions" | "next";
 }
 
-export function TurnosPanel({ appointments, selectedSalon, variant = "all" }: TurnosPanelProps) {
+export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps) {
+  // Usar useTurnos internamente como fuente única de verdad
+  const { turnos } = useTurnos({
+    salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
+    enabled: true
+  });
+  
+  // Convertir turnos a appointments para compatibilidad
+  const appointments = useMemo(() => {
+    return turnos.map(t => ({
+      id: t.id,
+      clientName: t.clientName,
+      service: t.service,
+      date: t.date,
+      time: t.time,
+      status: t.status,
+      stylist: t.stylist,
+      salonId: t.salonId,
+      notes: t.notes,
+      created_by: t.created_by,
+    } as Appointment));
+  }, [turnos]);
   const [nextAppointmentTime, setNextAppointmentTime] = useState<string | null>(null);
   const { user, currentOrgId } = useAuth();
   const { commissions, loading: loadingCommissions } = useCommissions({ enabled: true });
@@ -42,13 +63,18 @@ export function TurnosPanel({ appointments, selectedSalon, variant = "all" }: Tu
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
-    const salonAppointments = !selectedSalon ? appointments : appointments.filter(a => a.salonId === selectedSalon);
+    // Si selectedSalon es 'all' o null, mostrar todos los turnos
+    const salonAppointments = (!selectedSalon || selectedSalon === 'all') 
+      ? appointments 
+      : appointments.filter(a => a.salonId === selectedSalon);
 
     const upcoming = salonAppointments
       .filter(apt => apt.date >= today && apt.status !== "cancelled" && apt.status !== "completed")
       .sort((a, b) => (a.date !== b.date ? a.date.localeCompare(b.date) : a.time.localeCompare(b.time)));
 
-    setNextAppointmentTime(upcoming.length > 0 ? upcoming[0].time : null);
+    // Mostrar la hora del próximo turno o el nombre del cliente si hay uno
+    const nextAppt = upcoming.length > 0 ? upcoming[0] : null;
+    setNextAppointmentTime(nextAppt ? `${nextAppt.time} - ${nextAppt.clientName}` : null);
   }, [appointments, selectedSalon]);
 
   const CommissionsCard = (

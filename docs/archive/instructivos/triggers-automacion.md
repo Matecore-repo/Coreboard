@@ -92,14 +92,34 @@ AS $$
 DECLARE
   emp_commission_rate numeric;
   service_amount numeric;
+  emp_active boolean;
+  emp_in_salon boolean;
 BEGIN
   -- Solo generar cuando turno se completa
   IF NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed') THEN
 
-    -- Obtener rate del empleado
-    SELECT commission_rate INTO emp_commission_rate
-    FROM public.employees
-    WHERE id = NEW.employee_id;
+    -- Validar que empleado existe y está activo
+    SELECT default_commission_pct, active INTO emp_commission_rate, emp_active
+    FROM app.employees
+    WHERE id = NEW.employee_id
+      AND user_id IS NOT NULL  -- Regla de oro
+      AND deleted_at IS NULL;
+
+    IF NOT FOUND OR NOT emp_active THEN
+      RAISE EXCEPTION 'employee_not_found_or_inactive' USING ERRCODE = 'PT400';
+    END IF;
+
+    -- Validar que empleado está asignado al salón
+    SELECT EXISTS (
+      SELECT 1 FROM public.salon_employees
+      WHERE salon_id = NEW.salon_id
+        AND employee_id = NEW.employee_id
+        AND active = true
+    ) INTO emp_in_salon;
+
+    IF NOT emp_in_salon THEN
+      RAISE EXCEPTION 'employee_not_in_salon' USING ERRCODE = 'PT400';
+    END IF;
 
     -- Calcular monto de servicios
     SELECT SUM(price * quantity) INTO service_amount
@@ -113,7 +133,7 @@ BEGIN
         amount, commission_rate, date
       ) VALUES (
         NEW.org_id, NEW.employee_id, NEW.id,
-        service_amount * emp_commission_rate, emp_commission_rate, NEW.date
+        service_amount * (emp_commission_rate / 100.0), emp_commission_rate, NEW.date
       );
     END IF;
   END IF;
@@ -125,6 +145,56 @@ $$;
 CREATE TRIGGER generate_commission_trigger
   AFTER UPDATE ON public.appointments
   FOR EACH ROW EXECUTE FUNCTION public.generate_commission();
+```
+
+### Validación de Turnos (Reglas de Negocio)
+
+```sql
+-- Función para validar turno antes de insertar
+CREATE OR REPLACE FUNCTION public.validate_appointment()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  emp_in_salon boolean;
+  emp_active boolean;
+  emp_has_user boolean;
+BEGIN
+  -- Validar que empleado existe y tiene user_id (regla de oro)
+  SELECT EXISTS (
+    SELECT 1 FROM app.employees
+    WHERE id = NEW.employee_id
+      AND user_id IS NOT NULL
+      AND active = true
+      AND deleted_at IS NULL
+  ) INTO emp_has_user;
+
+  IF NOT emp_has_user THEN
+    RAISE EXCEPTION 'employee_missing_user_or_inactive' USING ERRCODE = 'PT400';
+  END IF;
+
+  -- Validar que empleado está asignado al salón
+  SELECT EXISTS (
+    SELECT 1 FROM public.salon_employees
+    WHERE salon_id = NEW.salon_id
+      AND employee_id = NEW.employee_id
+      AND active = true
+  ) INTO emp_in_salon;
+
+  IF NOT emp_in_salon THEN
+    RAISE EXCEPTION 'employee_not_in_salon' USING ERRCODE = 'PT400';
+  END IF;
+
+  -- Validar conflictos horarios (opcional - puede ser más complejo)
+  -- Se puede implementar aquí o en el frontend con turnosStore.checkConflicts()
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER validate_appointment_trigger
+  BEFORE INSERT OR UPDATE ON public.appointments
+  FOR EACH ROW EXECUTE FUNCTION public.validate_appointment();
 ```
 
 ## 🔧 Funciones RPC
@@ -665,8 +735,12 @@ $$;
 
 ---
 
-**Triggers implementados:** ✅ Actualización automática, ✅ Cálculo de totales, ✅ Generación de comisiones, ✅ Auditoría completa, ✅ Notificaciones automáticas
-**Última actualización:** Octubre 2025</contents>
-</xai:function_call">**Última actualización:** Octubre 2025</contents>
-</xai:function_call name="run_terminal_cmd">
-<parameter name="command">Remove-Item *.md -Exclude "package.json", "package-lock.json", "README.md" -ErrorAction SilentlyContinue
+**Triggers implementados:** ✅ Actualización automática, ✅ Cálculo de totales, ✅ Generación de comisiones, ✅ Validación de turnos (regla de oro), ✅ Auditoría completa, ✅ Notificaciones automáticas
+**Última actualización:** Noviembre 2025
+
+## 📋 Cambios Recientes (v2.0.0)
+
+### Validaciones en Triggers
+- ✅ **`validate_appointment()`**: Valida empleado asignado al salón antes de insertar/actualizar turno
+- ✅ **`generate_commission()`**: Valida regla de oro (user_id) y asignación activa antes de generar comisión
+- ✅ **Validación de conflictos**: Se hace en frontend con `turnosStore.checkConflicts()` (más flexible)

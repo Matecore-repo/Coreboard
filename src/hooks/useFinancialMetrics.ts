@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { usePayments } from './usePayments';
 import { useExpenses } from './useExpenses';
-import { useAppointments } from './useAppointments';
+import { turnosStore } from '../stores/turnosStore';
 import { useCommissions } from './useCommissions';
 import type { Appointment } from '../types';
 
@@ -51,8 +51,35 @@ export function useFinancialMetrics(
 ) {
   const { payments } = usePayments({ enabled: true });
   const { expenses } = useExpenses({ enabled: true });
-  const { appointments } = useAppointments(selectedSalonId || undefined, { enabled: true });
   const { commissions } = useCommissions({ enabled: true });
+
+  // Usar turnosStore directamente
+  const appointments = useMemo(() => {
+    const allTurnos = turnosStore.appointments;
+    // Filtrar por salonId si se proporciona
+    let filtered = selectedSalonId 
+      ? allTurnos.filter(t => t.salonId === selectedSalonId)
+      : allTurnos;
+    
+    // Convertir a formato Appointment para compatibilidad
+    return filtered.map(t => ({
+      id: t.id,
+      org_id: t.org_id || '',
+      salon_id: t.salonId,
+      service_id: '',
+      stylist_id: t.stylist,
+      client_name: t.clientName,
+      client_phone: undefined,
+      client_email: undefined,
+      starts_at: `${t.date}T${t.time}:00`,
+      status: t.status,
+      total_amount: t.total_amount || 0,
+      notes: t.notes,
+      created_by: t.created_by || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as Appointment));
+  }, [selectedSalonId]);
 
   const filteredAppointments = useMemo(() => {
     if (!dateRange) return appointments;

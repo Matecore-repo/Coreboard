@@ -3,17 +3,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useTurnos } from '../../hooks/useTurnos';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
 import { toast } from 'sonner';
 import type { Appointment } from '../../types';
 
 interface OperationsDashboardProps {
-  appointments: Appointment[];
   selectedSalon: string | null;
 }
 
-export default function OperationsDashboard({ appointments, selectedSalon }: OperationsDashboardProps) {
+export default function OperationsDashboard({ selectedSalon }: OperationsDashboardProps) {
   const { exportToExcel } = useFinancialExports();
+  const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  
+  // Convertir turnos a appointments para compatibilidad
+  const appointments = useMemo(() => {
+    return turnos.map(t => ({
+      id: t.id,
+      clientName: t.clientName,
+      service: t.service,
+      date: t.date,
+      time: t.time,
+      status: t.status,
+      stylist: t.stylist,
+      salonId: t.salonId,
+      notes: t.notes,
+      created_by: t.created_by,
+      org_id: t.org_id,
+      salon_id: t.salonId,
+      service_id: '',
+      client_name: t.clientName,
+      starts_at: `${t.date}T${t.time}:00`,
+      total_amount: t.total_amount || 0,
+    } as unknown as Appointment));
+  }, [turnos]);
   
   const filteredAppointments = useMemo(() => {
     if (!selectedSalon) return appointments;

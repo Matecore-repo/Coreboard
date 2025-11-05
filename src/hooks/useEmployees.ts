@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { demoStore } from '../demo/store';
 import { isValidUUID } from '../lib/uuid';
 import { queryWithCache, invalidateCache } from '../lib/queryCache';
+import { filterValidEmployees } from '../lib/employeeValidator';
 
 export type Employee = {
   id: string;
@@ -73,7 +74,9 @@ export function useEmployees(orgId?: string, options?: { enabled?: boolean }) {
           .order('full_name', { ascending: true });
 
         if (error) throw error;
-        return data || [];
+        // Filtrar solo empleados con user_id válido (regla de oro)
+        const validEmployees = filterValidEmployees(data || []);
+        return validEmployees;
       });
 
       setEmployees(employeesData);

@@ -7,7 +7,8 @@ import { EmptyStateCTA } from "../EmptyStateCTA";
 import { InviteEmployeeModal } from "../InviteEmployeeModal";
 import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
-import React, { lazy, Suspense, useState } from "react";
+import { useTurnos } from "../../hooks/useTurnos";
+import React, { lazy, Suspense, useState, useMemo } from "react";
 
 const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
 const ClientsPanel = lazy(() => import("../ClientsPanel").then(m => ({ default: m.ClientsPanel })));
@@ -22,7 +23,6 @@ interface Salon {
 }
 
 interface HomeViewProps {
-  appointments: Appointment[];
   selectedSalon: string | null;
   salons: Salon[];
   onSelectSalon: (id: string, name: string) => void;
@@ -32,8 +32,30 @@ interface HomeViewProps {
   isNewUser?: boolean;
 }
 
-export default function HomeView({ appointments, selectedSalon, salons, onSelectSalon, onAppointmentClick, onAddAppointment, orgName, isNewUser }: HomeViewProps) {
+export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppointmentClick, onAddAppointment, orgName, isNewUser }: HomeViewProps) {
   const [showInviteModal, setShowInviteModal] = useState(false);
+  
+  // Usar useTurnos internamente como fuente única de verdad
+  const { turnos } = useTurnos({
+    salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
+    enabled: true
+  });
+  
+  // Convertir turnos a appointments para compatibilidad con componentes internos
+  const appointments = useMemo(() => {
+    return turnos.map(t => ({
+      id: t.id,
+      clientName: t.clientName,
+      service: t.service,
+      date: t.date,
+      time: t.time,
+      status: t.status,
+      stylist: t.stylist,
+      salonId: t.salonId,
+      notes: t.notes,
+      created_by: t.created_by,
+    } as Appointment));
+  }, [turnos]);
   
   // HomeView muestra información del peluquero, no filtra por salón
   const salonAppointments = appointments;
@@ -129,15 +151,15 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
 
         <Suspense fallback={<div className="col-span-1 md:col-span-2">Cargando...</div>}>
           <div className="col-span-1 md:col-span-1">
-            <TurnosPanel appointments={appointments} selectedSalon={selectedSalon} variant="commissions" />
+            <TurnosPanel selectedSalon={selectedSalon} variant="commissions" />
           </div>
 
           <div className="col-span-1 md:col-span-1">
-            <ClientsPanel appointments={appointments} selectedSalon={selectedSalon} />
+            <ClientsPanel selectedSalon={selectedSalon} />
           </div>
 
           <div className="col-span-1 md:col-span-2">
-            <TurnosPanel appointments={appointments} selectedSalon={selectedSalon} variant="next" />
+            <TurnosPanel selectedSalon={selectedSalon} variant="next" />
           </div>
 
           {/* Servicios: movidos al módulo de Peluquerías */}
@@ -147,7 +169,6 @@ export default function HomeView({ appointments, selectedSalon, salons, onSelect
         {/* Calendario */}
         <div className="mt-4">
           <CalendarView 
-          appointments={appointments} 
           selectedSalon={selectedSalon}
           focusDate={null}
             onAppointmentClick={onAppointmentClick}

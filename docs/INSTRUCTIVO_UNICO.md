@@ -35,8 +35,9 @@ Abre http://localhost:3000
   - `ui/` → Componentes sin estado (Button, Card, etc)
   - `empty-states/` → Estados vacíos
 - `src/contexts/AuthContext.tsx` → Autenticación
-- `src/hooks/` → Datos (appointments, salons, clients, employees, services)
-- `src/lib/supabase.ts` → Cliente
+- `src/hooks/` → Datos (appointments, salons, clients, employees, services, useTurnos)
+- `src/stores/` → Estado global (turnosStore)
+- `src/lib/` → Utilidades (supabase, employeeValidator, contextValidator, etc)
 - `infra/db/` → Base de datos y RLS
 
 ## Features
@@ -63,7 +64,8 @@ npm start
 - `salons` → Locales
 - `services` → Servicios
 - `clients` → Clientes
-- `employees` → Empleados
+- `employees` → Empleados (con `user_id` obligatorio)
+- `salon_employees` → Asignaciones salón-empleado
 - `appointments` → Turnos
 
 ## Scripts disponibles
@@ -94,11 +96,11 @@ Te dejo el mapa de lo que tenés ahora y lo que podés sumar después.
 
 3. **Validator de turnos**
 
-   * No acepta turnos “crudos”, solo los que respetan servicio, empleado, horario.
+   * No acepta turnos "crudos", solo los que respetan servicio, empleado, horario.
 
 4. **Permission resolver (RBAC → acción)**
 
-   * No más “el empleado vio finanzas porque el front las mostraba”.
+   * No más "el empleado vio finanzas porque el front las mostraba".
 
 5. **Demo adapter (demo que no miente)**
 
@@ -115,6 +117,33 @@ Te dejo el mapa de lo que tenés ahora y lo que podés sumar después.
    inconsistente-temporal
    rechazado-por-permisos
    ```
+
+7. **Sistema global de turnos (turnosStore)**
+
+   * Estado centralizado para toda la lógica de turnos: lista, filtros, validaciones, CRUD.
+   * Fuente única de verdad: todos los componentes consumen desde aquí.
+   * Validaciones integradas: detecta conflictos de horarios, empleados no asignados, datos incompletos.
+   * Suscripción a cambios en tiempo real: actualización automática cuando hay cambios en BD.
+
+8. **Hook useTurnos**
+
+   * API simplificada para componentes: `turnos`, `loading`, `filters`, `createTurno`, `updateTurno`, `deleteTurno`.
+   * Selectores listos: `getByDate`, `getByStatus`, `getBySalon`, `getByEmployee`.
+   * Internamente usa `turnosStore` y se sincroniza con `useAppointments` durante la migración.
+
+9. **Gestión real de empleados**
+
+   * Eliminado array de strings "staff" en salones.
+   * Asignación real desde tabla `salon_employees` con checkboxes.
+   * Pre-carga de empleados asignados al editar salón.
+   * Validación: empleado = usuario autenticado (regla de oro).
+
+10. **Validadores de empleados**
+
+    * `employeeValidator.ts`: centraliza reglas de negocio.
+    * Filtra empleados sin `user_id`.
+    * Valida asignación activa a salón antes de crear turno.
+    * Integrado en `OrganizationView` y `SalonsManagementView`.
 
 ---
 
@@ -159,3 +188,27 @@ Eso es diseño de agentes con cabeza. Cada uno hace UNA cosa. Si mañana metés 
 El mundo más ordenado, la UI más libre, y vos con menos tickets raros.
 
 Seguís vos ahora con la parte sexy: usar esto para automatizar turnos desde canales externos. Ese es el próximo nivel 🧗‍♂️
+
+---
+
+## 📋 Cambios Recientes (Refactorización)
+
+### Sistema Global de Turnos
+- **`src/stores/turnosStore.ts`**: Estado centralizado para turnos (lista, filtros, validaciones, CRUD).
+- **`src/hooks/useTurnos.ts`**: Hook de alto nivel para componentes (API simplificada).
+- **Migración gradual**: Componentes migrados a `useTurnos` manteniendo compatibilidad con `useAppointments`.
+
+### Gestión de Empleados
+- **`src/lib/employeeValidator.ts`**: Validaciones centralizadas (user_id obligatorio, asignación activa a salón).
+- **`SalonsManagementView`**: Refactorizado para usar empleados reales desde BD con checkboxes.
+- **Regla de oro**: Empleado = Usuario autenticado. No existe empleado sin `user_id`.
+
+### Componentes Migrados
+- `App.tsx`, `AppointmentDialog.tsx`, `TurnosPanel.tsx`, `CalendarView.tsx`, `ClientsPanel.tsx`
+- `HomeView.tsx`, `OwnerDashboard.tsx`, `ClientDashboard.tsx`, `OperationsDashboard.tsx`, `SalesMarketingDashboard.tsx`
+- `useFinancialMetrics.ts`, `useFinancialAlerts.ts`
+
+### Base de Datos
+- Tabla `salon_employees`: Asignaciones salón-empleado (many-to-many).
+- Validación en BD: `user_id` único por organización en `employees`.
+- Soft deletion: Suspensión/inactivación sin borrar registros.

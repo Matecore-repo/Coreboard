@@ -1,17 +1,38 @@
-import React, { useState, memo, useEffect } from "react";
+import React, { useState, memo, useEffect, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Appointment } from "./features/appointments/AppointmentCard";
+import { useTurnos } from "../hooks/useTurnos";
 
 interface CalendarViewProps {
-  appointments: Appointment[];
   selectedSalon: string | null;
   focusDate?: string | null;
   onAppointmentClick?: (appointment: Appointment) => void;
 }
 
-export const CalendarView = memo(function CalendarView({ appointments, selectedSalon, focusDate, onAppointmentClick }: CalendarViewProps) {
+export const CalendarView = memo(function CalendarView({ selectedSalon, focusDate, onAppointmentClick }: CalendarViewProps) {
+  // Usar useTurnos internamente como fuente única de verdad
+  const { turnos } = useTurnos({
+    salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
+    enabled: true
+  });
+  
+  // Convertir turnos a appointments para compatibilidad
+  const appointments = useMemo(() => {
+    return turnos.map(t => ({
+      id: t.id,
+      clientName: t.clientName,
+      service: t.service,
+      date: t.date,
+      time: t.time,
+      status: t.status,
+      stylist: t.stylist,
+      salonId: t.salonId,
+      notes: t.notes,
+      created_by: t.created_by,
+    } as Appointment));
+  }, [turnos]);
   const [currentDate, setCurrentDate] = useState(() => {
     if (focusDate) return new Date(focusDate);
     return new Date();

@@ -129,17 +129,20 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     try {
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, payment_method, processed_at, notes, org_id, created_at')
-        .order('processed_at', { ascending: false });
+        .select('id, appointment_id, amount, payment_method, processed_at, notes, org_id, created_at');
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
       }
       
-      const { data, error } = await query.order('date', { ascending: false });
+      const { data, error } = await query.order('processed_at', { ascending: false });
       
       if (error) {
         console.error('Error fetching payments:', error);
+        // Manejar errores específicos de manera más amigable
+        if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+          console.warn('Schema mismatch detected. Please verify database schema.');
+        }
         setPayments([]);
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToPayment);

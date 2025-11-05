@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, lazy, useRef } from "react";
+﻿import React, { useState, useCallback, lazy, useRef, useEffect } from "react";
 import { Plus, Users, MapPin, Upload, X, Phone, Mail, Clock, DollarSign, Edit3, FileText, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -17,13 +17,15 @@ import { toast } from "sonner";
 import { useSalonServices } from "../../hooks/useSalonServices";
 import { useServices } from "../../hooks/useServices";
 import { useAuth } from "../../contexts/AuthContext";
+import { useEmployees } from "../../hooks/useEmployees";
+import { useSalonEmployees } from "../../hooks/useSalonEmployees";
 
 interface Salon {
   id: string;
   name: string;
   address: string;
   image: string;
-  staff?: string[];
+  // staff?: string[]; // DEPRECATED: Ya no se usa. Los empleados se gestionan a través de salon_employees
   rentPrice?: number;
   phone?: string;
   email?: string;
@@ -53,8 +55,27 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
   const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
   const { services: allServices, createService: createOrgService, isLoading: servicesLoading } = useServices(currentOrgId ?? undefined);
   
+  // Empleados de la organización
+  const { employees, isLoading: loadingEmployees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
+  
+  // Asignaciones de empleados al salón seleccionado (para mostrar en vista de detalle)
+  const { assignments: selectedSalonEmployeeAssignments } = useSalonEmployees(
+    selectedSalon?.id,
+    { enabled: !!selectedSalon?.id }
+  );
+  
+  // Estado de edición
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalon, setEditingSalon] = useState<Salon | null>(null);
+  
+  // Asignaciones de empleados al salón (cuando se edita un salón)
+  const { assignments: salonEmployeeAssignments, assignEmployee, unassignEmployee, isLoading: loadingSalonEmployees } = useSalonEmployees(
+    editingSalon?.id,
+    { enabled: !!editingSalon?.id }
+  );
+  
+  // Estado de empleados seleccionados (IDs de empleados asignados al salón)
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
   const { services: salonServices, assignService, unassignService, updateServiceAssignment } = useSalonServices(selectedSalon?.id);
   const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
   const [serviceActionId, setServiceActionId] = useState<string | null>(null);
@@ -63,7 +84,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     name: "",
     address: "",
     image: "",
-    staff: [] as string[],
     rentPrice: 0,
     phone: "",
     email: "",
@@ -71,7 +91,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     openingHours: "",
     services: [] as SalonServiceUI[],
   });
-  const [newStaff, setNewStaff] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const servicesSectionRef = useRef<HTMLDivElement | null>(null);
@@ -163,7 +182,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         name: salon.name,
         address: salon.address,
         image: salon.image,
-        staff: salon.staff || [],
         rentPrice: salon.rentPrice || 0,
         phone: salon.phone || "",
         email: salon.email || "",
@@ -178,7 +196,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         name: "",
         address: "",
         image: "",
-        staff: [],
         rentPrice: 0,
         phone: "",
         email: "",
@@ -187,6 +204,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         services: [],
       });
       setImagePreview("");
+      setSelectedEmployeeIds(new Set());
     }
     setImageFile(null);
     setDialogOpen(true);
@@ -223,21 +241,57 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     }
 
     try {
-    const dataToSave: Omit<Salon, "id"> = {
-      ...formData,
-      image:
-        imagePreview ||
-        "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    };
+      const dataToSave: Omit<Salon, "id"> = {
+        ...formData,
+        image:
+          imagePreview ||
+          "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+      };
 
-    if (editingSalon) {
+      if (editingSalon) {
         await onEditSalon(editingSalon.id, dataToSave);
-      toast.success("Local actualizado correctamente");
-    } else {
+        toast.success("Local actualizado correctamente");
+        
+        // Gestionar asignaciones de empleados al editar
+        if (editingSalon.id && selectedEmployeeIds.size >= 0) {
+          // Comparar asignaciones actuales con seleccionadas
+          const currentAssignments = salonEmployeeAssignments;
+          const currentEmployeeIds = new Set(currentAssignments.map(a => a.employee_id));
+          
+          // Empleados a agregar (están seleccionados pero no asignados)
+          const toAdd = Array.from(selectedEmployeeIds).filter(id => !currentEmployeeIds.has(id));
+          // Empleados a remover (estaban asignados pero ya no están seleccionados)
+          const toRemove = currentAssignments.filter(a => !selectedEmployeeIds.has(a.employee_id));
+
+          // Agregar nuevos empleados
+          for (const employeeId of toAdd) {
+            try {
+              await assignEmployee(employeeId);
+            } catch (error) {
+              console.error(`Error asignando empleado ${employeeId}:`, error);
+              toast.error(`Error al asignar empleado`);
+            }
+          }
+
+          // Remover empleados desasignados
+          for (const assignment of toRemove) {
+            try {
+              await unassignEmployee(assignment.id);
+            } catch (error) {
+              console.error(`Error desasignando empleado ${assignment.employee_id}:`, error);
+              toast.error(`Error al desasignar empleado`);
+            }
+          }
+        }
+      } else {
+        // Crear nuevo salón
         await onAddSalon(dataToSave);
-      toast.success("Local creado correctamente");
-    }
-    setDialogOpen(false);
+        toast.success("Local creado correctamente");
+        // Nota: Las asignaciones de empleados al crear un salón nuevo
+        // se pueden hacer después editando el salón recién creado
+      }
+
+      setDialogOpen(false);
     } catch (error) {
       console.error('❌ Error en handleSave:', error);
       toast.error(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
@@ -257,14 +311,29 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     }
   };
 
-  const handleAddStaff = useCallback(() => {
-    if (!newStaff.trim()) return;
-    setFormData((prev) => ({ ...prev, staff: [...prev.staff, newStaff.trim()] }));
-    setNewStaff("");
-  }, [newStaff]);
+  // Cargar empleados asignados al salón cuando se abre el diálogo de edición
+  useEffect(() => {
+    if (editingSalon?.id) {
+      // Cargar asignaciones existentes del salón
+      const assignedIds = new Set(salonEmployeeAssignments.map(a => a.employee_id));
+      setSelectedEmployeeIds(assignedIds);
+    } else if (!editingSalon) {
+      // Limpiar selección cuando se cierra el diálogo
+      setSelectedEmployeeIds(new Set());
+    }
+  }, [editingSalon?.id, salonEmployeeAssignments]);
 
-  const handleRemoveStaff = useCallback((index: number) => {
-    setFormData((prev) => ({ ...prev, staff: prev.staff.filter((_, i) => i !== index) }));
+  // Toggle de empleado seleccionado (para checkboxes)
+  const handleToggleEmployee = useCallback((employeeId: string) => {
+    setSelectedEmployeeIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(employeeId)) {
+        newSet.delete(employeeId);
+      } else {
+        newSet.add(employeeId);
+      }
+      return newSet;
+    });
   }, []);
 
   const handleServicesChange = useCallback(
@@ -318,20 +387,8 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 )}
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Users className="h-4 w-4" />
-                  <span>Personal: {salon.staff?.length || 0}</span>
+                  <span>Personal: -</span>
                 </div>
-                {salon.staff && salon.staff.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {salon.staff.slice(0, 3).map((member, index) => (
-                      <Badge key={index} variant="secondary">
-                        {member}
-                      </Badge>
-                    ))}
-                    {salon.staff.length > 3 && (
-                      <Badge variant="secondary">+{salon.staff.length - 3}</Badge>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -399,7 +456,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
             </div>
             <div className="flex items-center gap-3 text-sm">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <span><span className="font-medium text-foreground">Personal:</span> {(selectedSalon.staff?.length || 0)} empleados</span>
+              <span><span className="font-medium text-foreground">Personal:</span> {selectedSalonEmployeeAssignments.length} empleado{selectedSalonEmployeeAssignments.length !== 1 ? 's' : ''}</span>
             </div>
             {selectedSalon.notes && (
               <div className="flex items-center gap-3 text-sm">
@@ -407,13 +464,16 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 <span><span className="font-medium text-foreground">Notas:</span> {selectedSalon.notes}</span>
               </div>
             )}
-            {selectedSalon.staff && selectedSalon.staff.length > 0 && (
+            {selectedSalonEmployeeAssignments.length > 0 && (
               <div className="flex flex-wrap gap-1 pt-1">
-                {selectedSalon.staff.map((m, i) => (
-                  <Badge key={i} variant="secondary">
-                    {m}
-                  </Badge>
-                ))}
+                {selectedSalonEmployeeAssignments.map((assignment) => {
+                  const employee = employees.find(emp => emp.id === assignment.employee_id);
+                  return (
+                    <Badge key={assignment.id} variant="secondary">
+                      {employee?.full_name || assignment.employees?.full_name || 'Empleado'}
+                    </Badge>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -798,33 +858,38 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">Personal</h3>
               <div className="space-y-2">
-                <Label>Agregar empleados</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Nombre del empleado"
-                    value={newStaff}
-                    onChange={(e) => setNewStaff(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddStaff();
-                      }
-                    }}
-                  />
-                  <Button type="button" onClick={handleAddStaff} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                {formData.staff.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {formData.staff.map((member, index) => (
-                      <Badge key={index} variant="secondary" className="gap-1">
-                        {member}
-                        <button onClick={() => handleRemoveStaff(index)} className="ml-1 hover:text-destructive">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
+                <Label>Asignar empleados al salón</Label>
+                {loadingEmployees ? (
+                  <div className="text-sm text-muted-foreground">Cargando empleados...</div>
+                ) : employees.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No hay empleados en la organización</div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                    {employees.map((employee) => {
+                      const isSelected = selectedEmployeeIds.has(employee.id);
+                      return (
+                        <label
+                          key={employee.id}
+                          className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleEmployee(employee.id)}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{employee.full_name}</span>
+                          {employee.email && (
+                            <span className="text-xs text-muted-foreground">({employee.email})</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedEmployeeIds.size > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    {selectedEmployeeIds.size} empleado{selectedEmployeeIds.size > 1 ? 's' : ''} seleccionado{selectedEmployeeIds.size > 1 ? 's' : ''}
                   </div>
                 )}
               </div>

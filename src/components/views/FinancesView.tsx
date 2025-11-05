@@ -6,8 +6,6 @@ import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
 import { SalonCarousel } from "../SalonCarousel";
 import type { Salon } from "../../types/salon";
-import { Appointment as AppointmentCardType } from "../features/appointments/AppointmentCard";
-import type { Appointment } from "../../types";
 import { useAuth } from "../../contexts/AuthContext";
 import { useFinancialPermissions } from "../../hooks/useFinancialPermissions";
 import OwnerDashboard from "./OwnerDashboard";
@@ -17,16 +15,13 @@ import AccountingDashboard from "./AccountingDashboard";
 import ClientDashboard from "./ClientDashboard";
 
 interface FinancesViewProps {
-  appointments: AppointmentCardType[] | Appointment[];
   selectedSalon: string | null;
   salonName?: string;
   salons?: Salon[];
   onSelectSalon?: (salonId: string, salonName: string) => void;
 }
 
-
-
-export default function FinancesView({ appointments, selectedSalon, salonName, salons = [], onSelectSalon }: FinancesViewProps) {
+export default function FinancesView({ selectedSalon, salonName, salons = [], onSelectSalon }: FinancesViewProps) {
   const { isDemo } = useAuth();
   const { canViewFinances } = useFinancialPermissions();
   
@@ -78,7 +73,6 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
           
           <TabsContent value="owner">
             <OwnerDashboard 
-              appointments={appointments as any}
               selectedSalon={selectedSalon}
               salonName={salonName}
             />
@@ -86,14 +80,12 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
           
           <TabsContent value="sales">
             <SalesMarketingDashboard 
-              appointments={appointments as any}
               selectedSalon={selectedSalon}
             />
           </TabsContent>
           
           <TabsContent value="operations">
             <OperationsDashboard 
-              appointments={appointments as any}
               selectedSalon={selectedSalon}
             />
           </TabsContent>
@@ -106,7 +98,6 @@ export default function FinancesView({ appointments, selectedSalon, salonName, s
           
           <TabsContent value="clients">
             <ClientDashboard 
-              appointments={appointments as any}
               selectedSalon={selectedSalon}
             />
           </TabsContent>

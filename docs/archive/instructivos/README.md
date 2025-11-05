@@ -36,13 +36,16 @@ Sistema multi-tenant de gestión de salones de belleza con arquitectura enterpri
 │   Frontend      │    │   Supabase      │    │   PostgreSQL    │
 │   (Next.js)     │◄──►│   Auth + API    │◄──►│   Multi-tenant  │
 │                 │    │                 │    │   Database      │
+│  - turnosStore  │    │                 │    │                 │
+│  - useTurnos    │    │                 │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
        │                       │                       │
        ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  Roles UI       │    │  RLS Policies  │    │  Organizations  │
 │  (owner/admin/  │    │  (tenant iso-   │    │  (orgs)        │
-│   employee)     │    │   lation)       │    │                 │
+│   employee)     │    │   lation)       │    │  - salon_       │
+│                 │    │                 │    │    employees    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -52,6 +55,10 @@ Sistema multi-tenant de gestión de salones de belleza con arquitectura enterpri
 - ✅ **Invitaciones seguras**: Tokens hashed de un solo uso
 - ✅ **Control de acceso**: RLS + roles granulares
 - ✅ **Tiempo real**: WebSockets para actualizaciones live
+- ✅ **Sistema global de turnos**: `turnosStore` como fuente única de verdad
+- ✅ **Hook unificado**: `useTurnos` para gestión de turnos
+- ✅ **Gestión de empleados**: Asignaciones many-to-many con `salon_employees`
+- ✅ **Regla de oro**: Empleado = Usuario autenticado (user_id obligatorio)
 - ✅ **Responsive**: Optimizado para desktop y mobile
 - ✅ **Modo demo**: Datos de prueba para desarrollo
 
@@ -75,8 +82,17 @@ Acceder a `http://localhost:3001`
 
 ---
 
-**Versión:** 1.0.0
-**Última actualización:** Octubre 2025</contents>
-</xai:function_call">**Última actualización:** Octubre 2025</contents>
-</xai:function_call name="write">
-<parameter name="file_path">instructivos/alta-usuarios.md
+**Versión:** 2.0.0
+**Última actualización:** Noviembre 2025
+
+## 📋 Cambios Recientes (v2.0.0)
+
+### Sistema Global de Turnos
+- ✅ **`turnosStore`**: Estado centralizado (fuente única de verdad)
+- ✅ **`useTurnos`**: Hook de alto nivel para componentes
+- ✅ **Validaciones integradas**: Conflictos horarios, empleados asignados
+
+### Gestión de Empleados
+- ✅ **Tabla `salon_employees`**: Asignaciones many-to-many (reemplaza `staff: string[]`)
+- ✅ **Regla de oro**: Empleado = Usuario autenticado (user_id obligatorio)
+- ✅ **`employeeValidator.ts`**: Validaciones centralizadas

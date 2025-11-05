@@ -22,7 +22,7 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
   const subscribed = useRef(false);
 
   const fetchAssignments = useCallback(async () => {
-    if (!enabled || !salonId) {
+    if (!enabled || !salonId || salonId === 'all' || salonId === 'Todas') {
       setAssignments([]);
       return;
     }
@@ -90,7 +90,9 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
   }, [fetchAssignments, enabled]);
 
   const assignEmployee = async (employeeId: string) => {
-    if (!salonId) throw new Error('Salon ID is required');
+    if (!salonId || salonId === 'all' || salonId === 'Todas') {
+      throw new Error('Salon ID is required and cannot be "all"');
+    }
 
     const { data, error } = await supabase
       .from('salon_employees')

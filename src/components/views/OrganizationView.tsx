@@ -242,6 +242,25 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           }
         }
 
+        // Validar que el empleado tenga user_id (regla de oro)
+        if (!userId) {
+          toast.error('No se puede crear empleado sin usuario. El empleado debe tener un usuario asociado (user_id obligatorio). Debe invitar al usuario primero.');
+          return;
+        }
+
+        // Validar usando el validador
+        const { validateEmployeeHasUser } = await import('../../lib/employeeValidator');
+        const validation = validateEmployeeHasUser({
+          ...employeeFormData,
+          user_id: userId,
+          org_id: currentOrgId,
+        });
+        
+        if (!validation.valid) {
+          toast.error(validation.message || 'Error de validación del empleado');
+          return;
+        }
+
         const createdEmployee = await createEmployee({
           ...employeeFormData,
           org_id: currentOrgId,

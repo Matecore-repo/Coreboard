@@ -21,7 +21,7 @@ function mapRowToExpense(row: any): Expense {
     payment_status: row.payment_status || 'pending',
     due_date: row.due_date || undefined,
     incurred_at: date,
-    created_by: String(row.created_by),
+    created_by: row.created_by ? String(row.created_by) : '',
     created_at: row.created_at || new Date().toISOString(),
   };
 }
@@ -92,7 +92,7 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
     try {
       let query = supabase
         .from('expenses')
-        .select('id, org_id, salon_id, amount, description, category, incurred_at, created_by, created_at');
+        .select('id, org_id, salon_id, amount, description, category, incurred_at, created_at');
       
       if (options?.filters) {
         const filters = options.filters;
@@ -118,6 +118,10 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
       
       if (error) {
         console.error('Error fetching expenses:', error);
+        // Manejar errores específicos de manera más amigable
+        if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+          console.warn('Schema mismatch detected. Please verify database schema.');
+        }
         setExpenses([]);
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToExpense);

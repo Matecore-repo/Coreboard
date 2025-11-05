@@ -1,7 +1,7 @@
 import React from 'react';
 import { useEffect, useState } from 'react';
-import { Sun, Moon, Sparkles, Mic, MessageCircle } from 'lucide-react';
-import { FaBrain } from 'react-icons/fa';
+import { Sun, Moon, Sparkles, Mic } from 'lucide-react';
+import { FaMagic, FaWhatsapp } from 'react-icons/fa';
 import { getStoredTheme, toggleTheme as toggleThemeLib, applyTheme } from '../lib/theme';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
@@ -116,7 +116,7 @@ function ThemeBubbleContent() {
     {
       id: 'ai',
       label: 'Asistente IA',
-      icon: <FaBrain className={`h-5 w-5 ${iconColor}`} />,
+      icon: <FaMagic className={`h-5 w-5 ${iconColor}`} />,
       onClick: () => {
         setIsExpanded(false);
         // TODO: Implementar funcionalidad de IA
@@ -125,7 +125,7 @@ function ThemeBubbleContent() {
     {
       id: 'whatsapp',
       label: 'WhatsApp',
-      icon: <MessageCircle className={`h-5 w-5 ${iconColor}`} />,
+      icon: <FaWhatsapp className={`h-5 w-5 ${iconColor}`} />,
       onClick: () => {
         setIsExpanded(false);
         // TODO: Implementar funcionalidad de WhatsApp
@@ -142,17 +142,9 @@ function ThemeBubbleContent() {
     },
   ];
 
-  // Posiciones: arriba, abajo, izquierda, derecha
-  // Distancia desde el centro de la burbuja madre (48px/2 = 24px) hasta el centro de las secundarias (40px/2 = 20px)
-  // Espacio entre bordes: 80px, entonces distancia centro a centro = 24 + 80 + 20 = 124px
-  const DISTANCE_CENTER_TO_CENTER = 80; // Distancia desde el centro de la madre al centro de las secundarias
-  
-  const bubblePositions = [
-    { angle: -90, distance: DISTANCE_CENTER_TO_CENTER },  // Arriba - Tema
-    { angle: 90, distance: DISTANCE_CENTER_TO_CENTER },   // Abajo - IA
-    { angle: 180, distance: DISTANCE_CENTER_TO_CENTER },  // Izquierda - WhatsApp
-    { angle: 0, distance: DISTANCE_CENTER_TO_CENTER },     // Derecha - Micrófono
-  ];
+  // Posiciones en hilera a la izquierda de la burbuja madre
+  // Espaciado entre burbujas: 60px (centro a centro)
+  const BUBBLE_SPACING = 60;
 
   return (
     <>
@@ -175,33 +167,12 @@ function ThemeBubbleContent() {
         )}
       </AnimatePresence>
 
-      <motion.div
+      <div
         data-theme-bubble
         className="fixed z-40"
-        initial={false}
-        animate={
-          isExpanded
-            ? {
-                left: '50%',
-                top: '50%',
-                right: 'auto',
-                bottom: 'auto',
-              }
-            : {
-                right: '1rem',
-                bottom: '1rem',
-                left: 'auto',
-                top: 'auto',
-              }
-        }
         style={{
-          transform: isExpanded ? 'translate(-50%, -50%)' : 'none',
-        }}
-        transition={{
-          type: 'spring',
-          stiffness: 500,
-          damping: 40,
-          mass: 0.4,
+          right: '1rem',
+          bottom: '1rem',
         }}
       >
         {/* Burbujas secundarias */}
@@ -209,58 +180,56 @@ function ThemeBubbleContent() {
           {isExpanded && (
             <>
               {options.map((option, index) => {
-                if (index >= bubblePositions.length) return null;
-                const pos = bubblePositions[index];
-                // Convertir ángulo a radianes
-                const radians = (pos.angle * Math.PI) / 180;
-                // Calcular posición exacta desde el centro (0,0)
-                const x = Math.cos(radians) * pos.distance;
-                const y = Math.sin(radians) * pos.distance;
+                // Calcular posición en hilera a la izquierda
+                // Cada burbuja está BUBBLE_SPACING px a la izquierda de la anterior
+                const xOffset = -(BUBBLE_SPACING * (index + 1));
                 
                 return (
                   <motion.button
                     key={option.id}
                     initial={{ 
                       opacity: 0, 
-                      scale: 0,
+                      scale: 0.5,
                       x: 0,
-                      y: 0,
                     }}
                     animate={{ 
                       opacity: 1, 
                       scale: 1,
-                      x,
-                      y,
+                      x: xOffset,
                     }}
                     exit={{ 
                       opacity: 0, 
-                      scale: 0,
+                      scale: 0.5,
                       x: 0,
-                      y: 0,
                     }}
                     whileHover={{
                       scale: 1.1,
                     }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 800,
-                      damping: 45,
-                      mass: 0.2,
-                      delay: index * 0.02,
+                    whileTap={{
+                      scale: 0.85,
+                      transition: { duration: 0.15, ease: 'easeOut' },
                     }}
-                    onClick={option.onClick}
+                    onClick={(e) => {
+                      option.onClick();
+                    }}
                     aria-label={option.label}
-                    className={`absolute h-10 w-10 rounded-full border bg-background/95 flex items-center justify-center active:scale-95 ${
+                    className={`absolute h-10 w-10 rounded-full border bg-background/95 flex items-center justify-center ${
                       theme === 'dark' 
                         ? 'border-white/30 shadow-lg' 
                         : 'border-black/30 shadow-lg'
                     }`}
                     style={{
-                      left: '50%',
-                      top: '50%',
-                      marginLeft: '-20px',
-                      marginTop: '-20px',
+                      right: 0,
+                      bottom: '50%',
+                      marginBottom: '-20px',
                       willChange: 'transform, opacity',
+                    }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 700,
+                      damping: 35,
+                      mass: 0.3,
+                      delay: index * 0.02,
                     }}
                   >
                     {option.icon}
@@ -275,23 +244,29 @@ function ThemeBubbleContent() {
         <motion.button
           onClick={() => setIsExpanded(!isExpanded)}
           aria-label="Abrir opciones"
-          className="h-12 w-12 rounded-full shadow-lg border bg-background/90 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform duration-200 relative"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          className="h-12 w-12 rounded-full shadow-lg border bg-background/90 flex items-center justify-center relative"
+          whileHover={{ 
+            scale: 1.05,
+            transition: { duration: 0.2, ease: 'easeOut' },
+          }}
+          whileTap={{ 
+            scale: 0.9,
+            transition: { duration: 0.1, ease: 'easeOut' },
+          }}
           animate={{ 
             rotate: isExpanded ? 180 : 0,
           }}
           transition={{ 
             type: 'spring',
             stiffness: 500,
-            damping: 35,
+            damping: 30,
             mass: 0.4,
           }}
           style={{ willChange: 'transform' }}
         >
           <Sparkles className={`h-6 w-6 ${iconColor}`} />
         </motion.button>
-      </motion.div>
+      </div>
     </>
   );
 }

@@ -5,6 +5,7 @@ import { Appointment as FullAppointment } from '../types';
 import { demoStore } from '../demo/store';
 import { isValidUUID } from '../lib/uuid';
 import { appointmentsStore } from '../stores/appointments';
+import { turnosStore, type Turno } from '../stores/turnosStore';
 
 export interface Appointment {
   id: string;
@@ -103,6 +104,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
   const fetchAppointments = useCallback(async () => {
     if (!enabled) return;
     setLoading(true);
+    turnosStore.setLoading(true);
     try {
       if (isDemo) {
         const data = await demoStore.appointments.list(salonId);
@@ -150,6 +152,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       }
     } finally {
       setLoading(false);
+      turnosStore.setLoading(false);
     }
   }, [salonId, enabled, isDemo, currentOrgId]);
 
@@ -196,11 +199,27 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     }
   }, [enabled, isDemo, fetchAppointments, currentOrgId]);
 
-  // Sincronizar estado local al store global
+  // Sincronizar estado local al store global (appointmentsStore y turnosStore)
   useEffect(() => {
     try {
-      // map 1:1 ya que las props coinciden con AppointmentLite
+      // Sincronizar con appointmentsStore (compatibilidad)
       appointmentsStore.setAll(appointments as any);
+      
+      // Sincronizar con turnosStore (nuevo cerebro global)
+      const turnos: Turno[] = appointments.map(apt => ({
+        id: apt.id,
+        clientName: apt.clientName,
+        service: apt.service,
+        date: apt.date,
+        time: apt.time,
+        status: apt.status,
+        stylist: apt.stylist,
+        salonId: apt.salonId,
+        notes: apt.notes,
+        created_by: apt.created_by,
+      }));
+      turnosStore.setAll(turnos);
+      turnosStore.setLoading(false);
     } catch {}
   }, [appointments]);
 

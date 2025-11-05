@@ -1,6 +1,6 @@
 # Validadores - Guía de Uso
 
-## Iteraciones Completadas (1-3/5)
+## Iteraciones Completadas (1-6/6)
 
 Estos validadores implementan la lógica que faltaba en la arquitectura.
 
@@ -312,14 +312,130 @@ export function useAppointmentsValidator() {
 
 ---
 
-## 🚀 Iteraciones Faltantes (4-5)
+## ✅ Iteración 6: Employee Validator
 
-Los validadores 4 y 5 aún no están implementados:
+**Archivo:** `src/lib/employeeValidator.ts`
 
-- **Iteración 4:** Permission Validator (roles granulares)
-- **Iteración 5:** Demo Mode Mirror (validar igual en demo y real)
+**Responsabilidad:** Validar reglas de negocio de empleados (regla de oro: Empleado = Usuario autenticado).
 
-Ambas siguen el mismo patrón de este documento.
+### Uso Básico
+
+```typescript
+import { 
+  filterValidEmployees,
+  validateEmployeeStatus,
+  validateEmployeeInSalon,
+  validateEmployeeForAppointment 
+} from '@/lib/employeeValidator';
+
+// Filtrar empleados sin user_id
+const validEmployees = filterValidEmployees(employees);
+// Solo retorna empleados con user_id válido
+
+// Validar estado de empleado
+const statusCheck = validateEmployeeStatus(employee);
+if (!statusCheck.valid) {
+  console.error(statusCheck.error_code); // 'EMPLOYEE_INACTIVE' | 'EMPLOYEE_DELETED'
+}
+
+// Validar asignación a salón
+const assignmentCheck = validateEmployeeInSalon(
+  employeeId,
+  salonId,
+  salonAssignments // Array de { employee_id, salon_id, active }
+);
+if (!assignmentCheck.valid) {
+  console.error(assignmentCheck.error_code); // 'EMPLOYEE_NOT_IN_SALON'
+}
+
+// Validación completa para turno
+const appointmentCheck = validateEmployeeForAppointment({
+  employeeId,
+  salonId,
+  employee,
+  salonAssignments
+});
+if (!appointmentCheck.valid) {
+  console.error(appointmentCheck.error_code);
+  // 'EMPLOYEE_MISSING_USER' | 'EMPLOYEE_INACTIVE' | 'EMPLOYEE_NOT_IN_SALON'
+}
+```
+
+### Regla de Oro
+
+```
+Empleado = Usuario autenticado dentro de una organización.
+
+No existe "empleado sin usuario". Si no tiene user_id, no es empleado.
+```
+
+### Validaciones
+
+1. **`filterValidEmployees`**: Filtra empleados sin `user_id`
+2. **`validateEmployeeStatus`**: Verifica que empleado esté activo y no eliminado
+3. **`validateEmployeeInSalon`**: Verifica asignación activa a salón
+4. **`validateEmployeeForAppointment`**: Validación completa para crear turno
+
+### Posibles Errores
+
+```typescript
+error_code: 'EMPLOYEE_MISSING_USER'
+  → Empleado no tiene user_id (regla de oro violada)
+
+error_code: 'EMPLOYEE_INACTIVE'
+  → Empleado está inactivo (active = false)
+
+error_code: 'EMPLOYEE_DELETED'
+  → Empleado fue eliminado (deleted_at no es null)
+
+error_code: 'EMPLOYEE_NOT_IN_SALON'
+  → Empleado no está asignado al salón
+  → o asignación existe pero active = false
+```
+
+### Integración
+
+```typescript
+// En useEmployees:
+import { filterValidEmployees } from '@/lib/employeeValidator';
+
+const fetchEmployees = async () => {
+  const { data } = await supabase.from('employees').select();
+  const validEmployees = filterValidEmployees(data || []);
+  setEmployees(validEmployees);
+};
+
+// En turnosStore:
+import { validateEmployeeInSalon } from '@/lib/employeeValidator';
+
+function validateTurno(turno: Turno) {
+  // ... otras validaciones ...
+  const empCheck = validateEmployeeInSalon(
+    turno.stylist,
+    turno.salonId,
+    salonAssignments
+  );
+  if (!empCheck.valid) {
+    return { valid: false, message: empCheck.message };
+  }
+}
+
+// En OrganizationView:
+import { validateEmployeeHasUser } from '@/lib/employeeValidator';
+
+const handleSaveEmployee = async () => {
+  if (!userId) {
+    toast.error('Empleado debe tener user_id');
+    return;
+  }
+  const validation = validateEmployeeHasUser(employeeData);
+  if (!validation.valid) {
+    toast.error(validation.message);
+    return;
+  }
+  // ... crear empleado ...
+};
+```
 
 ---
 
@@ -529,7 +645,7 @@ switch (result.status) {
 
 ---
 
-## 🧪 Checklist Final (4-5 Completadas)
+## 🧪 Checklist Final (1-6 Completadas)
 
 ✅ Permisos se validan ANTES de reglas de negocio
 ✅ Operaciones scopeadas (own_salon) se validan en contexto
@@ -540,10 +656,13 @@ switch (result.status) {
 ✅ Todos los inputs vienen del server (nada del front sin validar)
 ✅ Sugerencias útiles en cada error
 ✅ Recovery actions claros (resync, reload, wait, refresh_token)
+✅ **Empleados validados con user_id obligatorio (regla de oro)**
+✅ **Asignaciones salón-empleado validadas antes de crear turno**
+✅ **turnosStore integra validaciones de empleados**
 
 ---
 
-## 📊 Resumen de Iteraciones 1-5
+## 📊 Resumen de Iteraciones 1-6
 
 | Iter | Archivo | Responsabilidad |
 |------|---------|---|
@@ -553,15 +672,61 @@ switch (result.status) {
 | 3.5 | operationValidator | Orquestador que integra 1+2+3 |
 | 4 | permissionResolver | RBAC - matriz rol × operación |
 | 5 | demoAdapter | Demo que valida igual a real |
+| 6 | employeeValidator | Validación de empleados (regla de oro: user_id obligatorio) |
 
 ---
 
 ## 🚀 Qué Sigue
 
-Con estas 5 iteraciones, el sistema está listo para:
+Con estas 6 iteraciones, el sistema está listo para:
 - ✅ Auditoría ("quién rechazó y por qué")
 - ✅ Sugerencias de horario (IA-friendly)
 - ✅ Enforcement en serverless (edge functions)
 - ✅ Logging de operaciones rechazadas
 - ✅ Rate limiting por rol
 - ✅ Notificaciones en tiempo real
+- ✅ **Motor de Compensaciones** (siguiente fase: cálculo de comisiones, sueldos, propinas)
+
+## 🔄 Integración con Sistema Global de Turnos
+
+Los validadores se integran con `turnosStore`:
+
+```typescript
+// turnosStore usa employeeValidator
+import { validateEmployeeInSalon } from '@/lib/employeeValidator';
+
+function validateTurno(turno: Turno) {
+  // ... validaciones de datos ...
+  
+  // Validar empleado asignado al salón
+  const empCheck = validateEmployeeInSalon(
+    turno.stylist,
+    turno.salonId,
+    salonAssignments
+  );
+  if (!empCheck.valid) {
+    return { valid: false, message: empCheck.message };
+  }
+  
+  // ... más validaciones ...
+}
+
+// useTurnos expone validaciones
+export function useTurnos() {
+  return {
+    // ... otros métodos ...
+    validateTurno: (turno) => turnosStore.validateTurno(turno),
+    checkConflicts: (turno) => turnosStore.checkConflicts(turno),
+  };
+}
+```
+
+MP_TEST_PUBLIC_KEY=TEST-0ca3aa64-6280-4f79-b276-b96ab1e3f561
+MP_TEST_ACCESS_TOKEN=TEST-311317450627289-110412-41b453f8a762858b9a65fcf3e7dd641f-575122857
+MP_CLIENT_ID=311317450627289
+MP_CLIENT_SECRET=ACAOfFSl4KkULdcRE6WlUUHMNwmqrVvq
+MP_TOKEN_KEY=f9d2b8a0e1c4b39f772c5a6d84f09e3b51a27cb08e6d9354a7dcb61f92ad4b03
+PUBLIC_EDGE_BASE_URL=https://hawpywnmkatwlcbtffrg.supabase.co
+NEXT_PUBLIC_APP_URL=https://coreboard.vercel.app
+
+

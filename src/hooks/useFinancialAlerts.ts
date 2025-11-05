@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { useAppointments } from './useAppointments';
+import { turnosStore } from '../stores/turnosStore';
 import { usePayments } from './usePayments';
 import { useExpenses } from './useExpenses';
 import { useGatewayReconciliations } from './useGatewayReconciliations';
+import type { Appointment } from '../types';
 
 export type AlertSeverity = 'info' | 'warning' | 'critical';
 
@@ -16,10 +17,37 @@ export interface FinancialAlert {
 }
 
 export function useFinancialAlerts(salonId?: string | null) {
-  const { appointments } = useAppointments(salonId || undefined, { enabled: true });
   const { payments } = usePayments({ enabled: true });
   const { expenses } = useExpenses({ enabled: true });
   const { detectDifferences } = useGatewayReconciliations({ enabled: true });
+
+  // Usar turnosStore directamente
+  const appointments = useMemo(() => {
+    const allTurnos = turnosStore.appointments;
+    // Filtrar por salonId si se proporciona
+    let filtered = salonId 
+      ? allTurnos.filter(t => t.salonId === salonId)
+      : allTurnos;
+    
+    // Convertir a formato Appointment para compatibilidad
+    return filtered.map(t => ({
+      id: t.id,
+      org_id: t.org_id || '',
+      salon_id: t.salonId,
+      service_id: '',
+      stylist_id: t.stylist,
+      client_name: t.clientName,
+      client_phone: undefined,
+      client_email: undefined,
+      starts_at: `${t.date}T${t.time}:00`,
+      status: t.status,
+      total_amount: t.total_amount || 0,
+      notes: t.notes,
+      created_by: t.created_by || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as Appointment));
+  }, [salonId]);
 
   const alerts = useMemo((): FinancialAlert[] => {
     const result: FinancialAlert[] = [];

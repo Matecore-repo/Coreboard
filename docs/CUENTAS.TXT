@@ -1,7 +1,8 @@
+CRM de turnos
+
 iangel.oned@gmail.com (propietario)
 nachoangelone@gmail.com (empleado)
 
 contraseñas: 123456
 
-localhost: http://localhost:3000/login 
 ip: http://192.168.100.50:3000

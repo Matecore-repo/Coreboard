@@ -18,6 +18,9 @@ Este documento resume qué es el CRM de turnos, cómo funciona, sus prácticas y
   - `AuthContext` (usuario, sesión, org actual, demo).
   - `ContextStateManager` (sincronización entre salones al cambiar de contexto).
   - `contextValidator` (valida coherencia front/back: usuario/org/salón).
+- Estado global de turnos:
+  - `turnosStore` (fuente única de verdad: lista, filtros, validaciones, CRUD).
+  - `useTurnos` (hook de alto nivel para componentes).
 - Backend/DB: Supabase (auth + RLS); cliente en `src/lib/supabase.ts`.
 - UI: Tailwind + componentes en `src/components/ui/*`.
 - Tests: Vitest (hooks/contexts) y Playwright config presente.
@@ -26,7 +29,8 @@ Este documento resume qué es el CRM de turnos, cómo funciona, sus prácticas y
 - Organización (org) — agrupa todo.
 - Salón (sucursal) — contexto operacional para ver/editar datos.
 - Servicios — catálogo por salón.
-- Empleados — asignables a servicios/turnos.
+- Empleados — asignables a servicios/turnos (requiere `user_id` obligatorio).
+- `salon_employees` — asignaciones salón-empleado (many-to-many).
 - Clientes — agenda y contacto.
 - Turnos — cita con cliente, empleado, servicio, fecha/hora, estado.
 - Pagos/Finanzas — consolidado de cobros y métricas.
@@ -82,16 +86,21 @@ Este documento resume qué es el CRM de turnos, cómo funciona, sus prácticas y
 - Login/Signup: Supabase Auth; recuperación de contraseña.
 - Selección de Organización: por defecto primera o `preferred_org`; `changeOrg` actualiza contexto.
 - Cambio de Salón: dispara `updating` y sincronización de recursos antes de operar.
-- Gestión de Turnos: creación/edición/cancelación con validaciones de disponibilidad.
+- Gestión de Turnos: creación/edición/cancelación con validaciones de disponibilidad (vía `turnosStore`).
+- Gestión de Empleados: asignación a salones mediante `salon_employees` (checkboxes en `SalonsManagementView`).
 - Gestión de Catálogo: servicios por salón; empleados asignables.
 - Clientes: alta/búsqueda, historial, próximos turnos.
 - Finanzas: totales, KPIs y gráficos por período/salón.
 
 ## Rīgas de Negocio
 - Todo turno pertenece a un salón dentro de una organización y vincula: cliente + empleado + servicio + fecha/hora.
+- **Regla de oro**: Empleado = Usuario autenticado. No existe empleado sin `user_id`.
+- Empleado debe estar asignado activamente al salón (`salon_employees.active = true`) para crear turno.
+- Validación de conflictos: no se permiten turnos solapados por empleado.
 - Operaciones protegidas por permisos del rol y políticas RLS en Supabase.
 - Antes de operaciones sensibles, validar contexto con `assertContextClean`.
 - Mientras `ContextStateManager` está `updating`, bloquear operaciones dependientes de datos sincronizados.
+- `turnosStore` es la fuente única de verdad: todos los componentes consumen desde aquí.
 
 ## Errores y Recuperación
 - Sesión expirada → forzar re-login o refresh token.
@@ -107,7 +116,9 @@ Este documento resume qué es el CRM de turnos, cómo funciona, sus prácticas y
 - Auth y contexto: `src/contexts/AuthContext.tsx`.
 - Estado de contexto: `src/lib/contextStateManager.ts`.
 - Validaciones de contexto: `src/lib/contextValidator.ts`.
-- Hooks de dominio: `src/hooks/useAppointments.ts`, `src/hooks/useClients.ts`, `src/hooks/useEmployees.ts`, `src/hooks/usePayments.ts`, `src/hooks/useServices.ts`, `src/hooks/useSalonServices.ts`, `src/hooks/useSalons.ts`.
+- Estado global de turnos: `src/stores/turnosStore.ts`.
+- Validaciones de empleados: `src/lib/employeeValidator.ts`.
+- Hooks de dominio: `src/hooks/useAppointments.ts`, `src/hooks/useTurnos.ts`, `src/hooks/useClients.ts`, `src/hooks/useEmployees.ts`, `src/hooks/useSalonEmployees.ts`, `src/hooks/usePayments.ts`, `src/hooks/useServices.ts`, `src/hooks/useSalonServices.ts`, `src/hooks/useSalons.ts`.
 - Features: `src/components/features/appointments/*`, `src/components/features/finances/*`.
 - Vistas: `src/components/views/*`.
 - Comunes/UI: `src/components/ui/*`, layout en `src/components/layout/*`.
@@ -118,9 +129,32 @@ Este documento resume qué es el CRM de turnos, cómo funciona, sus prácticas y
 - Si hay divergencia de contexto, proponer: `resync_orgs` o `refresh_token`.
 - Si `ContextStateManager` = `updating`, pedir esperar a recursos pendientes antes de operar.
 - En modo demo, evitar pasos que requieran datos reales.
+- **Para turnos**: usar `useTurnos` en lugar de `useAppointments` directamente.
+- **Para empleados**: validar que tengan `user_id` antes de asignar a salón.
+- **Para asignaciones**: usar `salon_employees` (many-to-many) en lugar de arrays de strings.
+
+---
+
+## Cambios Recientes (Refactorización)
+
+### Sistema Global de Turnos
+- **`turnosStore`**: Estado centralizado (lista, filtros, validaciones, CRUD). Fuente única de verdad.
+- **`useTurnos`**: Hook de alto nivel para componentes. API simplificada con selectores.
+- Migración gradual: componentes migrados manteniendo compatibilidad con `useAppointments`.
+
+### Gestión de Empleados
+- **`employeeValidator.ts`**: Validaciones centralizadas (user_id obligatorio, asignación activa).
+- **`SalonsManagementView`**: Refactorizado para usar empleados reales con checkboxes.
+- Tabla `salon_employees`: asignaciones salón-empleado (many-to-many).
+- Regla de oro: Empleado = Usuario autenticado. No existe empleado sin `user_id`.
+
+### Componentes Migrados a `useTurnos`
+- `App.tsx`, `AppointmentDialog.tsx`, `TurnosPanel.tsx`, `CalendarView.tsx`, `ClientsPanel.tsx`
+- `HomeView.tsx`, `OwnerDashboard.tsx`, `ClientDashboard.tsx`, `OperationsDashboard.tsx`, `SalesMarketingDashboard.tsx`
+- `useFinancialMetrics.ts`, `useFinancialAlerts.ts`
 
 ---
 
 Sugerencia de uso como system prompt:
 
-> Eres un asistente para un CRM de turnos llamado Coreboard. Usa el siguiente contexto de producto, entidades, reglas y flujos para interpretar y responder. Respeta roles y estado de sincronización. Si detectas divergencia de contexto o sesión expirada, sugiere acciones de recuperación.
+> Eres un asistente para un CRM de turnos llamado Coreboard. Usa el siguiente contexto de producto, entidades, reglas y flujos para interpretar y responder. Respeta roles y estado de sincronización. Si detectas divergencia de contexto o sesión expirada, sugiere acciones de recuperación. Para operaciones con turnos, usa `useTurnos`. Para empleados, valida que tengan `user_id` antes de asignar.
