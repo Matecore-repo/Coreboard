@@ -1,5 +1,6 @@
 ﻿import { GenericCarousel } from "./GenericCarousel";
 import { SalonCard } from "./SalonCard";
+import { ViewAllSalonCard } from "./ViewAllSalonCard";
 
 interface Salon {
   id: string;
@@ -41,10 +42,7 @@ export function SalonCarousel({
         id: 'all',
         name: 'Todas',
         render: (isSelected, isDimmed) => (
-          <SalonCard
-            name="Todas"
-            address="Todos los locales"
-            image="/imagenlogin.jpg"
+          <ViewAllSalonCard
             onClick={() => onSelectSalon('all', 'Todas')}
             isSelected={isSelected}
             isDimmed={isDimmed}

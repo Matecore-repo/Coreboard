@@ -7,12 +7,22 @@ import { createServiceRoleClient } from '../_shared/supabase-client.ts';
 
 const FRONTEND_URL = Deno.env.get('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 Deno.serve(async (req) => {
+  // Manejar preflight OPTIONS
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
+
   try {
     if (req.method !== 'POST') {
       return new Response(
         JSON.stringify({ error: 'Método no permitido' }),
-        { status: 405, headers: { 'Content-Type': 'application/json' } }
+        { status: 405, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -22,7 +32,7 @@ Deno.serve(async (req) => {
     if (!org_id || !salon_id) {
       return new Response(
         JSON.stringify({ error: 'org_id y salon_id son requeridos' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -31,62 +41,54 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'No autorizado' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Generar token único (32 bytes aleatorios)
-    const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
-    const token = Array.from(tokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
-
-    // Calcular SHA-256 hash del token
-    const tokenData = new TextEncoder().encode(token);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', tokenData);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const tokenHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     // Fecha de expiración por defecto: 30 días
     const expiresAt = expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Insertar en payment_links
+    // Usar función RPC para crear payment link (maneja bytea correctamente)
     const supabase = createServiceRoleClient();
-    const { data, error } = await supabase
-      .from('payment_links')
-      .insert({
-        org_id,
-        salon_id,
-        token_hash: tokenHash,
-        title: title || 'Reserva tu turno',
-        description: description || null,
-        metadata: metadata || {},
-        expires_at: expiresAt,
-        active: true,
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('create_payment_link', {
+      p_org_id: org_id,
+      p_salon_id: salon_id,
+      p_title: title || 'Reserva tu turno',
+      p_description: description || null,
+      p_token: null, // Se genera automáticamente en la función
+      p_expires_at: expiresAt,
+      p_metadata: metadata || {},
+    });
 
     if (error) {
       console.error('Error creando payment link:', error);
       return new Response(
         JSON.stringify({ error: 'Error creando payment link', details: error.message }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!data || !data.token) {
+      return new Response(
+        JSON.stringify({ error: 'Error: No se recibió token del servidor' }),
+        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
 
     // Retornar token y URL
     return new Response(
       JSON.stringify({
-        token,
-        url: `${FRONTEND_URL}/book/${token}`,
-        expires_at: expiresAt,
+        token: data.token,
+        url: `${FRONTEND_URL}/book/${data.token}`,
+        expires_at: data.expires_at,
       }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('Error en create-payment-link:', error);
     return new Response(
       JSON.stringify({ error: 'Error interno del servidor', details: error.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
   }
 });

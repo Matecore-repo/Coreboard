@@ -132,13 +132,13 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     try {
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, payment_method, processed_at, notes, org_id, created_at');
+        .select('id, appointment_id, amount, method, received_at, notes, org_id, created_at');
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
       }
       
-      const { data, error } = await query.order('processed_at', { ascending: false });
+      const { data, error } = await query.order('received_at', { ascending: false });
       
       if (error) {
         console.error('Error fetching payments:', error);
