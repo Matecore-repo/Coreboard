@@ -10,12 +10,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * Este cliente bypassa RLS y puede acceder a todas las tablas
  */
 export function createServiceRoleClient() {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('PUBLIC_EDGE_BASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY');
 
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error(
-      'SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY deben estar configurados'
+      'SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (o SERVICE_ROLE_KEY) deben estar configurados'
     );
   }
 

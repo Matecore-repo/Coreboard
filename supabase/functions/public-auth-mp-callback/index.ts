@@ -14,6 +14,25 @@ const FRONTEND_URL = Deno.env.get('NEXT_PUBLIC_APP_URL') || 'http://localhost:30
 
 Deno.serve(async (req) => {
   try {
+    // Manejar preflight request (CORS)
+    if (req.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        },
+      });
+    }
+
+    // Headers CORS para todas las respuestas
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    };
+
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
@@ -25,6 +44,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=${encodeURIComponent(error)}`,
+          ...corsHeaders,
         },
       });
     }
@@ -34,6 +54,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=missing_params`,
+          ...corsHeaders,
         },
       });
     }
@@ -43,6 +64,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=config_error`,
+          ...corsHeaders,
         },
       });
     }
@@ -56,6 +78,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=invalid_state`,
+          ...corsHeaders,
         },
       });
     }
@@ -66,6 +89,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=missing_org`,
+          ...corsHeaders,
         },
       });
     }
@@ -82,7 +106,7 @@ Deno.serve(async (req) => {
         client_id: MP_CLIENT_ID,
         client_secret: MP_CLIENT_SECRET,
         code: code,
-        redirect_uri: `${Deno.env.get('PUBLIC_EDGE_BASE_URL')}/functions/v1/auth-mp-callback`,
+        redirect_uri: `${Deno.env.get('PUBLIC_EDGE_BASE_URL')}/functions/v1/public-auth-mp-callback`,
       }),
     });
 
@@ -93,6 +117,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=token_exchange_failed`,
+          ...corsHeaders,
         },
       });
     }
@@ -105,6 +130,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=missing_tokens`,
+          ...corsHeaders,
         },
       });
     }
@@ -145,6 +171,7 @@ Deno.serve(async (req) => {
         status: 302,
         headers: {
           'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=db_error`,
+          ...corsHeaders,
         },
       });
     }
@@ -154,6 +181,7 @@ Deno.serve(async (req) => {
       status: 302,
       headers: {
         'Location': `${FRONTEND_URL}/dashboard?view=settings&mp=connected`,
+        ...corsHeaders,
       },
     });
   } catch (error) {
@@ -162,6 +190,7 @@ Deno.serve(async (req) => {
       status: 302,
       headers: {
         'Location': `${FRONTEND_URL}/dashboard?view=settings&mp_error=internal_error`,
+        ...corsHeaders,
       },
     });
   }

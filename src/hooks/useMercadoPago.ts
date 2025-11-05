@@ -85,10 +85,34 @@ export function useMercadoPago() {
         throw new Error('No hay sesión activa');
       }
 
-      // Redirigir a la Edge Function que iniciará el OAuth
+      // Hacer fetch a la Edge Function con el token de autorización
+      // La función retorna un redirect 302, pero podemos obtener la URL desde los headers
+      const response = await fetch(`${functionsUrl}/auth-mp-connect?org_id=${currentOrgId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        redirect: 'manual', // No seguir redirects automáticamente
+      });
+
+      // Si la respuesta es un redirect, obtener la URL de Location header
+      if (response.status === 302 || response.status === 301 || response.status === 307 || response.status === 308) {
+        const location = response.headers.get('Location');
+        if (location) {
+          window.location.href = location;
+          return;
+        }
+      }
+
+      // Si no hay Location header, intentar leer el body (puede contener la URL)
+      const data = await response.json().catch(() => null);
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      // Si todo falla, intentar redirección directa (puede fallar si requiere JWT)
       const connectUrl = `${functionsUrl}/auth-mp-connect?org_id=${currentOrgId}`;
-      
-      // Abrir en nueva ventana o redirigir directamente
       window.location.href = connectUrl;
     } catch (error: any) {
       console.error('Error conectando Mercado Pago:', error);

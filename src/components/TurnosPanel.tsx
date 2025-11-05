@@ -36,7 +36,7 @@ export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps
     } as Appointment));
   }, [turnos]);
   const [nextAppointmentTime, setNextAppointmentTime] = useState<string | null>(null);
-  const { user, currentOrgId } = useAuth();
+  const { user, currentOrgId, currentRole } = useAuth();
   const { commissions, loading: loadingCommissions } = useCommissions({ enabled: true });
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
 
@@ -47,19 +47,29 @@ export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps
   }, [employees, user?.id]);
 
   // Calcular comisiones del día de hoy
+  // Owner/Admin: ver todas las comisiones de todos los empleados
+  // Employee: ver solo sus propias comisiones
   const todayCommissions = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
     const todayComms = commissions.filter(comm => {
       const commDate = new Date(comm.date).toISOString().split("T")[0];
       if (commDate !== today) return false;
-      // Si hay un empleado actual, filtrar solo sus comisiones
-      if (currentEmployee) {
+      
+      // Si es owner o admin, mostrar todas las comisiones
+      if (currentRole === 'owner' || currentRole === 'admin') {
+        return true;
+      }
+      
+      // Si es empleado, mostrar solo sus comisiones
+      if (currentRole === 'employee' && currentEmployee) {
         return comm.employee_id === currentEmployee.id;
       }
+      
+      // Por defecto, mostrar todas (para compatibilidad)
       return true;
     });
     return todayComms.reduce((sum, comm) => sum + comm.amount, 0);
-  }, [commissions, currentEmployee]);
+  }, [commissions, currentRole, currentEmployee]);
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];

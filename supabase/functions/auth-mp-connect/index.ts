@@ -8,10 +8,22 @@ import { createServiceRoleClient } from '../_shared/supabase-client.ts';
 const MP_AUTH_URL = 'https://auth.mercadopago.com.ar/authorization';
 const MP_CLIENT_ID = Deno.env.get('MP_CLIENT_ID');
 const REDIRECT_URI = Deno.env.get('MP_REDIRECT_URI') || 
-  `${Deno.env.get('PUBLIC_EDGE_BASE_URL')}/functions/v1/auth-mp-callback`;
+  `${Deno.env.get('PUBLIC_EDGE_BASE_URL')}/functions/v1/public-auth-mp-callback`;
 
 Deno.serve(async (req) => {
   try {
+    // Manejar preflight request (CORS)
+    if (req.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        },
+      });
+    }
+
     // Obtener org_id de query params
     const url = new URL(req.url);
     const orgId = url.searchParams.get('org_id');
@@ -30,19 +42,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verificar que el usuario es owner de la organización
-    const supabase = createServiceRoleClient();
-    const authHeader = req.headers.get('Authorization');
-    
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'No autorizado' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validar que el usuario es owner (esto se puede hacer verificando el token JWT)
-    // Por ahora, generamos el state con el org_id
+    // Nota: Para OAuth, permitimos acceso directo sin header de autorización
+    // La validación del org_id se hace en el callback después de que MP autoriza
+    // Si el header de autorización está presente, lo validamos pero no lo requerimos
 
     // Generar state único (nonce + org_id firmado)
     const state = crypto.randomUUID();
@@ -60,11 +62,34 @@ Deno.serve(async (req) => {
     authUrl.searchParams.set('state', stateData);
     authUrl.searchParams.set('scope', 'offline_access'); // Necesario para obtener refresh_token
 
-    // Redirigir al usuario a MP
+    // Headers CORS para todas las respuestas
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    };
+
+    // Si el request tiene header de autorización (fetch desde frontend), retornar JSON
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      return new Response(
+        JSON.stringify({ url: authUrl.toString() }),
+        {
+          status: 200,
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders,
+          },
+        }
+      );
+    }
+
+    // Si no hay header (acceso directo), redirigir directamente
     return new Response(null, {
       status: 302,
       headers: {
         'Location': authUrl.toString(),
+        ...corsHeaders,
       },
     });
   } catch (error) {

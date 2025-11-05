@@ -193,7 +193,7 @@ export function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {appointment ? "Editar Turno" : "Nuevo Turno"}
@@ -211,7 +211,7 @@ export function AppointmentDialog({
             <Select
               value={formData.salonId}
               onValueChange={(value) =>
-                setFormData({ ...formData, salonId: value })
+                setFormData((prev) => ({ ...prev, salonId: value }))
               }
             >
               <SelectTrigger>
@@ -229,23 +229,23 @@ export function AppointmentDialog({
 
           <div className="grid gap-2">
             <Label htmlFor="client_name">Nombre del cliente</Label>
-            <Input
-              id="client_name"
-              value={formData.clientName}
-              onChange={(e) =>
-                setFormData({ ...formData, clientName: e.target.value })
-              }
-              placeholder="Juan Pérez"
-            />
+              <Input
+                id="client_name"
+                value={formData.clientName}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, clientName: e.target.value }));
+                }}
+                placeholder="Juan Pérez"
+              />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="service">Servicio</Label>
             <Select
               value={formData.service || ""}
-              onValueChange={(value) =>
-                setFormData({ ...formData, service: value })
-              }
+              onValueChange={(value) => {
+                setFormData((prev) => ({ ...prev, service: value }));
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar servicio" />
@@ -298,9 +298,9 @@ export function AppointmentDialog({
             <Label htmlFor="stylist">Estilista (Opcional)</Label>
             <Select
               value={formData.stylist || "none"}
-              onValueChange={(value) =>
-                setFormData({ ...formData, stylist: value === "none" ? "" : value })
-              }
+              onValueChange={(value) => {
+                setFormData((prev) => ({ ...prev, stylist: value === "none" ? "" : value }));
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar estilista" />
@@ -328,9 +328,9 @@ export function AppointmentDialog({
               <Label htmlFor="status">Estado</Label>
               <Select
                 value={formData.status || "pending"}
-                onValueChange={(value: any) =>
-                  setFormData({ ...formData, status: value })
-                }
+                onValueChange={(value: any) => {
+                  setFormData((prev) => ({ ...prev, status: value }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -360,9 +360,9 @@ export function AppointmentDialog({
                     type="number"
                     step="0.01"
                     value={formData.listPrice || 0}
-                    onChange={(e) =>
-                      setFormData({ ...formData, listPrice: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, listPrice: parseFloat(e.target.value) || 0 }));
+                    }}
                     placeholder="0.00"
                   />
                 </div>
@@ -374,9 +374,9 @@ export function AppointmentDialog({
                     type="number"
                     step="0.01"
                     value={formData.discountAmount || 0}
-                    onChange={(e) =>
-                      setFormData({ ...formData, discountAmount: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, discountAmount: parseFloat(e.target.value) || 0 }));
+                    }}
                     placeholder="0.00"
                   />
                 </div>
@@ -388,9 +388,9 @@ export function AppointmentDialog({
                     type="number"
                     step="0.01"
                     value={formData.taxAmount || 0}
-                    onChange={(e) =>
-                      setFormData({ ...formData, taxAmount: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, taxAmount: parseFloat(e.target.value) || 0 }));
+                    }}
                     placeholder="0.00"
                   />
                 </div>
@@ -402,9 +402,9 @@ export function AppointmentDialog({
                     type="number"
                     step="0.01"
                     value={formData.tipAmount || 0}
-                    onChange={(e) =>
-                      setFormData({ ...formData, tipAmount: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, tipAmount: parseFloat(e.target.value) || 0 }));
+                    }}
                     placeholder="0.00"
                   />
                 </div>
@@ -416,9 +416,9 @@ export function AppointmentDialog({
                     type="number"
                     step="0.01"
                     value={formData.totalCollected || 0}
-                    onChange={(e) =>
-                      setFormData({ ...formData, totalCollected: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, totalCollected: parseFloat(e.target.value) || 0 }));
+                    }}
                     placeholder="0.00"
                   />
                 </div>
@@ -427,9 +427,9 @@ export function AppointmentDialog({
                   <Label htmlFor="payment-method">Método de Pago</Label>
                   <Select
                     value={formData.paymentMethod || "cash"}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, paymentMethod: value })
-                    }
+                    onValueChange={(value) => {
+                      setFormData((prev) => ({ ...prev, paymentMethod: value }));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -450,9 +450,9 @@ export function AppointmentDialog({
                     type="number"
                     step="0.01"
                     value={formData.directCost || 0}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directCost: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, directCost: parseFloat(e.target.value) || 0 }));
+                    }}
                     placeholder="0.00"
                   />
                 </div>
@@ -461,9 +461,9 @@ export function AppointmentDialog({
                   <Label htmlFor="booking-source">Fuente de Reserva</Label>
                   <Select
                     value={formData.bookingSource || "mostrador"}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, bookingSource: value })
-                    }
+                    onValueChange={(value) => {
+                      setFormData((prev) => ({ ...prev, bookingSource: value }));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -482,9 +482,9 @@ export function AppointmentDialog({
                   <Input
                     id="campaign-code"
                     value={formData.campaignCode || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, campaignCode: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, campaignCode: e.target.value }));
+                    }}
                     placeholder="Código de promoción..."
                   />
                 </div>

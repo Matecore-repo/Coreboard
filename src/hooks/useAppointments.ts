@@ -52,13 +52,13 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
   if (payload.clientName !== undefined) {
     row.client_name = payload.clientName || null;
   }
-  if (payload.service !== undefined) {
+  if (payload.service !== undefined && payload.service !== null && payload.service !== '') {
     row.service_id = payload.service || null;
   }
   if (payload.status !== undefined) {
     row.status = payload.status;
   }
-  if (payload.stylist !== undefined) {
+  if (payload.stylist !== undefined && payload.stylist !== null && payload.stylist !== '') {
     row.stylist_id = payload.stylist || null;
   }
   if (payload.salonId !== undefined) {
@@ -72,11 +72,9 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
   }
   
   // Asegurar que total_amount siempre tenga un valor (requerido por la BD)
-  // Si viene en el payload, usarlo; si no, usar 0 como default
+  // Solo incluir si viene en el payload
   if ((payload as any).total_amount !== undefined) {
     row.total_amount = (payload as any).total_amount;
-  } else {
-    row.total_amount = 0;
   }
   
   // Construir starts_at correctamente: date + time en formato ISO
@@ -306,8 +304,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         await fetchAppointments();
         return rpcData ? mapRowToAppointment(rpcData) : null;
       } catch (error: any) {
-        // Si el RPC falla (por ejemplo, error de tipo enum), usar update directo como fallback
-        if (error?.code === '42804' || error?.message?.includes('appointment_status')) {
+        // Si el RPC falla (por ejemplo, error de tipo enum o columnas), usar update directo como fallback
+        if (error?.code === '42804' || error?.code === '42703' || error?.message?.includes('appointment_status') || error?.message?.includes('does not exist')) {
           // Solo actualizar el estado sin select, luego refrescar la lista
           const { error: updateError } = await supabase
             .from('appointments')
@@ -334,12 +332,24 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     
     // Para otros updates, usar mapAppointmentToRow
     const row = mapAppointmentToRow(updates);
-      const { data, error } = await supabase
-        .from('appointments')
-        .update(row)
-        .eq('id', id)
-        .select()
-        .single();
+    // Filtrar campos undefined/null para evitar errores de actualización
+    const cleanRow = Object.fromEntries(
+      Object.entries(row).filter(([_, value]) => value !== undefined && value !== null)
+    );
+    
+    // Si no hay campos para actualizar, retornar el appointment actual
+    if (Object.keys(cleanRow).length === 0) {
+      await fetchAppointments();
+      const currentAppointment = appointments.find(apt => apt.id === id);
+      return currentAppointment || null;
+    }
+    
+    const { data, error } = await supabase
+      .from('appointments')
+      .update(cleanRow)
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) throw error;
     await fetchAppointments();
