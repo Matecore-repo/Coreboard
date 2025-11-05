@@ -50,7 +50,7 @@ export default function SalesMarketingDashboard({ selectedSalon, dateRange }: Sa
     // Filtrar por rango de fechas
     if (dateRange) {
       filtered = filtered.filter(apt => {
-        const aptDate = apt.date;
+        const aptDate = (apt as any).date || (apt.starts_at ? apt.starts_at.split('T')[0] : '');
         return aptDate >= dateRange.startDate && aptDate <= dateRange.endDate;
       });
     }

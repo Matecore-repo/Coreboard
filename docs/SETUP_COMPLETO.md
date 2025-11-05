@@ -8,6 +8,7 @@
    - Migración aplicada
    - Estructura completa con índices
    - Políticas RLS configuradas
+   - **Estado**: ✅ Funcionando correctamente
 
 2. ✅ **Archivo `.env.local` creado**
    - Script ejecutado: `scripts/create-env-local.ps1`
@@ -28,8 +29,8 @@
    - `mp-disconnect`
    - `mp-create-preference`
    - `mercadopago-webhook`
-   - `create-payment-link`
-   - `get-payment-link-config`
+   - `create-payment-link` ✅ **Funcionando correctamente**
+   - `get-payment-link-config` ✅ **Funcionando correctamente (desplegada con --no-verify-jwt)**
    - `public-get-salon-services`
    - `public-get-salon-stylists`
    - `public-get-availability`
@@ -39,6 +40,77 @@
    - URL: `https://hawpywnmkatwlcbtffrg.supabase.co/functions/v1/mercadopago-webhook`
    - Eventos configurados: Pagos, Vinculación, Alertas, Reclamos, Card Updater, Contracargos, Order, Órdenes comerciales
    - Clave secreta configurada
+
+6. ✅ **Funciones RPC creadas en PostgreSQL:**
+   - `public.create_payment_link` ✅ Funcionando correctamente
+   - `public.get_payment_link_by_token` ✅ Funcionando correctamente
+
+### Estado de Payment Links
+
+**✅ Payment Links funcionando correctamente:**
+- Generación de links: ✅ Funciona
+- Validación de tokens: ✅ Funciona
+- Acceso público al checkout: ✅ Funciona
+- Formulario de checkout se muestra correctamente
+
+**⚠️ Pendiente:**
+- Configurar servicios y precios para probar el flujo completo de reserva
+- Verificar integración con Mercado Pago en el checkout público
+
+**📝 Documentación detallada:**
+- Ver `docs/INTEGRACION_PAYMENT_LINKS.md` para detalles completos del proceso de implementación
+
+---
+
+## Proceso de Integración de Payment Links
+
+### Herramientas Utilizadas
+
+1. **Supabase MCP (Model Context Protocol)**
+   - Conexión mediante MCP de Supabase integrado en Cursor
+   - Proyecto ID: `hawpywnmkatwlcbtffrg`
+   - Funciones principales:
+     - `mcp_supabase_apply_migration`: Aplicar migraciones SQL
+     - `mcp_supabase_execute_sql`: Ejecutar queries SQL directos
+     - `mcp_supabase_get_logs`: Revisar logs de Edge Functions
+     - `mcp_supabase_list_tables`: Verificar estructura de la base de datos
+     - `mcp_supabase_list_extensions`: Verificar extensiones instaladas
+
+2. **Supabase CLI**
+   - Comando: `npx --yes supabase functions deploy`
+   - Flags importantes:
+     - `--project-ref`: ID del proyecto Supabase
+     - `--workdir`: Directorio de trabajo
+     - `--no-verify-jwt`: Para funciones públicas sin autenticación
+
+3. **Browser Extension MCP**
+   - Para probar el flujo completo en el navegador
+   - URL local: `http://192.168.100.50:3000`
+   - URL producción: `https://coreboard.vercel.app`
+
+### Problemas Encontrados y Soluciones
+
+1. **Formato bytea para token_hash**
+   - Problema: PostgREST no puede manejar bytea directamente desde JavaScript
+   - Solución: Creación de función RPC que maneja bytea directamente en PostgreSQL
+
+2. **Extensión pgcrypto no disponible**
+   - Problema: `gen_random_bytes()` no estaba disponible
+   - Solución: Habilitación de extensión `pgcrypto` y uso de `extensions.gen_random_bytes()`
+
+3. **Nombre incorrecto de tabla organizations**
+   - Problema: La tabla se llama `app.orgs`, no `app.organizations`
+   - Solución: Corrección de la función RPC para usar `app.orgs`
+
+4. **Autenticación requerida en get-payment-link-config**
+   - Problema: La Edge Function requería autenticación, creando un círculo vicioso
+   - Solución: Eliminación de validación de autenticación y despliegue con `--no-verify-jwt`
+
+5. **Headers CORS**
+   - Problema: Las Edge Functions no tenían headers CORS configurados
+   - Solución: Agregado de headers CORS en ambas funciones
+
+**📝 Ver `docs/INTEGRACION_PAYMENT_LINKS.md` para detalles completos**
 
 ---
 

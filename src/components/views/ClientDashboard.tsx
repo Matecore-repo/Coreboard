@@ -40,7 +40,7 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
     // Filtrar por rango de fechas si está definido
     if (dateRange) {
       appointments = appointments.filter(apt => {
-        const aptDate = apt.date;
+        const aptDate = (apt as any).date || (apt.starts_at ? apt.starts_at.split('T')[0] : '');
         return aptDate >= dateRange.startDate && aptDate <= dateRange.endDate;
       });
     }
