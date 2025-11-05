@@ -18,6 +18,8 @@ export interface Appointment {
   salonId: string;
   notes?: string;
   created_by?: string;
+  org_id?: string;
+  total_amount?: number;
 }
 
 function mapRowToAppointment(row: any): Appointment {
@@ -41,6 +43,10 @@ function mapRowToAppointment(row: any): Appointment {
     status: row.status || 'pending',
     stylist: row.stylist_id || row.employee_id || '',
     salonId: row.salon_id || '',
+    notes: row.notes || undefined,
+    created_by: row.created_by || undefined,
+    org_id: row.org_id || undefined,
+    total_amount: row.total_amount || 0,
   };
 }
 
@@ -75,6 +81,32 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
   // Solo incluir si viene en el payload
   if ((payload as any).total_amount !== undefined) {
     row.total_amount = (payload as any).total_amount;
+  }
+  
+  // Campos financieros adicionales
+  if ((payload as any).paymentMethod !== undefined) {
+    row.payment_method = (payload as any).paymentMethod || null;
+  }
+  if ((payload as any).discountAmount !== undefined) {
+    row.discount_amount = (payload as any).discountAmount || null;
+  }
+  if ((payload as any).taxAmount !== undefined) {
+    row.tax_amount = (payload as any).taxAmount || null;
+  }
+  if ((payload as any).tipAmount !== undefined) {
+    row.tip_amount = (payload as any).tipAmount || null;
+  }
+  if ((payload as any).totalCollected !== undefined) {
+    row.total_collected = (payload as any).totalCollected || null;
+  }
+  if ((payload as any).directCost !== undefined) {
+    row.direct_cost = (payload as any).directCost || null;
+  }
+  if ((payload as any).bookingSource !== undefined) {
+    row.booking_source = (payload as any).bookingSource || null;
+  }
+  if ((payload as any).campaignCode !== undefined) {
+    row.campaign_code = (payload as any).campaignCode || null;
   }
   
   // Construir starts_at correctamente: date + time en formato ISO
@@ -215,6 +247,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         salonId: apt.salonId,
         notes: apt.notes,
         created_by: apt.created_by,
+        org_id: apt.org_id,
+        total_amount: apt.total_amount || 0,
       }));
       turnosStore.setAll(turnos);
       turnosStore.setLoading(false);
@@ -402,10 +436,53 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       throw new Error('Usuario no autenticado. No se puede crear el turno.');
     }
 
+    // Calcular total_amount desde el servicio si no viene en appointmentData
+    let totalAmount = (appointmentData as any).total_amount;
+    if (!totalAmount && appointmentData.service) {
+      // Primero intentar obtener price_override desde salon_services
+      if (targetSalonId) {
+        const { data: salonServiceData } = await supabase
+          .from('salon_services')
+          .select('price_override, services!inner(base_price)')
+          .eq('salon_id', targetSalonId)
+          .eq('service_id', appointmentData.service)
+          .eq('active', true)
+          .single();
+        
+        if (salonServiceData) {
+          const service = Array.isArray(salonServiceData.services) 
+            ? salonServiceData.services[0] 
+            : salonServiceData.services;
+          totalAmount = salonServiceData.price_override ?? service?.base_price ?? 0;
+        }
+      }
+      
+      // Si no se obtuvo desde salon_services, consultar directamente services
+      if (!totalAmount) {
+        const { data: serviceData } = await supabase
+          .from('services')
+          .select('base_price')
+          .eq('id', appointmentData.service)
+          .single();
+        
+        if (serviceData?.base_price) {
+          totalAmount = Number(serviceData.base_price);
+        }
+      }
+    }
+
+    // Si aún no hay totalAmount, usar 0 como fallback
+    if (!totalAmount) {
+      totalAmount = 0;
+    }
+
     const row = {
       ...mapAppointmentToRow({ ...appointmentData, salonId: targetSalonId }),
       org_id: currentOrgId, // Siempre debe tener org_id
       created_by: user.id, // Siempre debe tener created_by
+      total_amount: totalAmount, // Incluir total_amount calculado
+      // Incluir payment_method si viene en appointmentData (por defecto 'cash')
+      payment_method: (appointmentData as any).paymentMethod || 'cash',
     } as any;
 
     const { data, error } = await supabase

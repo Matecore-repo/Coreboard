@@ -221,7 +221,7 @@ create table if not exists app.payments (
   org_id uuid not null references app.organizations(id) on delete cascade,
   appointment_id uuid references app.appointments(id) on delete set null,
   amount numeric not null,
-  payment_method text not null check (payment_method in ('cash', 'card', 'transfer', 'other')),
+  payment_method text not null check (payment_method in ('cash', 'card', 'transfer', 'mercadopago', 'other')),
   processed_at timestamptz default now(),
   notes text,
   created_by uuid references auth.users(id), -- Permitir NULL para pagos desde pasarela pública
@@ -560,6 +560,7 @@ as $$
 declare
   v_appointment_total numeric;
   v_payment_exists boolean;
+  v_payment_method text;
 begin
   -- Solo generar pago cuando turno se completa y no había estado completado antes
   if new.status = 'completed' and (old.status is null or old.status != 'completed') then
@@ -576,6 +577,14 @@ begin
       
       -- Solo crear pago si hay un monto mayor a cero
       if v_appointment_total > 0 then
+        -- Mapear payment_method del appointment al formato de payments
+        v_payment_method := coalesce(new.payment_method, 'cash');
+        
+        -- Validar y mapear el método de pago
+        if v_payment_method not in ('cash', 'card', 'transfer', 'mercadopago', 'other') then
+          v_payment_method := 'cash';
+        end if;
+        
         insert into app.payments (
           org_id,
           appointment_id,
@@ -588,7 +597,7 @@ begin
           new.org_id,
           new.id,
           v_appointment_total,
-          'cash', -- método por defecto
+          v_payment_method,
           now(),
           new.created_by,
           'Pago automático al completar turno'

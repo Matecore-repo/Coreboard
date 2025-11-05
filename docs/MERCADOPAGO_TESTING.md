@@ -15,23 +15,28 @@
   - `PUBLIC_EDGE_BASE_URL`
   - `NEXT_PUBLIC_APP_URL`
   - `SERVICE_ROLE_KEY`
-- ✅ **11 Edge Functions desplegadas**:
-  - `auth-mp-connect`
-  - `auth-mp-callback`
-  - `mp-disconnect`
-  - `mp-create-preference`
-  - `mercadopago-webhook`
-  - `create-payment-link`
-  - `get-payment-link-config`
-  - `public-get-salon-services`
-  - `public-get-salon-stylists`
-  - `public-get-availability`
-  - `public-create-appointment`
+- ✅ **11 Edge Functions actualizadas y desplegadas**:
+  - `auth-mp-connect` ✅ Actualizada
+  - `public-auth-mp-callback` ✅ Renombrada y actualizada
+  - `mp-disconnect` ✅
+  - `mp-create-preference` ✅
+  - `mercadopago-webhook` ✅
+  - `create-payment-link` ✅
+  - `get-payment-link-config` ✅ **Actualizada y desplegada - Requiere Google Auth**
+  - `public-get-salon-services` ✅ **Actualizada y desplegada - Requiere Google Auth**
+  - `public-get-salon-stylists` ✅ **Actualizada y desplegada - Requiere Google Auth**
+  - `public-get-availability` ✅ **Actualizada y desplegada - Requiere Google Auth**
+  - `public-create-appointment` ✅ **Actualizada y desplegada - Requiere Google Auth**
 - ✅ **Archivo `.env.local`** creado con todas las variables
 - ✅ **Webhook configurado en Mercado Pago** (modo prueba):
   - URL: `https://hawpywnmkatwlcbtffrg.supabase.co/functions/v1/mercadopago-webhook`
   - Eventos: Pagos, Vinculación de aplicaciones, Alertas de fraude, Reclamos, Card Updater, Contracargos, Order, Órdenes comerciales
   - Clave secreta configurada
+- ✅ **Autenticación con Google OAuth implementada**:
+  - ✅ Página de checkout requiere autenticación con Google
+  - ✅ Callback redirige automáticamente al checkout después de autenticarse
+  - ✅ Hook `usePublicCheckout` envía token de autenticación en todas las requests
+  - ✅ Edge Functions públicas requieren header `Authorization: Bearer <token>`
 
 ---
 
@@ -53,6 +58,47 @@ MP_TOKEN_KEY=f9d2b8a0e1c4b39f772c5a6d84f09e3b51a27cb08e6d9354a7dcb61f92ad4b03
 - **Aprobada:** `5031 7557 3453 0604` (CVV: 123, Fecha: 11/25)
 - **Rechazada:** `5031 4332 1540 6351` (CVV: 123, Fecha: 11/25)
 - **Pendiente:** `5031 7557 3453 0604` (CVV: 123, Fecha: 11/25) - Para pagos con revisión manual
+
+---
+
+## ✅ Cambios Implementados: Autenticación con Google OAuth
+
+### Resumen de Cambios
+
+1. **Página de Checkout (`pages/book/[token].tsx`)**:
+   - ✅ Requiere autenticación con Google antes de mostrar el checkout
+   - ✅ Muestra botón "Continuar con Google" si no hay sesión
+   - ✅ Guarda el token del payment link en sessionStorage para redirigir después de la autenticación
+
+2. **Callback de Autenticación (`pages/auth/callback.tsx`)**:
+   - ✅ Detecta si hay un token de payment link pendiente
+   - ✅ Redirige automáticamente al checkout después de autenticarse con Google
+
+3. **Hook `usePublicCheckout` (`src/hooks/usePublicCheckout.ts`)**:
+   - ✅ Obtiene el token de sesión de Supabase
+   - ✅ Envía el token en el header `Authorization: Bearer <token>` en todas las requests a las Edge Functions
+
+4. **Edge Functions Públicas**:
+   - ✅ `get-payment-link-config`: Requiere header de autorización
+   - ✅ `public-get-salon-services`: Requiere header de autorización
+   - ✅ `public-get-salon-stylists`: Requiere header de autorización
+   - ✅ `public-get-availability`: Requiere header de autorización
+   - ✅ `public-create-appointment`: Requiere header de autorización
+
+5. **Exportación de `getClient`**:
+   - ✅ Exportado desde `src/lib/supabase.ts` para usar en el hook
+
+### ✅ Despliegue de Edge Functions Completado
+
+Las Edge Functions han sido actualizadas y desplegadas exitosamente:
+
+- ✅ `get-payment-link-config` - Desplegada
+- ✅ `public-get-salon-services` - Desplegada
+- ✅ `public-get-salon-stylists` - Desplegada
+- ✅ `public-get-availability` - Desplegada
+- ✅ `public-create-appointment` - Desplegada
+
+**Dashboard de Supabase:** https://supabase.com/dashboard/project/hawpywnmkatwlcbtffrg/functions
 
 ---
 

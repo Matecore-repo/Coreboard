@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -8,6 +8,7 @@ import { SalonCarousel } from "../SalonCarousel";
 import type { Salon } from "../../types/salon";
 import { useAuth } from "../../contexts/AuthContext";
 import { useFinancialPermissions } from "../../hooks/useFinancialPermissions";
+import { DateRangeFilter, type DateRange } from "../features/finances/DateRangeFilter";
 import OwnerDashboard from "./OwnerDashboard";
 import SalesMarketingDashboard from "./SalesMarketingDashboard";
 import OperationsDashboard from "./OperationsDashboard";
@@ -24,6 +25,7 @@ interface FinancesViewProps {
 export default function FinancesView({ selectedSalon, salonName, salons = [], onSelectSalon }: FinancesViewProps) {
   const { isDemo } = useAuth();
   const { canViewFinances } = useFinancialPermissions();
+  const [dateRange, setDateRange] = useState<DateRange | null>(null);
   
   // Validar permisos
   if (!isDemo && !canViewFinances) {
@@ -57,6 +59,15 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
           </div>
         </div>
       )}
+      
+      {/* Filtro de Fechas */}
+      <div className="mb-4">
+        <DateRangeFilter 
+          value={dateRange || undefined}
+          onChange={setDateRange}
+        />
+      </div>
+
       <div className="mt-4">
         <Section 
         title="Finanzas"
@@ -75,30 +86,35 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
             <OwnerDashboard 
               selectedSalon={selectedSalon}
               salonName={salonName}
+              dateRange={dateRange || undefined}
             />
           </TabsContent>
           
           <TabsContent value="sales">
             <SalesMarketingDashboard 
               selectedSalon={selectedSalon}
+              dateRange={dateRange || undefined}
             />
           </TabsContent>
           
           <TabsContent value="operations">
             <OperationsDashboard 
               selectedSalon={selectedSalon}
+              dateRange={dateRange || undefined}
             />
           </TabsContent>
           
           <TabsContent value="accounting">
             <AccountingDashboard 
               selectedSalon={selectedSalon}
+              dateRange={dateRange || undefined}
             />
           </TabsContent>
           
           <TabsContent value="clients">
             <ClientDashboard 
               selectedSalon={selectedSalon}
+              dateRange={dateRange || undefined}
             />
           </TabsContent>
         </Tabs>

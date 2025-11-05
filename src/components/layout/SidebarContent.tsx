@@ -97,7 +97,7 @@ const NavItemButton = memo(({
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-[background-color] duration-75 will-change-[background-color] ${
         isActive
-          ? "bg-primary text-primary-foreground"
+          ? "bg-primary text-primary-foreground shadow-sm"
           : "hover:bg-muted text-sidebar-foreground"
       }`}
       aria-label={item.label}

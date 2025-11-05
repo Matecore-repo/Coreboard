@@ -23,7 +23,7 @@ function createSupabaseClient(): SupabaseClient {
   return _client;
 }
 
-function getClient(): SupabaseClient {
+export function getClient(): SupabaseClient {
   if (_client) return _client;
   // Only create client in browser/runtime where env vars are available
   if (typeof window === 'undefined') {
@@ -34,6 +34,7 @@ function getClient(): SupabaseClient {
         setSession: async () => ({}),
         signInWithPassword: async () => ({ data: null, error: new Error('Supabase not initialized') }),
         signOut: async () => ({ error: null }),
+        getSession: async () => ({ data: { session: null }, error: null }),
       },
       from: () => ({ select: async () => ({ data: null, error: new Error('Supabase not initialized') }) }),
       rpc: async () => ({ data: null, error: new Error('Supabase not initialized') }),

@@ -30,15 +30,32 @@ import {
 
 interface AccountingDashboardProps {
   selectedSalon?: string | null;
+  dateRange?: { startDate: string; endDate: string };
 }
 
-export default function AccountingDashboard({ selectedSalon }: AccountingDashboardProps) {
+export default function AccountingDashboard({ selectedSalon, dateRange }: AccountingDashboardProps) {
   const { currentOrgId } = useAuth();
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
   const { payments, deletePayment } = usePayments({ enabled: true });
   const { expenses, deleteExpense } = useExpenses({ enabled: true, filters: selectedSalon ? { salonId: selectedSalon } : undefined });
   const { commissions, deleteCommission } = useCommissions({ enabled: true });
   const { invoices, deleteInvoice } = useInvoices({ enabled: true });
+
+  // Filtrar por rango de fechas si está definido
+  const filteredPayments = useMemo(() => {
+    if (!dateRange) return payments;
+    return payments.filter(p => p.date >= dateRange.startDate && p.date <= dateRange.endDate);
+  }, [payments, dateRange]);
+
+  const filteredExpenses = useMemo(() => {
+    if (!dateRange) return expenses;
+    return expenses.filter(e => e.incurred_at >= dateRange.startDate && e.incurred_at <= dateRange.endDate);
+  }, [expenses, dateRange]);
+
+  const filteredCommissions = useMemo(() => {
+    if (!dateRange) return commissions;
+    return commissions.filter(c => c.date >= dateRange.startDate && c.date <= dateRange.endDate);
+  }, [commissions, dateRange]);
 
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | undefined>();
@@ -53,9 +70,9 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const incomeStatement = useMemo(() => {
-    const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalCommissions = commissions.reduce((sum, c) => sum + c.amount, 0);
+    const totalRevenue = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalCommissions = filteredCommissions.reduce((sum, c) => sum + c.amount, 0);
     const grossMargin = totalRevenue - totalCommissions;
     const netIncome = grossMargin - totalExpenses;
 
@@ -66,7 +83,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
       expenses: totalExpenses,
       netIncome,
     };
-  }, [payments, expenses, commissions]);
+  }, [filteredPayments, filteredExpenses, filteredCommissions]);
 
   const handleEditExpense = (expense: Expense) => {
     setSelectedExpense(expense);
@@ -144,7 +161,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
   };
 
   const expensesExportData = useMemo(() => {
-    return expenses.map(exp => ({
+    return filteredExpenses.map(exp => ({
       Fecha: exp.incurred_at,
       Monto: exp.amount,
       Descripción: exp.description,
@@ -152,10 +169,10 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
       Tipo: exp.type || '',
       Estado: exp.payment_status || '',
     }));
-  }, [expenses]);
+  }, [filteredExpenses]);
 
   const paymentsExportData = useMemo(() => {
-    return payments.map(pay => ({
+    return filteredPayments.map(pay => ({
       Fecha: pay.date,
       Monto: pay.amount,
       Método: pay.paymentMethod,
@@ -164,10 +181,10 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
       Impuesto: pay.taxAmount || 0,
       Propina: pay.tipAmount || 0,
     }));
-  }, [payments]);
+  }, [filteredPayments]);
 
   const commissionsExportData = useMemo(() => {
-    return commissions.map(comm => {
+    return filteredCommissions.map(comm => {
       const employee = employees.find(emp => emp.id === comm.employee_id);
       return {
         Fecha: new Date(comm.date).toLocaleDateString('es-AR'),
@@ -177,7 +194,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
         'ID Turno': comm.appointment_id || '',
       };
     });
-  }, [commissions, employees]);
+  }, [filteredCommissions, employees]);
 
   const invoicesExportData = useMemo(() => {
     return invoices.map(inv => ({
@@ -248,7 +265,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Gastos</CardTitle>
-              <CardDescription>Total de gastos: {expenses.length}</CardDescription>
+              <CardDescription>Total de gastos: {filteredExpenses.length}</CardDescription>
             </div>
             <div className="flex gap-2">
               <ExportButton data={expensesExportData} filename="gastos" />
@@ -260,7 +277,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
           </div>
         </CardHeader>
         <CardContent>
-          {expenses.length === 0 ? (
+          {filteredExpenses.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-4">No hay gastos registrados</p>
           ) : (
             <Table>
@@ -276,7 +293,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map(exp => (
+                {filteredExpenses.map(exp => (
                   <TableRow key={exp.id}>
                     <TableCell>{new Date(exp.incurred_at).toLocaleDateString('es-AR')}</TableCell>
                     <TableCell>${exp.amount.toLocaleString()}</TableCell>
@@ -308,7 +325,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Pagos</CardTitle>
-              <CardDescription>Total de pagos: {payments.length}</CardDescription>
+              <CardDescription>Total de pagos: {filteredPayments.length}</CardDescription>
             </div>
             <div className="flex gap-2">
               <ExportButton data={paymentsExportData} filename="pagos" />
@@ -320,7 +337,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
           </div>
         </CardHeader>
         <CardContent>
-          {payments.length === 0 ? (
+          {filteredPayments.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-4">No hay pagos registrados</p>
           ) : (
             <Table>
@@ -334,7 +351,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payments.map(pay => (
+                {filteredPayments.map(pay => (
                   <TableRow key={pay.id}>
                     <TableCell>{new Date(pay.date).toLocaleDateString('es-AR')}</TableCell>
                     <TableCell>${pay.amount.toLocaleString()}</TableCell>
@@ -364,7 +381,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Comisiones por Profesional</CardTitle>
-              <CardDescription>Total de comisiones: {commissions.length}</CardDescription>
+              <CardDescription>Total de comisiones: {filteredCommissions.length}</CardDescription>
             </div>
             <div className="flex gap-2">
               <ExportButton data={commissionsExportData} filename="comisiones" />
@@ -376,7 +393,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
           </div>
         </CardHeader>
         <CardContent>
-          {commissions.length === 0 ? (
+          {filteredCommissions.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-4">No hay comisiones registradas</p>
           ) : (
             <Table>
@@ -390,7 +407,7 @@ export default function AccountingDashboard({ selectedSalon }: AccountingDashboa
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {commissions.map(comm => {
+                {filteredCommissions.map(comm => {
                   const employee = employees.find(emp => emp.id === comm.employee_id);
                   return (
                     <TableRow key={comm.id}>

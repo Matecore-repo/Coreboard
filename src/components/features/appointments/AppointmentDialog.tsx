@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../ui/dialog";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -11,12 +11,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../ui/tooltip";
+import { CustomDatePicker } from "../../ui/DatePicker";
 import { useSalonEmployees } from "../../../hooks/useSalonEmployees";
 import { useSalonServices } from "../../../hooks/useSalonServices";
 import { useTurnos } from "../../../hooks/useTurnos";
 import { Appointment } from "./AppointmentCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { toast } from "sonner";
+import { Loader2, Info } from "lucide-react";
 
 interface Salon {
   id: string;
@@ -75,6 +82,10 @@ export function AppointmentDialog({
     totalCollected: 0,
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
   const currentSalonId = (formData.salonId || salonId || undefined) === 'all' ? undefined : (formData.salonId || salonId || undefined);
   const { assignments: salonEmployees, isLoading: loadingEmployees } = useSalonEmployees(currentSalonId, { enabled: open && !!currentSalonId });
   const { services: salonServices, loading: loadingServices } = useSalonServices(currentSalonId, { enabled: open && !!currentSalonId });
@@ -84,6 +95,79 @@ export function AppointmentDialog({
     salonId: currentSalonId,
     enabled: open && !!currentSalonId
   });
+
+  // Obtener precio del servicio seleccionado
+  const selectedServicePrice = useMemo(() => {
+    if (!formData.service) return null;
+    const service = salonServices.find(s => s.service_id === formData.service);
+    if (!service) return null;
+    return service.price_override ?? service.base_price ?? 0;
+  }, [formData.service, salonServices]);
+
+  // Validación en tiempo real
+  const validateField = (field: string, value: any) => {
+    const newErrors: Record<string, string> = { ...errors };
+    
+    switch (field) {
+      case 'clientName':
+        if (!value || value.trim().length === 0) {
+          newErrors.clientName = 'El nombre del cliente es requerido';
+        } else if (value.trim().length < 2) {
+          newErrors.clientName = 'El nombre debe tener al menos 2 caracteres';
+        } else {
+          delete newErrors.clientName;
+        }
+        break;
+      case 'service':
+        if (!value) {
+          newErrors.service = 'Debes seleccionar un servicio';
+        } else {
+          delete newErrors.service;
+        }
+        break;
+      case 'date':
+        if (!value) {
+          newErrors.date = 'La fecha es requerida';
+        } else {
+          const selectedDate = new Date(value);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (selectedDate < today) {
+            newErrors.date = 'No puedes seleccionar una fecha pasada';
+          } else {
+            delete newErrors.date;
+          }
+        }
+        break;
+      case 'time':
+        if (!value) {
+          newErrors.time = 'La hora es requerida';
+        } else {
+          delete newErrors.time;
+        }
+        break;
+      case 'salonId':
+        if (!value || value === 'all') {
+          newErrors.salonId = 'Debes seleccionar un local';
+        } else {
+          delete newErrors.salonId;
+        }
+        break;
+    }
+    
+    setErrors(newErrors);
+  };
+
+  // Verificar si el formulario es válido
+  const isFormValid = useMemo(() => {
+    return !!formData.clientName && 
+           !!formData.service && 
+           !!formData.date && 
+           !!formData.time && 
+           !!formData.salonId && 
+           formData.salonId !== 'all' &&
+           Object.keys(errors).length === 0;
+  }, [formData.clientName, formData.service, formData.date, formData.time, formData.salonId, errors]);
 
   useEffect(() => {
     if (appointment) {
@@ -127,9 +211,30 @@ export function AppointmentDialog({
     }
   }, [appointment, open, salonId, defaultSalonId]);
 
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (touched[field]) {
+      validateField(field, value);
+    }
+  };
+
+  const handleFieldBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    validateField(field, formData[field as keyof typeof formData]);
+  };
+
   const handleSave = async () => {
-    if (!formData.clientName || !formData.date || !formData.time || !formData.service) {
-      toast.error('Por favor completa todos los campos requeridos');
+    // Marcar todos los campos como tocados
+    const allFields = ['clientName', 'service', 'date', 'time', 'salonId'];
+    const newTouched: Record<string, boolean> = {};
+    allFields.forEach(field => {
+      newTouched[field] = true;
+      validateField(field, formData[field as keyof typeof formData]);
+    });
+    setTouched(newTouched);
+
+    if (!isFormValid) {
+      toast.error('Por favor completa todos los campos requeridos correctamente');
       return;
     }
     // Si no hay salonId seleccionado o es 'all', usar el primer salón disponible
@@ -144,6 +249,7 @@ export function AppointmentDialog({
       }
     }
     
+    setIsSaving(true);
     try {
       // Preparar datos del turno
       const turnoData = {
@@ -155,12 +261,22 @@ export function AppointmentDialog({
         stylist: formData.stylist || undefined, // Opcional: usar undefined en lugar de string vacío
         salonId: targetSalonId,
         notes: (formData as any).notes || '',
+        paymentMethod: formData.paymentMethod || 'cash',
+        total_amount: selectedServicePrice || 0,
+        discountAmount: formData.discountAmount || 0,
+        taxAmount: formData.taxAmount || 0,
+        tipAmount: formData.tipAmount || 0,
+        totalCollected: formData.totalCollected || 0,
+        directCost: formData.directCost || 0,
+        bookingSource: formData.bookingSource || 'mostrador',
+        campaignCode: formData.campaignCode || '',
       };
       
       // Validar antes de guardar
       const validation = validateTurno(turnoData);
       if (!validation.valid) {
         toast.error(validation.message || 'Error de validación');
+        setIsSaving(false);
         return;
       }
       
@@ -169,6 +285,7 @@ export function AppointmentDialog({
         const conflictCheck = checkConflicts(turnoData, appointment?.id);
         if (!conflictCheck.valid) {
           toast.error(conflictCheck.message || 'Hay un conflicto de horarios');
+          setIsSaving(false);
           return;
         }
       }
@@ -185,9 +302,14 @@ export function AppointmentDialog({
       // Llamar callback original para compatibilidad
       onSave(formData);
       onOpenChange(false);
+      // Limpiar errores y touched al cerrar
+      setErrors({});
+      setTouched({});
     } catch (error: any) {
       console.error('Error guardando turno:', error);
       toast.error(error?.message || 'Error al guardar el turno');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -207,14 +329,18 @@ export function AppointmentDialog({
 
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="salon_id">Local</Label>
+            <Label htmlFor="salon_id">
+              Local <span className="text-destructive">*</span>
+            </Label>
             <Select
               value={formData.salonId}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, salonId: value }))
-              }
+              onValueChange={(value) => handleFieldChange('salonId', value)}
             >
-              <SelectTrigger>
+              <SelectTrigger 
+                id="salon_id"
+                aria-invalid={touched.salonId && !!errors.salonId}
+                className={touched.salonId && errors.salonId ? "border-destructive" : ""}
+              >
                 <SelectValue placeholder="Seleccionar local" />
               </SelectTrigger>
               <SelectContent>
@@ -225,29 +351,42 @@ export function AppointmentDialog({
                 ))}
               </SelectContent>
             </Select>
+            {touched.salonId && errors.salonId && (
+              <p className="text-sm text-destructive">{errors.salonId}</p>
+            )}
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="client_name">Nombre del cliente</Label>
-              <Input
-                id="client_name"
-                value={formData.clientName}
-                onChange={(e) => {
-                  setFormData((prev) => ({ ...prev, clientName: e.target.value }));
-                }}
-                placeholder="Juan Pérez"
-              />
+            <Label htmlFor="client_name">
+              Nombre del cliente <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="client_name"
+              value={formData.clientName}
+              onChange={(e) => handleFieldChange('clientName', e.target.value)}
+              onBlur={() => handleFieldBlur('clientName')}
+              placeholder="Juan Pérez"
+              aria-invalid={touched.clientName && !!errors.clientName}
+              className={touched.clientName && errors.clientName ? "border-destructive" : ""}
+            />
+            {touched.clientName && errors.clientName && (
+              <p className="text-sm text-destructive">{errors.clientName}</p>
+            )}
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="service">Servicio</Label>
+            <Label htmlFor="service">
+              Servicio <span className="text-destructive">*</span>
+            </Label>
             <Select
               value={formData.service || ""}
-              onValueChange={(value) => {
-                setFormData((prev) => ({ ...prev, service: value }));
-              }}
+              onValueChange={(value) => handleFieldChange('service', value)}
             >
-              <SelectTrigger>
+              <SelectTrigger 
+                id="service"
+                aria-invalid={touched.service && !!errors.service}
+                className={touched.service && errors.service ? "border-destructive" : ""}
+              >
                 <SelectValue placeholder="Seleccionar servicio" />
               </SelectTrigger>
               <SelectContent>
@@ -264,33 +403,61 @@ export function AppointmentDialog({
                 )}
               </SelectContent>
             </Select>
+            {touched.service && errors.service && (
+              <p className="text-sm text-destructive">{errors.service}</p>
+            )}
+            {formData.service && selectedServicePrice !== null && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Precio del servicio: <strong className="text-foreground">${selectedServicePrice.toLocaleString()}</strong></span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Este precio se calculará automáticamente al guardar el turno</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="date">Fecha</Label>
-              <Input
+              <Label htmlFor="date">
+                Fecha <span className="text-destructive">*</span>
+              </Label>
+              <CustomDatePicker
                 id="date"
-                type="date"
                 value={formData.date || ""}
-                onChange={(e) => {
-                  const newDate = e.target.value;
-                  setFormData((prev) => ({ ...prev, date: newDate }));
-                }}
+                onChange={(value) => handleFieldChange('date', value)}
+                onBlur={() => handleFieldBlur('date')}
+                placeholder="Selecciona una fecha"
+                minDate={new Date()}
+                aria-invalid={touched.date && !!errors.date}
+                className={touched.date && errors.date ? "border-destructive" : ""}
               />
+              {touched.date && errors.date && (
+                <p className="text-sm text-destructive">{errors.date}</p>
+              )}
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="time">Hora</Label>
+              <Label htmlFor="time">
+                Hora <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="time"
                 type="time"
                 value={formData.time || ""}
-                onChange={(e) => {
-                  const newTime = e.target.value;
-                  setFormData((prev) => ({ ...prev, time: newTime }));
-                }}
+                onChange={(e) => handleFieldChange('time', e.target.value)}
+                onBlur={() => handleFieldBlur('time')}
+                placeholder="HH:MM"
+                aria-invalid={touched.time && !!errors.time}
+                className={touched.time && errors.time ? "border-destructive" : ""}
               />
+              {touched.time && errors.time && (
+                <p className="text-sm text-destructive">{errors.time}</p>
+              )}
             </div>
           </div>
 
@@ -319,6 +486,27 @@ export function AppointmentDialog({
                     </SelectItem>
                   ))
                 ) : null}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="payment-method-main">Método de Pago</Label>
+            <Select
+              value={formData.paymentMethod || "cash"}
+              onValueChange={(value) => {
+                setFormData((prev) => ({ ...prev, paymentMethod: value }));
+              }}
+            >
+              <SelectTrigger id="payment-method-main">
+                <SelectValue placeholder="Seleccionar método de pago" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Efectivo</SelectItem>
+                <SelectItem value="mercadopago">Mercado Pago</SelectItem>
+                <SelectItem value="card">Tarjeta</SelectItem>
+                <SelectItem value="transfer">Transferencia</SelectItem>
+                <SelectItem value="other">Otro</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -432,10 +620,11 @@ export function AppointmentDialog({
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Seleccionar método de pago" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="cash">Efectivo</SelectItem>
+                      <SelectItem value="mercadopago">Mercado Pago</SelectItem>
                       <SelectItem value="card">Tarjeta</SelectItem>
                       <SelectItem value="transfer">Transferencia</SelectItem>
                       <SelectItem value="other">Otro</SelectItem>
@@ -494,10 +683,30 @@ export function AppointmentDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              onOpenChange(false);
+              setErrors({});
+              setTouched({});
+            }}
+            disabled={isSaving}
+          >
             Cancelar
           </Button>
-          <Button onClick={handleSave}>Guardar</Button>
+          <Button 
+            onClick={handleSave}
+            disabled={!isFormValid || isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar'
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

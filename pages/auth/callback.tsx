@@ -11,6 +11,19 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       // Esperar a que la sesión se restaure
       if (!loading && session?.user) {
+        // Verificar si hay un token de payment link pendiente (desde checkout)
+        const pendingPaymentToken = typeof window !== 'undefined' 
+          ? sessionStorage.getItem('pending_payment_token')
+          : null;
+        
+        if (pendingPaymentToken) {
+          // Limpiar el token pendiente
+          sessionStorage.removeItem('pending_payment_token');
+          // Redirigir al checkout
+          router.push(`/book/${pendingPaymentToken}`);
+          return;
+        }
+
         // Verificar si hay un token de invitación para reclamar (opcional)
         const inviteToken = session.user.user_metadata?.invite_token;
         if (inviteToken) {

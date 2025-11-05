@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
-import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors, Wallet, MapPin } from "lucide-react";
+import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
+import { AppointmentGroup } from "./components/features/appointments/AppointmentGroup";
 import { turnosStore } from './stores/turnosStore';
 import { AppointmentDialog } from "./components/features/appointments/AppointmentDialog";
 import { AppointmentActionBar } from "./components/features/appointments/AppointmentActionBar";
@@ -20,12 +21,14 @@ import DemoWelcomeModal from "./components/DemoWelcomeModal";
 import { useTurnos } from "./hooks/useTurnos";
 import { useSalons as useDbSalons } from "./hooks/useSalons";
 import { useEmployees } from "./hooks/useEmployees";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { PaymentLinkModal } from "./components/PaymentLinkModal";
 import { LoadingView } from "./components/layout/LoadingView";
 import { SidebarContent } from "./components/layout/SidebarContent";
 import { PageContainer } from "./components/layout/PageContainer";
 import { Card, CardContent } from "./components/ui/card";
+import { SkeletonList } from "./components/ui/SkeletonLoader";
 import type { Salon, SalonService } from "./types/salon";
 import { sampleSalons } from "./constants/salons";
 
@@ -41,8 +44,6 @@ const FinancesView = lazy(() => import("./components/views/FinancesView"));
 const SettingsView = lazy(() => import("./components/views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./components/views/SalonsManagementView"));
 const OrganizationView = lazy(() => import("./components/views/OrganizationView"));
-const EmployeeCommissionsView = lazy(() => import("./components/views/EmployeeCommissionsView"));
-const OwnerCommissionsView = lazy(() => import("./components/views/OwnerCommissionsView"));
 
 import { ProfileModal } from "./components/ProfileModal";
 
@@ -97,7 +98,15 @@ export default function App() {
   // ESTADO LOCAL
   // =========================================================================
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [selectedSalon, setSelectedSalon] = useState<string | null>('all');
+  const [selectedSalon, setSelectedSalon] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return 'all';
+    try {
+      const saved = localStorage.getItem('selectedSalon');
+      return saved || 'all';
+    } catch {
+      return 'all';
+    }
+  });
   const [salons, setSalons] = useState<Salon[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   // unsyncedAppointments ya no es necesario - todo se sincroniza con turnosStore
@@ -158,11 +167,64 @@ export default function App() {
   const effectiveSalons: Salon[] = isDemo ? salons : (remoteSalons as any);
 
   // =========================================================================
+  // PERSISTIR Y PRE-SELECCIONAR SALÓN
+  // =========================================================================
+  // Persistir selectedSalon en localStorage
+  useEffect(() => {
+    if (selectedSalon && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('selectedSalon', selectedSalon);
+      } catch {}
+    }
+  }, [selectedSalon]);
+
+  // Pre-seleccionar primer salón disponible si no hay selección válida
+  useEffect(() => {
+    if (effectiveSalons.length > 0 && (!selectedSalon || selectedSalon === 'all')) {
+      // Si el salón guardado no existe en la lista, usar el primero
+      const savedSalon = typeof window !== 'undefined' 
+        ? localStorage.getItem('selectedSalon') 
+        : null;
+      
+      if (savedSalon && savedSalon !== 'all' && effectiveSalons.some(s => s.id === savedSalon)) {
+        // El salón guardado existe, mantenerlo
+        return;
+      }
+      
+      // Pre-seleccionar primer salón disponible
+      const firstSalon = effectiveSalons[0];
+      if (firstSalon && selectedSalon !== firstSalon.id) {
+        setSelectedSalon(firstSalon.id);
+      }
+    }
+  }, [effectiveSalons, selectedSalon]);
+
+  // =========================================================================
   // EFECTOS
   // =========================================================================
   useEffect(() => {
     if (isDemo && !demoName) setShowDemoWelcome(true);
   }, [isDemo, demoName]);
+
+  // =========================================================================
+  // ATAJOS DE TECLADO
+  // =========================================================================
+  useKeyboardShortcuts({
+    onNewAppointment: () => {
+      if (!dialogOpen && activeNavItem === 'appointments') {
+        setEditingAppointment(null);
+        setDialogOpen(true);
+      }
+    },
+    onSearch: () => {
+      // Focus en el input de búsqueda si existe
+      const searchInput = document.querySelector('input[type="search"], input[placeholder*="Buscar"]') as HTMLInputElement;
+      if (searchInput) {
+        searchInput.focus();
+      }
+    },
+    enabled: !dialogOpen && activeNavItem === 'appointments',
+  });
 
   // Eliminar la lógica del welcome screen aquí - ahora se maneja en LoginView
   // Mostrar toast de bienvenida cuando el usuario ingresa al dashboard
@@ -331,6 +393,11 @@ export default function App() {
 
   const handleSelectSalon = useCallback((salonId: string, salonName: string) => {
     setSelectedSalon(salonId);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('selectedSalon', salonId);
+      } catch {}
+    }
     toast.success(`${salonName} seleccionado`);
   }, []);
 
@@ -363,9 +430,9 @@ export default function App() {
       }
 
       // Determinar el salón a usar: si viene en appointmentData, usarlo; si no, usar selectedSalon si no es 'all'; si es 'all', usar el primer salón disponible
-      let salonToUse = appointmentData.salonId;
+      let salonToUse: string | undefined = appointmentData.salonId;
       if (!salonToUse || salonToUse === 'all') {
-        salonToUse = selectedSalon !== 'all' ? selectedSalon : null;
+        salonToUse = selectedSalon !== 'all' && selectedSalon ? selectedSalon : undefined;
         // Si aún no hay salón y hay salones disponibles, usar el primero
         if (!salonToUse && salons && salons.length > 0) {
           salonToUse = salons[0].id;
@@ -660,7 +727,6 @@ export default function App() {
     { id: "home", label: "Inicio", icon: Home },
     { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
     { id: "clients", label: "Clientes", icon: Users },
-    { id: "commissions", label: "Comisiones", icon: Wallet },
     { id: "organization", label: "Organización", icon: Building2 },
     { id: "salons", label: "Locales", icon: MapPin },
     { id: "finances", label: "Finanzas", icon: DollarSign },
@@ -671,7 +737,6 @@ export default function App() {
     home: "Inicio",
     appointments: "Turnos",
     clients: "Clientes",
-    commissions: "Comisiones",
     organization: "Organización",
     salons: "Locales",
     finances: "Finanzas",
@@ -682,10 +747,10 @@ export default function App() {
     const role = isDemo ? 'demo' : (currentRole ?? 'viewer');
     if (role === 'demo') return allNavItems;
     
-    // Empleados pueden ver: Inicio, Turnos, Clientes, Comisiones, Organización (solo lectura)
+    // Empleados pueden ver: Inicio, Turnos, Clientes, Organización (solo lectura)
     if (role === 'employee') {
       return allNavItems.filter(it => 
-        ['home', 'appointments', 'clients', 'commissions', 'organization'].includes(it.id)
+        ['home', 'appointments', 'clients', 'organization'].includes(it.id)
       );
     }
     
@@ -769,20 +834,6 @@ export default function App() {
             />
           </Suspense>
         );
-      case "commissions":
-        // Empleados ven sus comisiones, owners/admin ven todas las comisiones
-        if (currentRole === 'employee') {
-          return (
-            <Suspense fallback={<LoadingView />}>
-              <EmployeeCommissionsView />
-            </Suspense>
-          );
-        }
-        return (
-          <Suspense fallback={<LoadingView />}>
-            <OwnerCommissionsView />
-          </Suspense>
-        );
       case "salons":
         // Empleados no pueden acceder a gestión de locales
         if (currentRole === 'employee') {
@@ -833,10 +884,15 @@ export default function App() {
         );
       default:
         return (
-          <PageContainer>
+          <PageContainer
+            title="Turnos"
+            breadcrumbs={[
+              { label: 'Inicio' },
+              { label: 'Turnos' },
+            ]}
+          >
             <div className="p-4 sm:p-6">
               <div className="mb-4">
-                <h2 className="mb-4 text-xl md:text-2xl font-semibold">Seleccionar Local</h2>
                 <div>
                   <SalonCarousel 
                     salons={effectiveSalons}
@@ -872,20 +928,74 @@ export default function App() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
                       <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
                     </div>
-                    <div className="space-y-3">
-                      {filteredAppointments.length === 0 ? (
+                    <div className="space-y-6">
+                      {loadingTurnos ? (
+                        <SkeletonList count={5} />
+                      ) : filteredAppointments.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                          No se encontraron turnos
+                          {selectedSalon === 'all' ? (
+                            <>
+                              <p className="mb-2">No se encontraron turnos</p>
+                              <p className="text-sm">Intenta seleccionar un local específico o cambia los filtros</p>
+                            </>
+                          ) : (
+                            "No se encontraron turnos"
+                          )}
                         </div>
                       ) : (
-                        filteredAppointments.map((appointment) => (
-                          <AppointmentCard
-                            key={appointment.id}
-                            appointment={appointment}
-                            onClick={handleSelectAppointment}
-                            isSelected={selectedAppointment?.id === appointment.id}
-                          />
-                        ))
+                        (() => {
+                          // Agrupar turnos por fecha
+                          const today = new Date().toISOString().split('T')[0];
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                          
+                          const todayAppointments = filteredAppointments.filter(apt => apt.date === today);
+                          const tomorrowAppointments = filteredAppointments.filter(apt => apt.date === tomorrowStr);
+                          const thisWeekAppointments = filteredAppointments.filter(apt => {
+                            const aptDate = new Date(apt.date);
+                            const todayDate = new Date(today);
+                            const weekFromToday = new Date(todayDate);
+                            weekFromToday.setDate(todayDate.getDate() + 7);
+                            return aptDate > tomorrow && aptDate < weekFromToday && apt.date !== today && apt.date !== tomorrowStr;
+                          });
+                          const laterAppointments = filteredAppointments.filter(apt => {
+                            const aptDate = new Date(apt.date);
+                            const weekFromToday = new Date();
+                            weekFromToday.setDate(weekFromToday.getDate() + 7);
+                            return aptDate >= weekFromToday;
+                          });
+                          
+                          const groups = [];
+                          if (todayAppointments.length > 0) {
+                            groups.push({ title: 'Hoy', appointments: todayAppointments });
+                          }
+                          if (tomorrowAppointments.length > 0) {
+                            groups.push({ title: 'Mañana', appointments: tomorrowAppointments });
+                          }
+                          if (thisWeekAppointments.length > 0) {
+                            groups.push({ title: 'Esta semana', appointments: thisWeekAppointments });
+                          }
+                          if (laterAppointments.length > 0) {
+                            groups.push({ title: 'Próximamente', appointments: laterAppointments });
+                          }
+                          
+                          return groups.length > 0 ? (
+                            groups.map((group, idx) => (
+                              <AppointmentGroup
+                                key={idx}
+                                title={group.title}
+                                appointments={group.appointments}
+                                onAppointmentClick={handleSelectAppointment}
+                                selectedAppointmentId={selectedAppointment?.id}
+                              />
+                            ))
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No se encontraron turnos
+                            </div>
+                          );
+                        })()
                       )}
                     </div>
                   </>

@@ -10,9 +10,10 @@ import type { Appointment } from '../../types';
 
 interface OperationsDashboardProps {
   selectedSalon: string | null;
+  dateRange?: { startDate: string; endDate: string };
 }
 
-export default function OperationsDashboard({ selectedSalon }: OperationsDashboardProps) {
+export default function OperationsDashboard({ selectedSalon, dateRange }: OperationsDashboardProps) {
   const { exportToExcel } = useFinancialExports();
   const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
   
@@ -39,12 +40,25 @@ export default function OperationsDashboard({ selectedSalon }: OperationsDashboa
   }, [turnos]);
   
   const filteredAppointments = useMemo(() => {
-    if (!selectedSalon) return appointments;
-    return appointments.filter(apt => {
-      // Appointment del tipo usado en AppointmentCard tiene salonId, no salon_id
-      return (apt as any).salonId === selectedSalon || apt.salon_id === selectedSalon;
-    });
-  }, [appointments, selectedSalon]);
+    let filtered = appointments;
+    
+    // Filtrar por salon
+    if (selectedSalon) {
+      filtered = filtered.filter(apt => {
+        return (apt as any).salonId === selectedSalon || apt.salon_id === selectedSalon;
+      });
+    }
+    
+    // Filtrar por rango de fechas
+    if (dateRange) {
+      filtered = filtered.filter(apt => {
+        const aptDate = apt.date;
+        return aptDate >= dateRange.startDate && aptDate <= dateRange.endDate;
+      });
+    }
+    
+    return filtered;
+  }, [appointments, selectedSalon, dateRange]);
 
   const productivityData = useMemo(() => {
     const map: Record<string, { revenue: number; count: number }> = {};

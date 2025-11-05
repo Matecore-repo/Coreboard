@@ -7,6 +7,15 @@ import { createServiceRoleClient } from '../_shared/supabase-client.ts';
 
 Deno.serve(async (req) => {
   try {
+    // Verificar header de autorización (requerido para autenticación con Google)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Autenticación requerida. Por favor inicia sesión con Google.' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const url = new URL(req.url);
     const token = url.searchParams.get('token');
 

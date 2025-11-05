@@ -43,10 +43,21 @@ export default function OwnerDashboard({
   dateRange 
 }: OwnerDashboardProps) {
   const { currentOrgId } = useAuth();
-  const { payments } = usePayments({ enabled: true });
-  const { expenses } = useExpenses({ enabled: true });
+  const { payments: allPayments } = usePayments({ enabled: true });
+  const { expenses: allExpenses } = useExpenses({ enabled: true });
   const metrics = useFinancialMetrics(selectedSalon, dateRange);
   const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  
+  // Filtrar payments y expenses por dateRange si está definido
+  const payments = useMemo(() => {
+    if (!dateRange) return allPayments;
+    return allPayments.filter(p => p.date >= dateRange.startDate && p.date <= dateRange.endDate);
+  }, [allPayments, dateRange]);
+
+  const expenses = useMemo(() => {
+    if (!dateRange) return allExpenses;
+    return allExpenses.filter(e => e.incurred_at >= dateRange.startDate && e.incurred_at <= dateRange.endDate);
+  }, [allExpenses, dateRange]);
   
   // Convertir turnos a appointments para compatibilidad
   const allAppointments = React.useMemo(() => {
@@ -98,6 +109,24 @@ export default function OwnerDashboard({
       .reduce((sum, exp) => sum + exp.amount, 0);
   }, [expenses]);
 
+  // Alquileres por local (gastos con categoría "rent" o "alquiler" filtrados por salon_id)
+  const rentBySalon = useMemo(() => {
+    const rentCategories = ['rent', 'alquiler', 'renta', 'alquileres'];
+    const map: Record<string, number> = {};
+    
+    expenses
+      .filter(exp => {
+        const cat = (exp.category || '').toLowerCase();
+        return rentCategories.some(r => cat.includes(r));
+      })
+      .forEach(exp => {
+        const salonId = exp.salon_id || 'general';
+        map[salonId] = (map[salonId] || 0) + exp.amount;
+      });
+    
+    return map;
+  }, [expenses]);
+
   // Salarios de empleados (gastos con categoría "salary" o "salario")
   const salaryExpenses = useMemo(() => {
     const salaryCategories = ['salary', 'salario', 'salarios', 'sueldo', 'sueldos'];
@@ -133,39 +162,40 @@ export default function OwnerDashboard({
       map[method] = (map[method] || 0) + payment.amount;
     });
     return Object.entries(map)
-      .map(([method, amount]) => ({ 
-        method: method === 'cash' ? 'Efectivo' : method === 'card' ? 'Tarjeta' : method === 'transfer' ? 'Transferencia' : 'Otro',
-        amount 
-      }))
+      .map(([method, amount]) => {
+        const methodLabels: Record<string, string> = {
+          'cash': 'Efectivo',
+          'card': 'Tarjeta',
+          'transfer': 'Transferencia',
+          'mercadopago': 'Mercado Pago',
+          'other': 'Otro'
+        };
+        return {
+          method: methodLabels[method] || method,
+          amount
+        };
+      })
       .sort((a, b) => b.amount - a.amount);
   }, [payments]);
 
-  // Datos para gráficos
+  // Datos para gráficos - usar payments y expenses ya filtrados por dateRange
   const incomeExpenseData = useMemo(() => {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
     const map: Record<string, { income: number; expense: number }> = {};
     
     payments.forEach(payment => {
       const paymentDate = payment.date;
-      if (paymentDate >= thirtyDaysAgo.toISOString().split('T')[0] && paymentDate <= now.toISOString().split('T')[0]) {
-        if (!map[paymentDate]) {
-          map[paymentDate] = { income: 0, expense: 0 };
-        }
-        map[paymentDate].income += payment.amount;
+      if (!map[paymentDate]) {
+        map[paymentDate] = { income: 0, expense: 0 };
       }
+      map[paymentDate].income += payment.amount;
     });
     
     expenses.forEach(expense => {
       const expenseDate = expense.incurred_at;
-      if (expenseDate >= thirtyDaysAgo.toISOString().split('T')[0] && expenseDate <= now.toISOString().split('T')[0]) {
-        if (!map[expenseDate]) {
-          map[expenseDate] = { income: 0, expense: 0 };
-        }
-        map[expenseDate].expense += expense.amount;
+      if (!map[expenseDate]) {
+        map[expenseDate] = { income: 0, expense: 0 };
       }
+      map[expenseDate].expense += expense.amount;
     });
     
     return Object.entries(map)
@@ -174,15 +204,10 @@ export default function OwnerDashboard({
   }, [payments, expenses]);
 
   const cashFlowData = useMemo(() => {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
     let runningCash = 0;
     const map: Record<string, number> = {};
     
     payments
-      .filter(p => p.date >= thirtyDaysAgo.toISOString().split('T')[0] && p.date <= now.toISOString().split('T')[0])
       .sort((a, b) => a.date.localeCompare(b.date))
       .forEach(payment => {
         runningCash += payment.amount;
@@ -387,18 +412,21 @@ export default function OwnerDashboard({
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {salons.map(salon => (
-                <div key={salon.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div>
-                    <p className="font-medium">{salon.name}</p>
-                    <p className="text-xs text-muted-foreground">{salon.address}</p>
+              {salons.map(salon => {
+                const salonRent = rentBySalon[salon.id] || 0;
+                return (
+                  <div key={salon.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div>
+                      <p className="font-medium">{salon.name}</p>
+                      <p className="text-xs text-muted-foreground">{salon.address}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{formatCurrency(salonRent)}</p>
+                      <p className="text-xs text-muted-foreground">mensual</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{formatCurrency(rentExpenses / salons.length)}</p>
-                    <p className="text-xs text-muted-foreground">mensual</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {salons.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">No hay locales registrados</p>
               )}
@@ -548,7 +576,12 @@ export default function OwnerDashboard({
         <Card>
           <CardHeader>
             <CardTitle>Ingresos vs Gastos</CardTitle>
-            <CardDescription>Últimos 30 días</CardDescription>
+            <CardDescription>
+              {dateRange 
+                ? `${new Date(dateRange.startDate).toLocaleDateString('es-AR')} - ${new Date(dateRange.endDate).toLocaleDateString('es-AR')}`
+                : 'Últimos 30 días'
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {incomeExpenseData.length > 0 ? (
@@ -564,7 +597,12 @@ export default function OwnerDashboard({
         <Card>
           <CardHeader>
             <CardTitle>Flujo de Caja</CardTitle>
-            <CardDescription>Últimos 30 días</CardDescription>
+            <CardDescription>
+              {dateRange 
+                ? `${new Date(dateRange.startDate).toLocaleDateString('es-AR')} - ${new Date(dateRange.endDate).toLocaleDateString('es-AR')}`
+                : 'Últimos 30 días'
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {cashFlowData.length > 0 ? (

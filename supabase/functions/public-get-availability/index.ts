@@ -11,6 +11,15 @@ const DEFAULT_END_HOUR = 20;
 
 Deno.serve(async (req) => {
   try {
+    // Verificar header de autorización (requerido para autenticación con Google)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Autenticación requerida. Por favor inicia sesión con Google.' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const url = new URL(req.url);
     const salonId = url.searchParams.get('salon_id');
     const stylistId = url.searchParams.get('stylist_id'); // null = cualquier profesional

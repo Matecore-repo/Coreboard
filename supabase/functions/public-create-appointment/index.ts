@@ -19,6 +19,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Verificar header de autorización (requerido para autenticación con Google)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Autenticación requerida. Por favor inicia sesión con Google.' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body = await req.json();
     const {
       token,

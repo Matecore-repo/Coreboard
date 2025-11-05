@@ -6,7 +6,7 @@ export type Payment = {
   id: string;
   appointmentId?: string;
   amount: number;
-  paymentMethod: 'cash' | 'card' | 'transfer' | 'other';
+  paymentMethod: 'cash' | 'card' | 'transfer' | 'mercadopago' | 'other';
   date: string;
   notes?: string;
   orgId?: string;
@@ -28,14 +28,16 @@ function mapRowToPayment(row: any): Payment {
   const dd = String(dateValue.getDate()).padStart(2, '0');
   const date = `${yyyy}-${mm}-${dd}`;
 
-  // Mapear payment_method (text) a paymentMethod
-  const methodMap: Record<string, 'cash' | 'card' | 'transfer' | 'other'> = {
+  // Mapear method (enum payment_method) a paymentMethod
+  // La tabla payments usa 'method' (enum payment_method) que puede ser: 'cash', 'card', 'transfer', 'mp', 'mercadopago'
+  const methodMap: Record<string, 'cash' | 'card' | 'transfer' | 'mercadopago' | 'other'> = {
     'cash': 'cash',
     'card': 'card',
     'transfer': 'transfer',
-    'mp': 'card', // Mercado Pago se mapea a card
+    'mercadopago': 'mercadopago',
+    'mp': 'mercadopago', // Alias para mercadopago (enum antiguo)
   };
-  const paymentMethod = methodMap[row.payment_method || row.method] || 'cash';
+  const paymentMethod = methodMap[row.method || row.payment_method] || 'cash';
 
   return {
     id: String(row.id),
@@ -71,7 +73,8 @@ function mapPaymentToRow(payload: Partial<Payment>) {
       'cash': 'cash',
       'card': 'card',
       'transfer': 'transfer',
-      'other': 'card', // other se mapea a card
+      'mercadopago': 'mercadopago',
+      'other': 'other',
     };
     row.payment_method = methodMap[payload.paymentMethod] || 'cash';
   }

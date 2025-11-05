@@ -10,9 +10,10 @@ import type { Appointment } from '../../types';
 
 interface SalesMarketingDashboardProps {
   selectedSalon: string | null;
+  dateRange?: { startDate: string; endDate: string };
 }
 
-export default function SalesMarketingDashboard({ selectedSalon }: SalesMarketingDashboardProps) {
+export default function SalesMarketingDashboard({ selectedSalon, dateRange }: SalesMarketingDashboardProps) {
   const { exportToExcel } = useFinancialExports();
   const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
   
@@ -39,9 +40,23 @@ export default function SalesMarketingDashboard({ selectedSalon }: SalesMarketin
   }, [turnos]);
   
   const filteredAppointments = useMemo(() => {
-    if (!selectedSalon) return appointments;
-    return appointments.filter(apt => apt.salon_id === selectedSalon || (apt as any).salonId === selectedSalon);
-  }, [appointments, selectedSalon]);
+    let filtered = appointments;
+    
+    // Filtrar por salon
+    if (selectedSalon) {
+      filtered = filtered.filter(apt => apt.salon_id === selectedSalon || (apt as any).salonId === selectedSalon);
+    }
+    
+    // Filtrar por rango de fechas
+    if (dateRange) {
+      filtered = filtered.filter(apt => {
+        const aptDate = apt.date;
+        return aptDate >= dateRange.startDate && aptDate <= dateRange.endDate;
+      });
+    }
+    
+    return filtered;
+  }, [appointments, selectedSalon, dateRange]);
 
   const newVsRecurrentData = useMemo(() => {
     const newClients = filteredAppointments.filter(apt => (apt as any).is_new_client).length;

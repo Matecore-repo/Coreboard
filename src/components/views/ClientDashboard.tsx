@@ -9,15 +9,16 @@ import type { Appointment } from '../../types';
 
 interface ClientDashboardProps {
   selectedSalon: string | null;
+  dateRange?: { startDate: string; endDate: string };
 }
 
-export default function ClientDashboard({ selectedSalon }: ClientDashboardProps) {
+export default function ClientDashboard({ selectedSalon, dateRange }: ClientDashboardProps) {
   const { exportToExcel } = useFinancialExports();
   const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
   
   // Convertir turnos a appointments para compatibilidad
   const allAppointments = useMemo(() => {
-    return turnos.map(t => ({
+    let appointments = turnos.map(t => ({
       id: t.id,
       clientName: t.clientName,
       service: t.service,
@@ -35,7 +36,17 @@ export default function ClientDashboard({ selectedSalon }: ClientDashboardProps)
       starts_at: `${t.date}T${t.time}:00`,
       total_amount: t.total_amount || 0,
     } as unknown as Appointment));
-  }, [turnos]);
+    
+    // Filtrar por rango de fechas si está definido
+    if (dateRange) {
+      appointments = appointments.filter(apt => {
+        const aptDate = apt.date;
+        return aptDate >= dateRange.startDate && aptDate <= dateRange.endDate;
+      });
+    }
+    
+    return appointments;
+  }, [turnos, dateRange]);
 
   const topClients = useMemo(() => {
     const map: Record<string, { name: string; count: number; revenue: number }> = {};

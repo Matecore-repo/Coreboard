@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
+import { getClient } from '../lib/supabase';
 
 const FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || 
   `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1`;
@@ -44,6 +46,7 @@ export interface CheckoutData {
 }
 
 export function usePublicCheckout(token: string) {
+  const { session } = useAuth();
   const [config, setConfig] = useState<PaymentLinkConfig | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [stylists, setStylists] = useState<Stylist[]>([]);
@@ -68,11 +71,34 @@ export function usePublicCheckout(token: string) {
   
   const [error, setError] = useState<string | null>(null);
 
+  // Obtener token de autenticación de Supabase
+  const getAuthToken = async (): Promise<string | null> => {
+    if (!session) return null;
+    try {
+      const supabase = getClient();
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      return currentSession?.access_token || null;
+    } catch (error) {
+      console.error('Error obteniendo token de autenticación:', error);
+      return null;
+    }
+  };
+
   // Cargar configuración del payment link
   const loadConfig = useCallback(async () => {
     try {
       setLoading(prev => ({ ...prev, config: true }));
-      const response = await fetch(`${FUNCTIONS_URL}/get-payment-link-config?token=${encodeURIComponent(token)}`);
+      const authToken = await getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      const response = await fetch(`${FUNCTIONS_URL}/get-payment-link-config?token=${encodeURIComponent(token)}`, {
+        headers,
+      });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
@@ -89,14 +115,23 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, config: false }));
     }
-  }, [token]);
+  }, [token, session]);
 
   // Cargar servicios del salón
   const loadServices = useCallback(async (salonId: string) => {
     try {
       setLoading(prev => ({ ...prev, services: true }));
+      const authToken = await getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
       const response = await fetch(
-        `${FUNCTIONS_URL}/public-get-salon-services?salon_id=${encodeURIComponent(salonId)}&token=${encodeURIComponent(token)}`
+        `${FUNCTIONS_URL}/public-get-salon-services?salon_id=${encodeURIComponent(salonId)}&token=${encodeURIComponent(token)}`,
+        { headers }
       );
       
       if (!response.ok) {
@@ -112,14 +147,23 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, services: false }));
     }
-  }, [token]);
+  }, [token, session]);
 
   // Cargar estilistas del salón
   const loadStylists = useCallback(async (salonId: string) => {
     try {
       setLoading(prev => ({ ...prev, stylists: true }));
+      const authToken = await getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
       const response = await fetch(
-        `${FUNCTIONS_URL}/public-get-salon-stylists?salon_id=${encodeURIComponent(salonId)}&token=${encodeURIComponent(token)}`
+        `${FUNCTIONS_URL}/public-get-salon-stylists?salon_id=${encodeURIComponent(salonId)}&token=${encodeURIComponent(token)}`,
+        { headers }
       );
       
       if (!response.ok) {
@@ -135,7 +179,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, stylists: false }));
     }
-  }, [token]);
+  }, [token, session]);
 
   // Cargar disponibilidad de horarios
   const loadAvailability = useCallback(async (
@@ -148,9 +192,17 @@ export function usePublicCheckout(token: string) {
       setLoading(prev => ({ ...prev, availability: true }));
       const dateStr = date.toISOString().split('T')[0];
       const stylistParam = stylistId || 'any';
+      const authToken = await getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
       
       const response = await fetch(
-        `${FUNCTIONS_URL}/public-get-availability?salon_id=${encodeURIComponent(salonId)}&service_id=${encodeURIComponent(serviceId)}&stylist_id=${encodeURIComponent(stylistParam)}&date=${encodeURIComponent(dateStr)}&token=${encodeURIComponent(token)}`
+        `${FUNCTIONS_URL}/public-get-availability?salon_id=${encodeURIComponent(salonId)}&service_id=${encodeURIComponent(serviceId)}&stylist_id=${encodeURIComponent(stylistParam)}&date=${encodeURIComponent(dateStr)}&token=${encodeURIComponent(token)}`,
+        { headers }
       );
       
       if (!response.ok) {
@@ -167,7 +219,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, availability: false }));
     }
-  }, [token]);
+  }, [token, session]);
 
   // Crear turno y redirigir a Mercado Pago
   const createAppointment = useCallback(async (): Promise<string | null> => {
@@ -188,11 +240,17 @@ export function usePublicCheckout(token: string) {
       const service = services.find(s => s.id === checkoutData.serviceId);
       const amount = service?.price || 0;
       
+      const authToken = await getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
       const response = await fetch(`${FUNCTIONS_URL}/public-create-appointment`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           token,
           salon_id: config.salon_id,
@@ -220,7 +278,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, creating: false }));
     }
-  }, [token, config, checkoutData, services]);
+  }, [token, config, checkoutData, services, session]);
 
   // Cargar configuración al montar
   useEffect(() => {

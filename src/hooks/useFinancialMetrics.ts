@@ -113,8 +113,12 @@ export function useFinancialMetrics(
   const calculateKPIs = useMemo((): KPIs => {
     const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');
     
-    // Ingreso bruto: suma de total_amount de turnos completados
-    const grossRevenue = completedAppointments.reduce((sum, apt) => sum + ((apt as any).total_amount || 0), 0);
+    // Ingreso bruto: suma de total_amount de turnos completados O suma de payments
+    // Usar payments como fuente principal ya que se crean automáticamente cuando se completa un turno
+    const grossRevenueFromAppointments = completedAppointments.reduce((sum, apt) => sum + ((apt as any).total_amount || 0), 0);
+    const grossRevenueFromPayments = filteredPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    // Usar el mayor de los dos para asegurar que se reflejen los ingresos
+    const grossRevenue = grossRevenueFromPayments > 0 ? grossRevenueFromPayments : grossRevenueFromAppointments;
     
     // Ingreso neto: bruto - descuentos - impuestos (asumiendo que están en payments)
     const netRevenue = filteredPayments.reduce((sum, payment) => {
