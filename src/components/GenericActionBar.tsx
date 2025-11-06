@@ -16,6 +16,7 @@ interface ActionButton {
   onClick: () => void;
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost";
   icon?: React.ReactNode;
+  disabled?: boolean;
 }
 
 interface DetailField {

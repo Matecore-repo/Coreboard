@@ -1,7 +1,6 @@
 import React from 'react';
 import { useEffect, useState } from 'react';
-import { Sun, Moon, Sparkles, Mic } from 'lucide-react';
-import { FaMagic, FaWhatsapp } from 'react-icons/fa';
+import { Sun, Moon, Sparkles, Mic, Wand2, MessageCircle } from 'lucide-react';
 import { getStoredTheme, toggleTheme as toggleThemeLib, applyTheme } from '../lib/theme';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
@@ -116,7 +115,7 @@ function ThemeBubbleContent() {
     {
       id: 'ai',
       label: 'Asistente IA',
-      icon: <FaMagic className={`h-5 w-5 ${iconColor}`} />,
+      icon: <Wand2 className={`h-5 w-5 ${iconColor}`} />,
       onClick: () => {
         setIsExpanded(false);
         // TODO: Implementar funcionalidad de IA
@@ -125,7 +124,7 @@ function ThemeBubbleContent() {
     {
       id: 'whatsapp',
       label: 'WhatsApp',
-      icon: <FaWhatsapp className={`h-5 w-5 ${iconColor}`} />,
+      icon: <MessageCircle className={`h-5 w-5 ${iconColor}`} />,
       onClick: () => {
         setIsExpanded(false);
         // TODO: Implementar funcionalidad de WhatsApp

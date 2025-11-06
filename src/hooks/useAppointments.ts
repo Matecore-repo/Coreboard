@@ -276,6 +276,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     if (!salonId || (!isDemo && !isValidUUID(salonId))) {
       throw new Error('Salón inválido');
     }
+    let clientId: string | null = null;
+
     if (isDemo) {
       const newApt: Appointment = {
         ...appointmentData as Appointment,
@@ -305,7 +307,10 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       
       if (salonServiceData) {
         // Usar price_override si existe, sino base_price del servicio
-        totalAmount = salonServiceData.price_override ?? salonServiceData.services?.base_price ?? 0;
+        const serviceBasePrice = Array.isArray(salonServiceData.services)
+          ? salonServiceData.services[0]?.base_price
+          : (salonServiceData.services as { base_price?: number } | undefined)?.base_price;
+        totalAmount = salonServiceData.price_override ?? serviceBasePrice ?? 0;
       } else {
         // Si no hay salon_service, obtener directamente desde services
         const { data: serviceData } = await supabase
@@ -350,6 +355,11 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
             console.error('Error creando cliente:', clientError);
             // Continuar sin client_id si falla la creación (el appointment puede tener client_name)
           }
+          if (newClient?.id) {
+            clientId = newClient.id;
+          }
+        } else {
+          clientId = existingClients[0]?.id ?? null;
         }
       } catch (clientError) {
         console.error('Error buscando/creando cliente:', clientError);
@@ -479,7 +489,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       .from('appointments')
       .update(cleanRow)
       .eq('id', id)
-      .select(selectCols)
+      .select(selectCols as any)
       .single();
 
     if (error) {
@@ -548,7 +558,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
             .from('appointments')
             .update(safeRow)
             .eq('id', id)
-            .select(retrySelectCols)
+            .select(retrySelectCols as any)
             .single();
           
           if (retryError) {

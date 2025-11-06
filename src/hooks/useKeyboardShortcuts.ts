@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 
 interface KeyboardShortcutsOptions {
   onNewAppointment?: () => void;
@@ -18,45 +17,44 @@ export function useKeyboardShortcuts({
   onNavigate,
   enabled = true,
 }: KeyboardShortcutsOptions) {
-  // Ctrl+N o Cmd+N para nuevo turno
-  useHotkeys(
-    'ctrl+n, meta+n',
-    (e) => {
-      e.preventDefault();
-      onNewAppointment?.();
-    },
-    { enabled: enabled && !!onNewAppointment }
-  );
+  useEffect(() => {
+    if (!enabled) return;
 
-  // Ctrl+S o Cmd+S para guardar
-  useHotkeys(
-    'ctrl+s, meta+s',
-    (e) => {
-      e.preventDefault();
-      onSave?.();
-    },
-    { enabled: enabled && !!onSave }
-  );
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
-  // Escape para cancelar
-  useHotkeys(
-    'escape',
-    (e) => {
-      e.preventDefault();
-      onCancel?.();
-    },
-    { enabled: enabled && !!onCancel }
-  );
+      const isMeta = event.metaKey || event.ctrlKey;
+      const key = event.key.toLowerCase();
 
-  // Ctrl+K o Cmd+K para buscar
-  useHotkeys(
-    'ctrl+k, meta+k',
-    (e) => {
-      e.preventDefault();
-      onSearch?.();
-    },
-    { enabled: enabled && !!onSearch }
-  );
+      if (isMeta && key === 'n' && onNewAppointment) {
+        event.preventDefault();
+        onNewAppointment();
+        return;
+      }
+
+      if (isMeta && key === 's' && onSave && !isInput) {
+        event.preventDefault();
+        onSave();
+        return;
+      }
+
+      if (event.key === 'Escape' && onCancel) {
+        event.preventDefault();
+        onCancel();
+        return;
+      }
+
+      if (isMeta && key === 'k' && onSearch) {
+        event.preventDefault();
+        onSearch();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [enabled, onNewAppointment, onSave, onCancel, onSearch]);
 
   // Flechas para navegación (solo cuando no hay input activo)
   useEffect(() => {

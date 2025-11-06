@@ -11,6 +11,7 @@ export interface Appointment {
   status: "pending" | "confirmed" | "completed" | "cancelled";
   stylist: string;
   salonId: string;
+  notes?: string | null;
 }
 
 interface AppointmentCardProps {
