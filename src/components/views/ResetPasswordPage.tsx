@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { useAuth } from '../../contexts/AuthContext';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../../lib/toast';
 import { useRouter } from 'next/router';
 import ThemeBubble from '../ThemeBubble';
 import { useEffect } from 'react';
@@ -32,29 +32,29 @@ export function ResetPasswordPage() {
     e.preventDefault();
 
     if (!session) {
-      toast.error('Sesión no disponible. Recarga la página e intenta de nuevo.');
+      toastError('Sesión no disponible. Recarga la página e intenta de nuevo.');
       return;
     }
 
     if (!password || !confirmPassword) {
-      toast.error('Ingresa la contraseña en ambos campos');
+      toastError('Ingresa la contraseña en ambos campos');
       return;
     }
 
     if (password.length < 6) {
-      toast.error('La contraseña debe tener al menos 6 caracteres');
+      toastError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
     if (password !== confirmPassword) {
-      toast.error('Las contraseñas no coinciden');
+      toastError('Las contraseñas no coinciden');
       return;
     }
 
     try {
       setIsSubmitting(true);
       await updatePassword(password);
-      toast.success('Contraseña actualizada correctamente');
+      toastSuccess('Contraseña actualizada correctamente');
       
       // Redirigir al login después de 2 segundos
       setTimeout(() => {
@@ -62,7 +62,7 @@ export function ResetPasswordPage() {
       }, 2000);
     } catch (error: any) {
       const errorMessage = error?.message || 'Error al actualizar la contraseña';
-      toast.error(errorMessage);
+      toastError(errorMessage);
       console.error('Error al actualizar contraseña:', error);
     } finally {
       setIsSubmitting(false);

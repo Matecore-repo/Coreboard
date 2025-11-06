@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from './dropdown-menu';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../../lib/toast';
 
 interface ExportButtonProps {
   data: any[] | { [sheetName: string]: any[] };
@@ -27,7 +27,7 @@ export function ExportButton({ data, filename, disabled }: ExportButtonProps) {
       : Object.keys(data).length > 0 && Object.values(data).some((sheet: any) => Array.isArray(sheet) && sheet.length > 0);
     
     if (!hasData) {
-      toast.error('No hay datos para exportar');
+      toastError('No hay datos para exportar');
       return;
     }
 
@@ -44,20 +44,20 @@ export function ExportButton({ data, filename, disabled }: ExportButtonProps) {
               exportToCSV(firstSheet, filename);
             }
           }
-          toast.success('Exportado a CSV exitosamente');
+          toastSuccess('Exportado a CSV exitosamente');
           break;
         case 'excel':
           await exportToExcel(data, filename);
-          toast.success('Exportado a Excel exitosamente');
+          toastSuccess('Exportado a Excel exitosamente');
           break;
         case 'pdf':
           await exportToPDF('export-content', filename);
-          toast.success('Exportado a PDF exitosamente');
+          toastSuccess('Exportado a PDF exitosamente');
           break;
       }
     } catch (error) {
       console.error('Error al exportar:', error);
-      toast.error('Error al exportar los datos');
+      toastError('Error al exportar los datos');
     } finally {
       setExporting(false);
     }

@@ -48,7 +48,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   return (
     <PageContainer>
       {salons.length > 0 && (
-        <div className="mb-4 p-4 sm:p-6">
+        <section className="mb-4 p-4 sm:p-6" role="region" aria-label="Selector de salón para finanzas">
           <h2 className="mb-4 text-xl md:text-2xl font-semibold">Ver tus finanzas</h2>
           <div>
             <SalonCarousel 
@@ -57,69 +57,69 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
               onSelectSalon={onSelectSalon || (() => {})}
             />
           </div>
-        </div>
+        </section>
       )}
       
       {/* Filtro de Fechas */}
-      <div className="mb-4">
+      <section className="mb-4" role="region" aria-label="Filtro de rango de fechas">
         <DateRangeFilter 
           value={dateRange || undefined}
           onChange={setDateRange}
         />
-      </div>
+      </section>
 
-      <div className="mt-4">
+      <section className="mt-4" role="region" aria-label="Panel de finanzas">
         <Section 
-        title="Finanzas"
-        description={salonName}
-      >
-        <Tabs defaultValue="owner" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="owner">Propietario</TabsTrigger>
-            <TabsTrigger value="sales">Ventas y Marketing</TabsTrigger>
-            <TabsTrigger value="operations">Operaciones</TabsTrigger>
-            <TabsTrigger value="accounting">Finanzas/Contabilidad</TabsTrigger>
-            <TabsTrigger value="clients">CRM/Clientes</TabsTrigger>
-          </TabsList>
+          title="Finanzas"
+          description={salonName}
+        >
+          <Tabs defaultValue="owner" className="space-y-4" role="tablist" aria-label="Paneles de finanzas">
+            <TabsList>
+              <TabsTrigger value="owner" aria-label="Vista de propietario">Propietario</TabsTrigger>
+              <TabsTrigger value="sales" aria-label="Vista de ventas y marketing">Ventas y Marketing</TabsTrigger>
+              <TabsTrigger value="operations" aria-label="Vista de operaciones">Operaciones</TabsTrigger>
+              <TabsTrigger value="accounting" aria-label="Vista de finanzas y contabilidad">Finanzas/Contabilidad</TabsTrigger>
+              <TabsTrigger value="clients" aria-label="Vista de CRM y clientes">CRM/Clientes</TabsTrigger>
+            </TabsList>
           
-          <TabsContent value="owner">
-            <OwnerDashboard 
-              selectedSalon={selectedSalon}
-              salonName={salonName}
-              dateRange={dateRange || undefined}
-            />
-          </TabsContent>
-          
-          <TabsContent value="sales">
-            <SalesMarketingDashboard 
-              selectedSalon={selectedSalon}
-              dateRange={dateRange || undefined}
-            />
-          </TabsContent>
-          
-          <TabsContent value="operations">
-            <OperationsDashboard 
-              selectedSalon={selectedSalon}
-              dateRange={dateRange || undefined}
-            />
-          </TabsContent>
-          
-          <TabsContent value="accounting">
-            <AccountingDashboard 
-              selectedSalon={selectedSalon}
-              dateRange={dateRange || undefined}
-            />
-          </TabsContent>
-          
-          <TabsContent value="clients">
-            <ClientDashboard 
-              selectedSalon={selectedSalon}
-              dateRange={dateRange || undefined}
-            />
-          </TabsContent>
-        </Tabs>
-      </Section>
-      </div>
+            <TabsContent value="owner" role="tabpanel" aria-label="Dashboard de propietario">
+              <OwnerDashboard 
+                selectedSalon={selectedSalon}
+                salonName={salonName}
+                dateRange={dateRange || undefined}
+              />
+            </TabsContent>
+            
+            <TabsContent value="sales" role="tabpanel" aria-label="Dashboard de ventas y marketing">
+              <SalesMarketingDashboard 
+                selectedSalon={selectedSalon}
+                dateRange={dateRange || undefined}
+              />
+            </TabsContent>
+            
+            <TabsContent value="operations" role="tabpanel" aria-label="Dashboard de operaciones">
+              <OperationsDashboard 
+                selectedSalon={selectedSalon}
+                dateRange={dateRange || undefined}
+              />
+            </TabsContent>
+            
+            <TabsContent value="accounting" role="tabpanel" aria-label="Dashboard de finanzas y contabilidad">
+              <AccountingDashboard 
+                selectedSalon={selectedSalon}
+                dateRange={dateRange || undefined}
+              />
+            </TabsContent>
+            
+            <TabsContent value="clients" role="tabpanel" aria-label="Dashboard de CRM y clientes">
+              <ClientDashboard 
+                selectedSalon={selectedSalon}
+                dateRange={dateRange || undefined}
+              />
+            </TabsContent>
+          </Tabs>
+        </Section>
+      </section>
     </PageContainer>
   );
 }

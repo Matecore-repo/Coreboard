@@ -131,17 +131,17 @@ function MercadoPagoSection() {
   }
 
   return (
-    <Card>
+    <Card role="region" aria-label="Integración con Mercado Pago">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle>Mercado Pago</CardTitle>
           {isConnected ? (
-            <Badge variant="default" className="bg-green-600">
-              <CheckCircle2 className="w-3 h-3 mr-1" />
+            <Badge variant="default" className="bg-green-600" aria-label="Estado: Conectado">
+              <CheckCircle2 className="w-3 h-3 mr-1" aria-hidden="true" />
               Conectado
             </Badge>
           ) : (
-            <Badge variant="outline">Desconectado</Badge>
+            <Badge variant="outline" aria-label="Estado: Desconectado">Desconectado</Badge>
           )}
         </div>
         <CardDescription>
@@ -172,15 +172,17 @@ function MercadoPagoSection() {
               onClick={disconnectMercadoPago}
               disabled={isLoading}
               className="w-full sm:w-auto"
+              aria-label="Desconectar cuenta de Mercado Pago"
+              data-action="disconnect-mercadopago"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
                   Desconectando...
                 </>
               ) : (
                 <>
-                  <XCircle className="w-4 h-4 mr-2" />
+                  <XCircle className="w-4 h-4 mr-2" aria-hidden="true" />
                   Desconectar cuenta
                 </>
               )}
@@ -203,15 +205,17 @@ function MercadoPagoSection() {
               onClick={connectMercadoPago}
               disabled={isLoading}
               className="w-full sm:w-auto"
+              aria-label="Conectar cuenta de Mercado Pago"
+              data-action="connect-mercadopago"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
                   Conectando...
                 </>
               ) : (
                 <>
-                  <CreditCard className="w-4 h-4 mr-2" />
+                  <CreditCard className="w-4 h-4 mr-2" aria-hidden="true" />
                   Conectar Mercado Pago
                 </>
               )}
@@ -246,13 +250,12 @@ export default function SettingsView() {
         title="Configuración de la aplicación"
         description="Visualiza qué ajustes estarán disponibles cuando lancemos la consola de producción."
         action={
-          <Badge variant={IS_PRODUCTION ? "default" : "secondary"}>
+          <Badge variant={IS_PRODUCTION ? "default" : "secondary"} aria-label={`Entorno: ${IS_PRODUCTION ? "Producción" : "Previsualización"}`}>
             Entorno: {IS_PRODUCTION ? "Producción" : "Previsualización"}
           </Badge>
         }
       >
-
-      <div className="space-y-4">
+      <section className="space-y-4" role="region" aria-label="Configuración de la aplicación">
         <div className="mb-4">
           {isDemo && (
             <Alert>
@@ -277,12 +280,12 @@ export default function SettingsView() {
           )}
         </div>
 
-        <div className="mb-4 space-y-4">
-        <Card className={DISABLED_CLASS}>
+        <div className="mb-4 space-y-4" role="group" aria-label="Sección de preferencias generales">
+        <Card className={DISABLED_CLASS} role="region" aria-label="Preferencias generales">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle>Preferencias generales</CardTitle>
-            <Badge variant="outline">En desarrollo</Badge>
+            <Badge variant="outline" aria-label="En desarrollo">En desarrollo</Badge>
           </div>
           <CardDescription>
             Define la identidad de tu marca y reglas globales. Estas opciones se
@@ -685,19 +688,26 @@ export default function SettingsView() {
       </Card>
       </div>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end" role="group" aria-label="Acciones de configuración">
         <Button
           variant="outline"
           disabled
           className={DISABLED_CLASS}
+          aria-label="Restaurar valores por defecto"
+          data-action="reset-settings"
         >
           Restaurar valores por defecto
         </Button>
-        <Button disabled className={DISABLED_CLASS}>
+        <Button 
+          disabled 
+          className={DISABLED_CLASS}
+          aria-label="Guardar cambios de configuración"
+          data-action="save-settings"
+        >
           Guardar cambios
         </Button>
       </div>
-      </div>
+      </section>
       </Section>
     </PageContainer>
   );

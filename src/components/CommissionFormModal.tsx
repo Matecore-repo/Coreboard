@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useCommissions, type Commission } from '../hooks/useCommissions';
 import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../lib/toast';
 import { useEmployees, type Employee } from '../hooks/useEmployees';
 
 interface CommissionFormModalProps {
@@ -44,15 +44,15 @@ export function CommissionFormModal({ isOpen, onClose, commission }: CommissionF
 
   const handleSubmit = async () => {
     if (!employeeId) {
-      toast.error('Empleado requerido');
+      toastError('Empleado requerido');
       return;
     }
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error('Monto inválido');
+      toastError('Monto inválido');
       return;
     }
     if (!commissionRate || parseFloat(commissionRate) < 0 || parseFloat(commissionRate) > 100) {
-      toast.error('Tasa de comisión inválida (debe estar entre 0 y 100)');
+      toastError('Tasa de comisión inválida (debe estar entre 0 y 100)');
       return;
     }
 
@@ -69,15 +69,15 @@ export function CommissionFormModal({ isOpen, onClose, commission }: CommissionF
 
       if (commission) {
         await updateCommission(commission.id, commissionData);
-        toast.success('Comisión actualizada exitosamente');
+        toastSuccess('Comisión actualizada exitosamente');
       } else {
         await createCommission(commissionData);
-        toast.success('Comisión creada exitosamente');
+        toastSuccess('Comisión creada exitosamente');
       }
       onClose();
     } catch (error) {
       console.error('Error guardando comisión:', error);
-      toast.error('Error al guardar la comisión');
+      toastError('Error al guardar la comisión');
     } finally {
       setLoading(false);
     }
@@ -85,22 +85,28 @@ export function CommissionFormModal({ isOpen, onClose, commission }: CommissionF
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent
+        role="dialog"
+        aria-labelledby="commission-dialog-title"
+        aria-describedby="commission-dialog-description"
+        aria-modal="true"
+        data-modal="commission"
+      >
         <DialogHeader>
-          <DialogTitle>{commission ? 'Editar Comisión' : 'Nueva Comisión'}</DialogTitle>
-          <DialogDescription>Registra una comisión en el sistema</DialogDescription>
+          <DialogTitle id="commission-dialog-title">{commission ? 'Editar Comisión' : 'Nueva Comisión'}</DialogTitle>
+          <DialogDescription id="commission-dialog-description">Registra una comisión en el sistema</DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <form className="space-y-4" role="form" aria-label="Formulario de comisión">
           <div>
             <Label htmlFor="employee-id">Empleado *</Label>
             <Select value={employeeId} onValueChange={setEmployeeId}>
-              <SelectTrigger>
+              <SelectTrigger id="employee-id" aria-label="Seleccionar empleado" aria-required="true" data-field="employee-id">
                 <SelectValue placeholder="Selecciona un empleado" />
               </SelectTrigger>
               <SelectContent>
                 {employees.map((emp: Employee) => (
-                  <SelectItem key={emp.id} value={emp.id}>
+                  <SelectItem key={emp.id} value={emp.id} aria-label={`Empleado: ${emp.full_name || emp.email || emp.id}`}>
                     {emp.full_name || emp.email || emp.id}
                   </SelectItem>
                 ))}
@@ -117,6 +123,9 @@ export function CommissionFormModal({ isOpen, onClose, commission }: CommissionF
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
+              aria-label="Monto de la comisión"
+              aria-required="true"
+              data-field="amount"
             />
           </div>
 
@@ -131,6 +140,9 @@ export function CommissionFormModal({ isOpen, onClose, commission }: CommissionF
               value={commissionRate}
               onChange={(e) => setCommissionRate(e.target.value)}
               placeholder="0.00"
+              aria-label="Tasa de comisión en porcentaje"
+              aria-required="true"
+              data-field="commission-rate"
             />
           </div>
 
@@ -141,6 +153,9 @@ export function CommissionFormModal({ isOpen, onClose, commission }: CommissionF
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              aria-label="Fecha de la comisión"
+              aria-required="true"
+              data-field="date"
             />
           </div>
 
@@ -151,13 +166,21 @@ export function CommissionFormModal({ isOpen, onClose, commission }: CommissionF
               value={appointmentId}
               onChange={(e) => setAppointmentId(e.target.value)}
               placeholder="ID del turno relacionado..."
+              aria-label="ID del turno relacionado (opcional)"
+              data-field="appointment-id"
             />
           </div>
 
-          <Button onClick={handleSubmit} disabled={loading} className="w-full">
+          <Button 
+            onClick={handleSubmit} 
+            disabled={loading} 
+            className="w-full"
+            aria-label={commission ? "Actualizar comisión" : "Crear comisión"}
+            data-action={commission ? "update-commission" : "create-commission"}
+          >
             {loading ? 'Guardando...' : commission ? 'Actualizar' : 'Crear'}
           </Button>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

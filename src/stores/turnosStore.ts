@@ -63,7 +63,7 @@ type TurnosSelectors = {
 
 type TurnosValidations = {
   validateTurno: (turno: Partial<Turno>, employees: Employee[], salonAssignments: SalonEmployee[], orgId: string) => { valid: boolean; error_code?: string; message?: string };
-  checkConflicts: (turno: Partial<Turno>, excludeId?: string) => { valid: boolean; conflict?: Turno; message?: string };
+  checkConflicts: (turno: Partial<Turno>, excludeId?: string, getServiceDuration?: (serviceId: string, salonId: string) => number | null) => { valid: boolean; conflict?: Turno; message?: string };
   validateEmployeeInSalon: (employeeId: string, salonId: string, salonAssignments: SalonEmployee[]) => { valid: boolean; error_code?: string; message?: string };
   validateEmployeeActive: (employeeId: string, employees: Employee[], orgId: string) => { valid: boolean; error_code?: string; message?: string };
 };
@@ -204,15 +204,23 @@ function validateTurno(
   }
 
   // Validar empleado solo si está presente (es opcional)
-  if (turno.stylist) {
+  // Permitir valores undefined, null o string vacío sin validar
+  if (turno.stylist && turno.stylist !== '' && turno.stylist !== null && turno.stylist !== undefined) {
     const employee = employees.find(e => e.id === turno.stylist);
     if (!employee) {
-      return { valid: false, error_code: 'EMPLOYEE_NOT_FOUND', message: 'Empleado no encontrado' };
+      return { 
+        valid: false, 
+        error_code: 'EMPLOYEE_NOT_FOUND', 
+        message: `El empleado seleccionado no existe en el sistema` 
+      };
     }
 
     const employeeValidation = validateEmployeeForAppointment(employee, orgId);
     if (!employeeValidation.valid) {
-      return employeeValidation;
+      return {
+        ...employeeValidation,
+        message: employeeValidation.message || 'El empleado no cumple con los requisitos para asignar turnos'
+      };
     }
 
     // Validar que empleado está asignado al salón
@@ -224,7 +232,11 @@ function validateTurno(
     }));
     const inSalonValidation = validateEmployeeInSalon(turno.stylist, turno.salonId, assignmentsForValidation);
     if (!inSalonValidation.valid) {
-      return { valid: false, error_code: 'EMPLOYEE_NOT_IN_SALON', message: 'El empleado no está asignado a este salón' };
+      return { 
+        valid: false, 
+        error_code: 'EMPLOYEE_NOT_IN_SALON', 
+        message: `El empleado "${employee.full_name || employee.email || turno.stylist}" no está asignado al salón seleccionado. Por favor, asigna el empleado al salón o selecciona otro empleado.` 
+      };
     }
   }
 
@@ -233,7 +245,8 @@ function validateTurno(
 
 function checkConflicts(
   turno: Partial<Turno>,
-  excludeId?: string
+  excludeId?: string,
+  getServiceDuration?: (serviceId: string, salonId: string) => number | null
 ): { valid: boolean; conflict?: Turno; message?: string } {
   if (!turno.stylist || !turno.date || !turno.time) {
     return { valid: true }; // No se puede validar sin datos completos
@@ -245,6 +258,19 @@ function checkConflicts(
       return { valid: true }; // No se puede validar con fecha inválida
     }
 
+    // Obtener duración del servicio - REQUERIDO en producción
+    let durationMinutes: number | null = null;
+    if (turno.service && turno.salonId && getServiceDuration) {
+      durationMinutes = getServiceDuration(turno.service, turno.salonId);
+    }
+    
+    // Si no se puede obtener la duración, no se puede validar conflictos
+    if (durationMinutes === null || durationMinutes <= 0) {
+      return { valid: true }; // Asumir válido si no se puede obtener duración (servicio no encontrado)
+    }
+    
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
+
     // Buscar turnos del mismo empleado en el mismo salón
     const sameEmployeeTurnos = state.appointments.filter(apt => 
       apt.stylist === turno.stylist && 
@@ -253,24 +279,33 @@ function checkConflicts(
       apt.status !== 'cancelled'
     );
 
-    // Verificar solapamientos (asumiendo duración de 30 min por defecto)
-    // En producción, esto debería usar la duración real del servicio
-    const durationMinutes = 30; // TODO: obtener de servicio
-    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
-
     for (const existing of sameEmployeeTurnos) {
       try {
         const existingStarts = new Date(`${existing.date}T${existing.time}:00`);
-        const existingEnds = new Date(existingStarts.getTime() + durationMinutes * 60 * 1000);
+        
+        // Obtener duración del servicio existente - REQUERIDO en producción
+        let existingDurationMinutes: number | null = null;
+        if (existing.service && existing.salonId && getServiceDuration) {
+          existingDurationMinutes = getServiceDuration(existing.service, existing.salonId);
+        }
+        
+        // Si no se puede obtener la duración, saltar este turno
+        if (existingDurationMinutes === null || existingDurationMinutes <= 0) {
+          continue;
+        }
+        
+        const existingEnds = new Date(existingStarts.getTime() + existingDurationMinutes * 60 * 1000);
 
         // Verificar solapamiento
         if ((startsAt >= existingStarts && startsAt < existingEnds) ||
             (endsAt > existingStarts && endsAt <= existingEnds) ||
             (startsAt <= existingStarts && endsAt >= existingEnds)) {
+          const existingTime = existing.time;
+          const existingDate = existing.date;
           return {
             valid: false,
             conflict: existing,
-            message: `El empleado ya tiene un turno en ese horario (${existing.date} ${existing.time})`
+            message: `El empleado ya tiene un turno en ese horario (${existingDate} ${existingTime})`
           };
         }
       } catch {

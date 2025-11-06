@@ -8,7 +8,7 @@ import { Label } from '../ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { EmptyStateClients } from '../empty-states/EmptyStateClients';
-import { toast } from 'sonner';
+import { toastSuccess, toastError, toastInfo } from '../../lib/toast';
 import { Trash2, Edit3, Plus } from 'lucide-react';
 import { EmptyState } from '../ui/empty-state';
 import { Building2 } from 'lucide-react';
@@ -69,31 +69,31 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
   useEffect(() => {
     if (clientsError) {
       console.error('Error loading clients:', clientsError);
-      toast.error('Error al cargar clientes');
+      toastError('Error al cargar clientes');
     }
   }, [clientsError]);
 
   const handleSave = async () => {
     try {
       if (!formData.full_name.trim()) {
-        toast.error('El nombre del cliente es requerido');
+        toastError('El nombre del cliente es requerido');
         return;
       }
 
       if (!currentOrgId) {
-        toast.error('No se puede crear cliente: organización no encontrada');
+        toastError('No se puede crear cliente: organización no encontrada');
         return;
       }
 
       if (editingClient) {
         await updateClient(editingClient.id, formData);
-        toast.success('Cliente actualizado correctamente');
+        toastSuccess('Cliente actualizado correctamente');
       } else {
         await createClient({
           ...formData,
           org_id: currentOrgId,
         } as any);
-        toast.success('Cliente creado correctamente');
+        toastSuccess('Cliente creado correctamente');
       }
 
       setDialogOpen(false);
@@ -101,7 +101,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
       setFormData({ full_name: '', phone: '', email: '' });
     } catch (error) {
       console.error('Error saving client:', error);
-      toast.error('Error al guardar el cliente');
+      toastError('Error al guardar el cliente');
     }
   };
 
@@ -120,10 +120,10 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
 
     try {
       await deleteClient(id);
-      toast.success('Cliente eliminado correctamente');
+      toastSuccess('Cliente eliminado correctamente');
     } catch (error) {
       console.error('Error deleting client:', error);
-      toast.error('Error al eliminar el cliente');
+      toastError('Error al eliminar el cliente');
     }
   };
 
@@ -141,7 +141,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
           title="Seleccioná una organización"
           description="Para gestionar clientes necesitás elegir o crear una organización."
           actionLabel="Crear organización"
-          onAction={() => toast.info('Creación de organización próximamente')}
+          onAction={() => toastInfo('Creación de organización próximamente')}
         />
       </div>
     );
@@ -169,7 +169,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
   return (
     <PageContainer>
       {salons.length > 0 && (
-        <div className="mb-4 p-4 sm:p-6">
+        <section className="mb-4 p-4 sm:p-6" role="region" aria-label="Selector de salón para clientes">
           <h2 className="mb-4 text-xl md:text-2xl font-semibold">Seleccionar clientes</h2>
           <div>
             <SalonCarousel 
@@ -178,20 +178,24 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
               onSelectSalon={onSelectSalon || (() => {})}
             />
           </div>
-        </div>
+        </section>
       )}
-      <div className="mt-4">
+      <section className="mt-4" role="region" aria-label="Gestión de clientes">
         <Section
-        title="Gestión de Clientes"
-        description={`${clients.length} ${clients.length === 1 ? 'cliente registrado' : 'clientes registrados'}`}
-        action={
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={handleNew}>
-                <Plus className="w-4 h-4 mr-2" />
-                Nuevo Cliente
-              </Button>
-            </DialogTrigger>
+          title="Gestión de Clientes"
+          description={`${clients.length} ${clients.length === 1 ? 'cliente registrado' : 'clientes registrados'}`}
+          action={
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  onClick={handleNew}
+                  aria-label="Crear nuevo cliente"
+                  data-action="new-client"
+                >
+                  <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
+                  Nuevo Cliente
+                </Button>
+              </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
@@ -245,37 +249,45 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
       {clients.length === 0 ? (
         <EmptyStateClients
           onAddClient={handleNew}
-          onImportClients={() => toast.info('Importar clientes próximamente')}
-          onSyncContacts={() => toast.info('Sincronizar contactos próximamente')}
+          onImportClients={() => toastInfo('Importar clientes próximamente')}
+          onSyncContacts={() => toastInfo('Sincronizar contactos próximamente')}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" role="list" aria-label={`Lista de ${clients.length} clientes`}>
           {clients.map((client) => (
-            <Card key={client.id}>
+            <Card key={client.id} role="listitem" aria-label={`Cliente: ${client.full_name}`}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{client.full_name}</p>
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="font-medium truncate" aria-label={`Nombre: ${client.full_name}`}>
+                      {client.full_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate" aria-label={`Contacto: ${client.phone || ''} ${client.email || ''}`}>
                       {client.phone && <span>{client.phone}</span>}
                       {client.phone && client.email && <span> • </span>}
                       {client.email && <span>{client.email}</span>}
                     </p>
                   </div>
-                  <div className="flex gap-2 ml-4 flex-shrink-0">
+                  <div className="flex gap-2 ml-4 flex-shrink-0" role="group" aria-label={`Acciones para ${client.full_name}`}>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleEdit(client)}
+                      aria-label={`Editar cliente ${client.full_name}`}
+                      data-action="edit-client"
+                      data-client-id={client.id}
                     >
-                      <Edit3 className="w-4 h-4" />
+                      <Edit3 className="w-4 h-4" aria-hidden="true" />
                     </Button>
                     <Button
                       size="sm"
                       variant="destructive"
                       onClick={() => handleDelete(client.id)}
+                      aria-label={`Eliminar cliente ${client.full_name}`}
+                      data-action="delete-client"
+                      data-client-id={client.id}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
                     </Button>
                   </div>
                 </div>
@@ -285,7 +297,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
         </div>
       )}
       </Section>
-      </div>
+      </section>
     </PageContainer>
   );
 };

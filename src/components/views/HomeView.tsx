@@ -92,12 +92,12 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
   if (isNewUser && appointments.length === 0) {
     return (
       <PageContainer>
-        <div className="text-center mb-8">
+        <section className="text-center mb-8" role="region" aria-label="Bienvenida">
           <h1 className="text-2xl font-semibold mb-2">¡Bienvenido a {orgName || 'tu local'}!</h1>
           <p className="text-muted-foreground">Empezá a configurar tu negocio con estos pasos:</p>
-        </div>
+        </section>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto" role="group" aria-label="Opciones de configuración inicial">
           <EmptyStateCTA
             type="appointments"
             onAction={onAddAppointment || (() => {})}
@@ -118,13 +118,17 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
       <Section 
         title="Mis Locales"
         action={onAddAppointment && (
-          <Button onClick={onAddAppointment}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button 
+            onClick={onAddAppointment}
+            aria-label="Crear nuevo turno"
+            data-action="new-appointment"
+          >
+            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
             Nuevo Turno
           </Button>
         )}
       >
-        <div className="mt-4 mb-4">
+        <div className="mt-4 mb-4" role="region" aria-label="Selector de locales">
           <SalonCarousel 
             salons={salons}
             selectedSalon={selectedSalon}
@@ -133,18 +137,20 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
         </div>
       </Section>
 
-      <div className="mt-4 gap-4 p-4 sm:p-6">
+      <section className="mt-4 gap-4 p-4 sm:p-6" aria-label="Panel principal">
         {/* Header con métricas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4" role="group" aria-label="Métricas principales">
         {/* Peluquería Asignada */}
-        <div className="bg-card border border-border/60 dark:border-border/40 rounded-2xl p-3">
+        <div className="bg-card border border-border/60 dark:border-border/40 rounded-2xl p-3" role="region" aria-label="Local seleccionado">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+            <div className="h-9 w-9 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
               <MapPin className="h-4 w-4 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="min-w-0">
               <p className="text-sm text-muted-foreground truncate">Local</p>
-              <p className="text-sm truncate">{salonNames[selectedSalon ?? 'all']}</p>
+              <p className="text-sm truncate" aria-label={`Local: ${salonNames[selectedSalon ?? 'all']}`}>
+                {salonNames[selectedSalon ?? 'all']}
+              </p>
             </div>
           </div>
         </div>
@@ -167,14 +173,14 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
         </div>
 
         {/* Calendario */}
-        <div className="mt-4">
+        <section className="mt-4" role="region" aria-label="Calendario de turnos" data-section="calendar">
           <CalendarView 
-          selectedSalon={selectedSalon}
-          focusDate={null}
+            selectedSalon={selectedSalon}
+            focusDate={null}
             onAppointmentClick={onAppointmentClick}
           />
-        </div>
-      </div>
+        </section>
+      </section>
 
       {/* Invite Employee Modal */}
       <InviteEmployeeModal 

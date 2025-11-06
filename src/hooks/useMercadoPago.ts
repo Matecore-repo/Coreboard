@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../lib/toast';
 import type { MercadoPagoCredentials } from '../types';
 
 export function useMercadoPago() {
@@ -63,12 +63,12 @@ export function useMercadoPago() {
    */
   const connectMercadoPago = useCallback(async () => {
     if (!currentOrgId) {
-      toast.error('No hay organización seleccionada');
+      toastError('No hay organización seleccionada');
       return;
     }
 
     if (currentRole !== 'owner') {
-      toast.error('Solo los dueños pueden conectar cuentas de Mercado Pago');
+      toastError('Solo los dueños pueden conectar cuentas de Mercado Pago');
       return;
     }
 
@@ -116,7 +116,7 @@ export function useMercadoPago() {
       window.location.href = connectUrl;
     } catch (error: any) {
       console.error('Error conectando Mercado Pago:', error);
-      toast.error(error.message || 'Error al conectar Mercado Pago');
+      toastError(error.message || 'Error al conectar Mercado Pago');
       setIsLoading(false);
     }
   }, [currentOrgId, currentRole]);
@@ -126,12 +126,12 @@ export function useMercadoPago() {
    */
   const disconnectMercadoPago = useCallback(async () => {
     if (!currentOrgId) {
-      toast.error('No hay organización seleccionada');
+      toastError('No hay organización seleccionada');
       return;
     }
 
     if (currentRole !== 'owner') {
-      toast.error('Solo los dueños pueden desconectar cuentas de Mercado Pago');
+      toastError('Solo los dueños pueden desconectar cuentas de Mercado Pago');
       return;
     }
 
@@ -162,12 +162,12 @@ export function useMercadoPago() {
         throw new Error('Error desconectando Mercado Pago');
       }
 
-      toast.success('Cuenta de Mercado Pago desconectada');
+      toastSuccess('Cuenta de Mercado Pago desconectada');
       setIsConnected(false);
       setCredentials(null);
     } catch (error: any) {
       console.error('Error desconectando Mercado Pago:', error);
-      toast.error(error.message || 'Error al desconectar Mercado Pago');
+      toastError(error.message || 'Error al desconectar Mercado Pago');
     } finally {
       setIsLoading(false);
     }

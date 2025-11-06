@@ -16,7 +16,7 @@ import { CommissionFormModal } from '../CommissionFormModal';
 import { InvoiceFormModal } from '../InvoiceFormModal';
 import { ExportButton } from '../ui/ExportButton';
 import { Plus, Edit, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../../lib/toast';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,19 +136,19 @@ export default function AccountingDashboard({ selectedSalon, dateRange }: Accoun
       switch (deleteType) {
         case 'expense':
           await deleteExpense(deleteId);
-          toast.success('Gasto eliminado exitosamente');
+          toastSuccess('Gasto eliminado exitosamente');
           break;
         case 'payment':
           await deletePayment(deleteId);
-          toast.success('Pago eliminado exitosamente');
+          toastSuccess('Pago eliminado exitosamente');
           break;
         case 'commission':
           await deleteCommission(deleteId);
-          toast.success('Comisión eliminada exitosamente');
+          toastSuccess('Comisión eliminada exitosamente');
           break;
         case 'invoice':
           await deleteInvoice(deleteId);
-          toast.success('Factura eliminada exitosamente');
+          toastSuccess('Factura eliminada exitosamente');
           break;
       }
       setDeleteDialogOpen(false);
@@ -156,7 +156,7 @@ export default function AccountingDashboard({ selectedSalon, dateRange }: Accoun
       setDeleteId(null);
     } catch (error) {
       console.error('Error eliminando:', error);
-      toast.error('Error al eliminar el registro');
+      toastError('Error al eliminar el registro');
     }
   };
 

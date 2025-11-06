@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { toast } from 'sonner';
+import { toastError } from '../lib/toast';
 import { useAuth } from '../contexts/AuthContext';
 import { getClient } from '../lib/supabase';
 
@@ -111,7 +111,7 @@ export function usePublicCheckout(token: string) {
     } catch (err: any) {
       console.error('Error cargando configuración:', err);
       setError(err.message || 'Error cargando configuración del link');
-      toast.error(err.message || 'Error cargando configuración del link');
+      toastError(err.message || 'Error cargando configuración del link');
     } finally {
       setLoading(prev => ({ ...prev, config: false }));
     }
@@ -143,7 +143,7 @@ export function usePublicCheckout(token: string) {
       setServices(data.services || []);
     } catch (err: any) {
       console.error('Error cargando servicios:', err);
-      toast.error(err.message || 'Error cargando servicios');
+      toastError(err.message || 'Error cargando servicios');
     } finally {
       setLoading(prev => ({ ...prev, services: false }));
     }
@@ -175,7 +175,7 @@ export function usePublicCheckout(token: string) {
       setStylists(data.stylists || []);
     } catch (err: any) {
       console.error('Error cargando estilistas:', err);
-      toast.error(err.message || 'Error cargando estilistas');
+      toastError(err.message || 'Error cargando estilistas');
     } finally {
       setLoading(prev => ({ ...prev, stylists: false }));
     }
@@ -214,7 +214,7 @@ export function usePublicCheckout(token: string) {
       setTimeSlots(data.slots || []);
     } catch (err: any) {
       console.error('Error cargando disponibilidad:', err);
-      toast.error(err.message || 'Error cargando disponibilidad');
+      toastError(err.message || 'Error cargando disponibilidad');
       setTimeSlots([]);
     } finally {
       setLoading(prev => ({ ...prev, availability: false }));
@@ -224,7 +224,7 @@ export function usePublicCheckout(token: string) {
   // Crear turno y redirigir a Mercado Pago
   const createAppointment = useCallback(async (): Promise<string | null> => {
     if (!config || !checkoutData.serviceId || !checkoutData.date || !checkoutData.time || !checkoutData.clientName) {
-      toast.error('Por favor completa todos los campos requeridos');
+      toastError('Por favor completa todos los campos requeridos');
       return null;
     }
 
@@ -273,7 +273,7 @@ export function usePublicCheckout(token: string) {
       return data.init_point || data.sandbox_init_point || null;
     } catch (err: any) {
       console.error('Error creando turno:', err);
-      toast.error(err.message || 'Error creando turno');
+      toastError(err.message || 'Error creando turno');
       return null;
     } finally {
       setLoading(prev => ({ ...prev, creating: false }));

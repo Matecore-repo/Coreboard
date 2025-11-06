@@ -69,13 +69,19 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent
+        role="dialog"
+        aria-labelledby="expense-dialog-title"
+        aria-describedby="expense-dialog-description"
+        aria-modal="true"
+        data-modal="expense"
+      >
         <DialogHeader>
-          <DialogTitle>{expense ? 'Editar Gasto' : 'Nuevo Gasto'}</DialogTitle>
-          <DialogDescription>Registra un gasto en el sistema</DialogDescription>
+          <DialogTitle id="expense-dialog-title">{expense ? 'Editar Gasto' : 'Nuevo Gasto'}</DialogTitle>
+          <DialogDescription id="expense-dialog-description">Registra un gasto en el sistema</DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <form className="space-y-4" role="form" aria-label="Formulario de gasto">
           <div>
             <Label htmlFor="amount">Monto</Label>
             <Input
@@ -85,6 +91,9 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
+              aria-label="Monto del gasto"
+              aria-required="true"
+              data-field="amount"
             />
           </div>
 
@@ -95,6 +104,9 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Descripción del gasto..."
+              aria-label="Descripción del gasto"
+              aria-required="true"
+              data-field="description"
             />
           </div>
 
@@ -105,19 +117,21 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               placeholder="Ej: Alquiler, Marketing, Insumos..."
+              aria-label="Categoría del gasto (opcional)"
+              data-field="category"
             />
           </div>
 
           <div>
             <Label htmlFor="type">Tipo</Label>
             <Select value={type} onValueChange={(value) => setType(value as Expense['type'])}>
-              <SelectTrigger>
+              <SelectTrigger id="type" aria-label="Seleccionar tipo de gasto" data-field="type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fixed">Fijo</SelectItem>
-                <SelectItem value="variable">Variable</SelectItem>
-                <SelectItem value="supply_purchase">Compra de Insumos</SelectItem>
+                <SelectItem value="fixed" aria-label="Tipo: Fijo">Fijo</SelectItem>
+                <SelectItem value="variable" aria-label="Tipo: Variable">Variable</SelectItem>
+                <SelectItem value="supply_purchase" aria-label="Tipo: Compra de Insumos">Compra de Insumos</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -125,13 +139,13 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
           <div>
             <Label htmlFor="payment-status">Estado de Pago</Label>
             <Select value={paymentStatus} onValueChange={(value) => setPaymentStatus(value as Expense['payment_status'])}>
-              <SelectTrigger>
+              <SelectTrigger id="payment-status" aria-label="Seleccionar estado de pago" data-field="payment-status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pending">Pendiente</SelectItem>
-                <SelectItem value="paid">Pagado</SelectItem>
-                <SelectItem value="partial">Parcial</SelectItem>
+                <SelectItem value="pending" aria-label="Estado: Pendiente">Pendiente</SelectItem>
+                <SelectItem value="paid" aria-label="Estado: Pagado">Pagado</SelectItem>
+                <SelectItem value="partial" aria-label="Estado: Parcial">Parcial</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -143,13 +157,21 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
               type="date"
               value={incurredAt}
               onChange={(e) => setIncurredAt(e.target.value)}
+              aria-label="Fecha del gasto"
+              data-field="incurred-at"
             />
           </div>
 
-          <Button onClick={handleSubmit} disabled={loading} className="w-full">
+          <Button 
+            onClick={handleSubmit} 
+            disabled={loading} 
+            className="w-full"
+            aria-label={expense ? "Actualizar gasto" : "Crear gasto"}
+            data-action={expense ? "update-expense" : "create-expense"}
+          >
             {loading ? 'Guardando...' : expense ? 'Actualizar' : 'Crear'}
           </Button>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

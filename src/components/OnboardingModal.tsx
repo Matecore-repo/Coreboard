@@ -6,7 +6,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { useAuth } from "../contexts/AuthContext";
-import { toast } from "sonner";
+import { toastError } from "../lib/toast";
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -35,7 +35,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
     e.preventDefault();
 
     if (!formData.businessName.trim() || !formData.salonName.trim()) {
-      toast.error('Por favor completa los campos requeridos');
+      toastError('Por favor completa los campos requeridos');
       return;
     }
 
@@ -55,7 +55,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
       }, 1500);
     } catch (error: any) {
       setLoading(false);
-      toast.error(error.message || 'Error al crear la organización');
+      toastError(error.message || 'Error al crear la organización');
     }
   };
 
@@ -75,26 +75,34 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-[min(92vw,600px)] max-h-[90vh] overflow-y-auto rounded-2xl p-0">
+      <DialogContent 
+        className="w-[min(92vw,600px)] max-h-[90vh] overflow-y-auto rounded-2xl p-0"
+        role="dialog"
+        aria-labelledby="onboarding-title"
+        aria-describedby="onboarding-description"
+        aria-modal="true"
+        data-modal="onboarding"
+      >
         <form onSubmit={handleSubmit} className="relative flex h-full flex-col">
           <DialogHeader className="border-b border-border px-6 py-5">
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-col gap-2">
-                <DialogTitle className="text-2xl font-bold">
+                <DialogTitle id="onboarding-title" className="text-2xl font-bold">
                   Configurar tu espacio
                 </DialogTitle>
-                <DialogDescription className="text-base">
+                <DialogDescription id="onboarding-description" className="text-base">
                   Completa los datos clave para que Coreboard se vea como tu negocio desde el primer ingreso.
                 </DialogDescription>
               </div>
               <button
                 type="button"
                 onClick={handleClose}
-                aria-label="Cerrar asistente"
+                aria-label="Cerrar asistente de configuración"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-muted-foreground transition hover:border-border hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 disabled={loading || showSuccess}
+                data-action="close-onboarding"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </DialogHeader>
@@ -102,9 +110,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <div className="space-y-6">
               {/* Bienvenida */}
-              <div className="rounded-2xl bg-primary/10 p-4 border border-primary/20">
+              <section className="rounded-2xl bg-primary/10 p-4 border border-primary/20" role="region" aria-label="Bienvenida">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center" aria-hidden="true">
                     <Sparkles className="h-5 w-5 text-primary" />
                   </div>
                   <div>
@@ -114,13 +122,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                     </p>
                   </div>
                 </div>
-              </div>
+              </section>
 
               {/* Información del negocio */}
-              <Card className="rounded-2xl border-border">
+              <Card className="rounded-2xl border-border" role="region" aria-label="Información del negocio">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <Building2 className="h-5 w-5 text-primary" />
+                    <Building2 className="h-5 w-5 text-primary" aria-hidden="true" />
                     <CardTitle className="text-lg">Información del negocio</CardTitle>
                   </div>
                   <CardDescription>
@@ -138,6 +146,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                       autoComplete="organization"
                       required
                       disabled={loading || showSuccess}
+                      aria-label="Nombre del negocio"
+                      aria-required="true"
+                      data-field="business-name"
                     />
                     <p className="text-xs text-muted-foreground">
                       Este nombre aparece en dashboard, recordatorios y enlaces compartidos.
@@ -147,10 +158,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
               </Card>
 
               {/* Tu primer local */}
-              <Card className="rounded-2xl border-border">
+              <Card className="rounded-2xl border-border" role="region" aria-label="Tu primer local">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <MapPin className="h-5 w-5 text-primary" />
+                    <MapPin className="h-5 w-5 text-primary" aria-hidden="true" />
                     <CardTitle className="text-lg">Tu primer local</CardTitle>
                   </div>
                   <CardDescription>
@@ -212,6 +223,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 type="submit"
                 className="h-11 justify-center sm:justify-start"
                 disabled={loading || showSuccess || !formData.businessName.trim() || !formData.salonName.trim()}
+                aria-label="Crear mi peluquería"
+                data-action="submit-onboarding"
               >
                 {loading ? "Creando..." : "Crear mi peluquería"}
               </Button>

@@ -172,6 +172,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       if (currentOrgId) {
         base = base.eq('org_id', currentOrgId);
       }
+      // Si salonId es undefined, no filtrar por salon_id (mostrar todos)
       const { data, error } = salonId ? await base.eq('salon_id', salonId).order('starts_at') : await base.order('starts_at');
       if (error) {
         console.error('Error fetching appointments:', error);
@@ -179,6 +180,22 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToAppointment);
         setAppointments(mapped);
+        // Sincronizar con turnosStore para que los filtros funcionen correctamente
+        const turnos = mapped.map(apt => ({
+          id: apt.id,
+          clientName: apt.clientName,
+          service: apt.service || '',
+          date: apt.date || '',
+          time: apt.time || '',
+          status: apt.status as any,
+          stylist: apt.stylist || '',
+          salonId: apt.salonId || '',
+          notes: apt.notes,
+          created_by: apt.created_by,
+          org_id: apt.org_id,
+          total_amount: apt.total_amount,
+        }));
+        turnosStore.setAll(turnos);
       }
     } finally {
       setLoading(false);
@@ -269,15 +286,36 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
     }
     
     // Obtener total_amount desde totalCollected o listPrice o calcular desde servicio
+    // En producción, siempre obtener desde la BD (salon_services con override, luego services base_price)
     let totalAmount = (appointmentData as any).total_amount || (appointmentData as any).totalCollected || (appointmentData as any).listPrice || 0;
-    if (!totalAmount && appointmentData.service) {
-      const { data: serviceData } = await supabase
-        .from('services')
-        .select('base_price')
-        .eq('id', appointmentData.service)
+    if (!totalAmount && appointmentData.service && salonId) {
+      // Primero intentar obtener desde salon_services (puede tener price_override)
+      const { data: salonServiceData } = await supabase
+        .from('salon_services')
+        .select(`
+          price_override,
+          services!inner (
+            base_price
+          )
+        `)
+        .eq('salon_id', salonId)
+        .eq('service_id', appointmentData.service)
+        .eq('active', true)
         .single();
-      if (serviceData?.base_price) {
-        totalAmount = Number(serviceData.base_price);
+      
+      if (salonServiceData) {
+        // Usar price_override si existe, sino base_price del servicio
+        totalAmount = salonServiceData.price_override ?? salonServiceData.services?.base_price ?? 0;
+      } else {
+        // Si no hay salon_service, obtener directamente desde services
+        const { data: serviceData } = await supabase
+          .from('services')
+          .select('base_price')
+          .eq('id', appointmentData.service)
+          .single();
+        if (serviceData?.base_price) {
+          totalAmount = Number(serviceData.base_price);
+        }
       }
     }
     
@@ -326,50 +364,62 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       return;
     }
     
-    // Si solo se está actualizando status, usar RPC directamente
-    // Si el RPC falla (por ejemplo, si el enum no existe), usar update directo
+    // Si solo se está actualizando status, usar RPC directamente (maneja el enum correctamente)
     if (Object.keys(updates).length === 1 && updates.status) {
       try {
+        // Usar RPC que maneja el casting del enum correctamente
         const { data: rpcData, error: rpcError } = await supabase.rpc('update_appointment_status', {
           p_appointment_id: id,
           p_status: updates.status
         });
-        if (rpcError) throw rpcError;
-        await fetchAppointments();
-        return rpcData ? mapRowToAppointment(rpcData) : null;
-      } catch (error: any) {
-        // Si el RPC falla (por ejemplo, error de tipo enum o columnas), usar update directo como fallback
-        if (error?.code === '42804' || error?.code === '42703' || error?.message?.includes('appointment_status') || error?.message?.includes('does not exist')) {
-          // Solo actualizar el estado sin select, luego refrescar la lista
-          const { error: updateError } = await supabase
-            .from('appointments')
-            .update({ status: updates.status, updated_at: new Date().toISOString() })
-            .eq('id', id);
-          if (updateError) throw updateError;
-          // Refrescar la lista para obtener el estado actualizado
-          await fetchAppointments();
-          // El estado se actualiza en el estado local, retornar el appointment actualizado
-          const updatedAppointment = appointments.find(apt => apt.id === id);
-          if (updatedAppointment) {
-            // Actualizar el estado local antes de retornar
-            if (updates.status) {
+        
+        if (rpcError) {
+          // Si el RPC falla, intentar actualización directa como fallback
+          try {
+            const { error: updateError } = await supabase
+              .from('appointments')
+              .update({ status: updates.status, updated_at: new Date().toISOString() })
+              .eq('id', id);
+            
+            if (updateError) {
+              throw new Error(`Error al actualizar el estado: ${rpcError?.message || updateError?.message || 'Error desconocido'}`);
+            }
+            
+            // Refrescar la lista para obtener el estado actualizado
+            await fetchAppointments();
+            const updatedAppointment = appointments.find(apt => apt.id === id);
+            if (updatedAppointment) {
               setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: updates.status! } : apt));
               return { ...updatedAppointment, status: updates.status };
             }
-            return updatedAppointment;
+            return null;
+          } catch (fallbackError: any) {
+            throw new Error(`Error al actualizar el estado: ${rpcError?.message || fallbackError?.message || 'Error desconocido'}`);
           }
-          return null;
         }
-        throw error;
+        
+        // El RPC fue exitoso, refrescar la lista
+        await fetchAppointments();
+        return rpcData ? mapRowToAppointment(rpcData) : null;
+      } catch (error: any) {
+        console.error('Error updating appointment status:', error);
+        throw new Error(`Error al actualizar el estado: ${error?.message || 'Error desconocido'}`);
       }
     }
     
-    // Para otros updates, usar mapAppointmentToRow
-    const row = mapAppointmentToRow(updates);
-    // Filtrar campos undefined/null para evitar errores de actualización
-    const cleanRow = Object.fromEntries(
-      Object.entries(row).filter(([_, value]) => value !== undefined && value !== null)
-    );
+  // Para otros updates, usar mapAppointmentToRow
+  const row = mapAppointmentToRow(updates);
+  // Filtrar campos undefined/null para evitar errores de actualización
+  // También excluir service_id si no viene explícitamente en updates (para evitar errores de columna)
+  const cleanRow = Object.fromEntries(
+    Object.entries(row).filter(([key, value]) => {
+      // Si service_id está presente pero service no viene en updates, no incluirlo
+      if (key === 'service_id' && updates.service === undefined) {
+        return false;
+      }
+      return value !== undefined && value !== null;
+    })
+  );
     
     // Si no hay campos para actualizar, retornar el appointment actual
     if (Object.keys(cleanRow).length === 0) {
@@ -378,14 +428,102 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       return currentAppointment || null;
     }
     
+    // Construir SELECT dinámicamente basado en las columnas que realmente existen
+    // Si hay error de columna, intentar sin service_id primero
+    const selectColumns = 'id,org_id,salon_id,stylist_id,client_name,client_phone,client_email,starts_at,status,total_amount,notes,created_by,created_at,updated_at';
+    const selectWithService = 'id,org_id,salon_id,service_id,stylist_id,client_name,client_phone,client_email,starts_at,status,total_amount,notes,created_by,created_at,updated_at';
+    
+    // Intentar primero con service_id si está en cleanRow
+    const selectCols = cleanRow.service_id !== undefined ? selectWithService : selectColumns;
+    
     const { data, error } = await supabase
       .from('appointments')
       .update(cleanRow)
       .eq('id', id)
-      .select()
+      .select(selectCols)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error updating appointment:', error);
+      
+      // Manejar errores específicos
+      if (error.code === 'PGRST116') {
+        throw new Error('Turno no encontrado en la base de datos');
+      }
+      
+      // Si hay error de columna o schema cache, intentar con función RPC
+      if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column') || error.message?.includes('schema cache')) {
+        try {
+          // Construir starts_at si hay date y time
+          let startsAt = null;
+          if (updates.date && updates.time) {
+            const dateStr = updates.date;
+            const timeStr = updates.time;
+            startsAt = new Date(`${dateStr}T${timeStr}:00`).toISOString();
+          }
+          
+          // Usar función RPC como alternativa
+          // Solo incluir campos que realmente están en updates
+          const rpcParams: any = {
+            p_appointment_id: id,
+          };
+          if (updates.clientName !== undefined) rpcParams.p_client_name = updates.clientName || null;
+          if (updates.service !== undefined) rpcParams.p_service_id = updates.service || null;
+          if (updates.stylist !== undefined) rpcParams.p_stylist_id = updates.stylist || null;
+          if (updates.salonId !== undefined) rpcParams.p_salon_id = updates.salonId || null;
+          if (startsAt !== null) rpcParams.p_starts_at = startsAt;
+          if (updates.status !== undefined) rpcParams.p_status = updates.status || null;
+          if (updates.notes !== undefined) rpcParams.p_notes = updates.notes || null;
+          if ((updates as any).total_amount !== undefined) rpcParams.p_total_amount = (updates as any).total_amount || null;
+          if ((updates as any).client_phone !== undefined) rpcParams.p_client_phone = (updates as any).client_phone || null;
+          if ((updates as any).client_email !== undefined) rpcParams.p_client_email = (updates as any).client_email || null;
+          
+          const { data: rpcData, error: rpcError } = await supabase.rpc('update_appointment_rpc', rpcParams);
+          
+          if (rpcError) {
+            console.error('Error updating appointment via RPC:', rpcError);
+            throw new Error(`Error al actualizar el turno: ${rpcError.message || 'Error desconocido'}`);
+          }
+          
+          // El RPC retorna un jsonb, convertir a Appointment
+          await fetchAppointments();
+          return rpcData ? mapRowToAppointment(rpcData) : null;
+        } catch (rpcError: any) {
+          // Si el RPC también falla, intentar sin campos opcionales
+          const safeRow = { ...cleanRow };
+          // Excluir campos que pueden no existir o causar problemas
+          delete safeRow.service_id; // No incluir si no viene explícitamente
+          delete safeRow.payment_method;
+          delete safeRow.discount_amount;
+          delete safeRow.tax_amount;
+          delete safeRow.tip_amount;
+          delete safeRow.total_collected;
+          delete safeRow.direct_cost;
+          delete safeRow.booking_source;
+          delete safeRow.campaign_code;
+          
+          // Usar SELECT sin service_id si no está en safeRow
+          const retrySelectCols = safeRow.service_id !== undefined ? selectWithService : selectColumns;
+          
+          const { data: retryData, error: retryError } = await supabase
+            .from('appointments')
+            .update(safeRow)
+            .eq('id', id)
+            .select(retrySelectCols)
+            .single();
+          
+          if (retryError) {
+            throw new Error(`Error al actualizar el turno: ${retryError.message || 'Error desconocido'}`);
+          }
+          
+          await fetchAppointments();
+          return retryData ? mapRowToAppointment(retryData) : null;
+        }
+      }
+      
+      throw new Error(`Error al actualizar el turno: ${error.message || 'Error desconocido'}`);
+    }
+    
     await fetchAppointments();
     return data ? mapRowToAppointment(data) : null;
   };
@@ -395,12 +533,24 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       setAppointments(prev => prev.filter(apt => apt.id !== id));
       return;
     }
-    const { error } = await supabase
-      .from('appointments')
-      .delete()
-      .eq('id', id);
+    
+    // Usar función RPC para borrar desde la tabla real
+    const { error } = await supabase.rpc('delete_appointment', {
+      p_appointment_id: id
+    });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting appointment:', error);
+      // Si la función RPC falla, intentar borrar directamente desde la vista
+      // (la regla INSTEAD debería manejarlo)
+      const { error: deleteError } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', id);
+      
+      if (deleteError) throw deleteError;
+    }
+    
     await fetchAppointments();
   };
 
@@ -481,8 +631,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       org_id: currentOrgId, // Siempre debe tener org_id
       created_by: user.id, // Siempre debe tener created_by
       total_amount: totalAmount, // Incluir total_amount calculado
-      // Incluir payment_method si viene en appointmentData (por defecto 'cash')
-      payment_method: (appointmentData as any).paymentMethod || 'cash',
+      // payment_method se maneja condicionalmente en mapAppointmentToRow
+      // No forzar su inclusión si la columna no existe en la BD
     } as any;
 
     const { data, error } = await supabase
@@ -493,7 +643,36 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
 
     if (error) {
       console.error('Error creating appointment:', error);
-      throw new Error(error.message || 'Error al crear el turno');
+      
+      // Manejar errores específicos de forma más clara
+      if (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('schema cache')) {
+        // Error de columna faltante: intentar sin campos opcionales
+        const safeRow = { ...row };
+        delete safeRow.payment_method;
+        delete safeRow.discount_amount;
+        delete safeRow.tax_amount;
+        delete safeRow.tip_amount;
+        delete safeRow.total_collected;
+        delete safeRow.direct_cost;
+        delete safeRow.booking_source;
+        delete safeRow.campaign_code;
+        
+        const { data: retryData, error: retryError } = await supabase
+          .from('appointments')
+          .insert([safeRow])
+          .select()
+          .single();
+        
+        if (retryError) {
+          throw new Error(`Error al crear el turno: ${retryError.message || 'Error desconocido'}`);
+        }
+        
+        // Recargar inmediatamente para reflejar en calendario
+        await fetchAppointments();
+        return mapRowToAppointment(retryData);
+      }
+      
+      throw new Error(`Error al crear el turno: ${error.message || 'Error desconocido'}`);
     }
     
     // Recargar inmediatamente para reflejar en calendario

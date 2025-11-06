@@ -7,7 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { usePayments, type Payment } from '../hooks/usePayments';
 import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../lib/toast';
 
 interface PaymentFormModalProps {
   isOpen: boolean;
@@ -61,7 +61,7 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
 
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error('Monto inválido');
+      toastError('Monto inválido');
       return;
     }
 
@@ -84,15 +84,15 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
 
       if (payment) {
         await updatePayment(payment.id, paymentData);
-        toast.success('Pago actualizado exitosamente');
+        toastSuccess('Pago actualizado exitosamente');
       } else {
         await createPayment(paymentData);
-        toast.success('Pago creado exitosamente');
+        toastSuccess('Pago creado exitosamente');
       }
       onClose();
     } catch (error) {
       console.error('Error guardando pago:', error);
-      toast.error('Error al guardar el pago');
+      toastError('Error al guardar el pago');
     } finally {
       setLoading(false);
     }

@@ -77,15 +77,23 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetContent 
+          side="right" 
+          className="w-full sm:max-w-md"
+          role="dialog"
+          aria-labelledby="profile-title-mobile"
+          aria-describedby="profile-description-mobile"
+          aria-modal="true"
+          data-modal="profile"
+        >
           <SheetHeader>
-            <SheetTitle>Mi Perfil</SheetTitle>
-            <SheetDescription>
+            <SheetTitle id="profile-title-mobile">Mi Perfil</SheetTitle>
+            <SheetDescription id="profile-description-mobile">
               Tu información de cuenta y configuración
             </SheetDescription>
           </SheetHeader>
-          <div className="mt-6">
-            <Card>
+          <section className="mt-6" role="region" aria-label="Información del perfil">
+            <Card role="region" aria-label="Información personal">
               <CardHeader>
                 <CardTitle>Información Personal</CardTitle>
                 <CardDescription>
@@ -93,29 +101,33 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4">
+                <div className="grid gap-4" role="group" aria-label="Datos del perfil">
                   <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">Email</label>
-                    <p className="text-lg">{user?.email || 'No disponible'}</p>
+                    <label className="text-sm text-muted-foreground" htmlFor="profile-email-mobile">Email</label>
+                    <p id="profile-email-mobile" className="text-lg" aria-label={`Email: ${user?.email || 'No disponible'}`}>
+                      {user?.email || 'No disponible'}
+                    </p>
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">Rol</label>
-                    <p className="text-lg capitalize">
+                    <label className="text-sm text-muted-foreground" htmlFor="profile-role-mobile">Rol</label>
+                    <p id="profile-role-mobile" className="text-lg capitalize" aria-label={`Rol: ${currentRole || 'Sin rol'}`}>
                       <Badge variant="secondary">{currentRole || 'Sin rol'}</Badge>
                     </p>
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">Organización</label>
-                    <p className="text-lg">{currentOrgId || 'No seleccionada'}</p>
+                    <label className="text-sm text-muted-foreground" htmlFor="profile-org-mobile">Organización</label>
+                    <p id="profile-org-mobile" className="text-lg" aria-label={`Organización: ${currentOrgId || 'No seleccionada'}`}>
+                      {currentOrgId || 'No seleccionada'}
+                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <GoogleAccountSection />
-          </div>
+          </section>
         </SheetContent>
       </Sheet>
     );
@@ -123,15 +135,22 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent 
+        className="sm:max-w-[500px]"
+        role="dialog"
+        aria-labelledby="profile-title"
+        aria-describedby="profile-description"
+        aria-modal="true"
+        data-modal="profile"
+      >
         <DialogHeader>
-          <DialogTitle>Mi Perfil</DialogTitle>
-          <DialogDescription>
+          <DialogTitle id="profile-title">Mi Perfil</DialogTitle>
+          <DialogDescription id="profile-description">
             Tu información de cuenta y configuración
           </DialogDescription>
         </DialogHeader>
-        <div className="mt-4">
-          <Card>
+        <section className="mt-4" role="region" aria-label="Información del perfil">
+          <Card role="region" aria-label="Información personal">
             <CardHeader>
               <CardTitle>Información Personal</CardTitle>
               <CardDescription>
@@ -139,29 +158,33 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2" role="group" aria-label="Datos del perfil">
                 <div className="space-y-2">
-                  <label className="text-sm text-muted-foreground">Email</label>
-                  <p className="text-lg">{user?.email || 'No disponible'}</p>
+                  <label className="text-sm text-muted-foreground" htmlFor="profile-email">Email</label>
+                  <p id="profile-email" className="text-lg" aria-label={`Email: ${user?.email || 'No disponible'}`}>
+                    {user?.email || 'No disponible'}
+                  </p>
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm text-muted-foreground">Rol</label>
-                  <p className="text-lg capitalize">
+                  <label className="text-sm text-muted-foreground" htmlFor="profile-role">Rol</label>
+                  <p id="profile-role" className="text-lg capitalize" aria-label={`Rol: ${currentRole || 'Sin rol'}`}>
                     <Badge variant="secondary">{currentRole || 'Sin rol'}</Badge>
                   </p>
                 </div>
                 
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm text-muted-foreground">Organización</label>
-                  <p className="text-lg">{currentOrgId || 'No seleccionada'}</p>
+                  <label className="text-sm text-muted-foreground" htmlFor="profile-org">Organización</label>
+                  <p id="profile-org" className="text-lg" aria-label={`Organización: ${currentOrgId || 'No seleccionada'}`}>
+                    {currentOrgId || 'No seleccionada'}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <GoogleAccountSection />
-        </div>
+        </section>
       </DialogContent>
     </Dialog>
   );

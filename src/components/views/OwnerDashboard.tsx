@@ -28,7 +28,7 @@ import {
   IncomeExpenseChart, 
   CashFlowChart,
 } from '../features/finances/FinancesCharts';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../../lib/toast';
 import type { Appointment } from '../../types';
 
 interface OwnerDashboardProps {
@@ -250,10 +250,10 @@ export default function OwnerDashboard({
       };
       
       await exportToExcel(exportData, `finanzas_${salonName || 'todas'}_${new Date().toISOString().split('T')[0]}`);
-      toast.success('Datos exportados exitosamente');
+      toastSuccess('Datos exportados exitosamente');
     } catch (error) {
       console.error('Error al exportar:', error);
-      toast.error('Error al exportar los datos');
+      toastError('Error al exportar los datos');
     }
   };
 

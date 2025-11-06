@@ -88,14 +88,16 @@ export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps
   }, [appointments, selectedSalon]);
 
   const CommissionsCard = (
-    <div className="bg-card border border-border rounded-2xl p-3">
+    <div className="bg-card border border-border rounded-2xl p-3" role="region" aria-label="Comisiones del día de hoy">
       <div className="flex items-center gap-2">
-        <div className="h-9 w-9 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
+        <div className="h-9 w-9 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
           <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
         </div>
         <div className="min-w-0">
           <p className="text-muted-foreground truncate">Comisiones Hoy</p>
-          <p className="font-medium">${todayCommissions.toFixed(2)}</p>
+          <p className="font-medium" aria-label={`Comisiones del día: $${todayCommissions.toFixed(2)}`}>
+            ${todayCommissions.toFixed(2)}
+          </p>
         </div>
       </div>
     </div>

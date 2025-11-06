@@ -20,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
 import { GenericActionBar } from '../GenericActionBar';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../../lib/toast';
 import { supabase } from '../../lib/supabase';
 import { Trash2, Pencil, Save, X, Users, Mail, UserPlus, Search, Check, DollarSign, Phone, Building2, Settings, Edit3 } from 'lucide-react';
 
@@ -208,10 +208,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           await Promise.all(assignmentPromises);
         }
         
-        toast.success('Empleado actualizado correctamente');
+        toastSuccess('Empleado actualizado correctamente');
       } else {
         if (!currentOrgId) {
-          toast.error('No se puede crear empleado: organización no encontrada');
+          toastError('No se puede crear empleado: organización no encontrada');
           return;
         }
 
@@ -236,7 +236,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
               .single();
             
             if (!membership) {
-              toast.error('El usuario con ese email no tiene membresía en esta organización');
+              toastError('El usuario con ese email no tiene membresía en esta organización');
               return;
             }
           }
@@ -244,7 +244,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
         // Validar que el empleado tenga user_id (regla de oro)
         if (!userId) {
-          toast.error('No se puede crear empleado sin usuario. El empleado debe tener un usuario asociado (user_id obligatorio). Debe invitar al usuario primero.');
+          toastError('No se puede crear empleado sin usuario. El empleado debe tener un usuario asociado (user_id obligatorio). Debe invitar al usuario primero.');
           return;
         }
 
@@ -257,7 +257,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         });
         
         if (!validation.valid) {
-          toast.error(validation.message || 'Error de validación del empleado');
+          toastError(validation.message || 'Error de validación del empleado');
           return;
         }
 
@@ -287,7 +287,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           await Promise.all(assignmentPromises);
         }
         
-        toast.success('Empleado creado correctamente');
+        toastSuccess('Empleado creado correctamente');
       }
 
       setEmployeeDialogOpen(false);
@@ -298,7 +298,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       await loadMemberships(currentOrgId!);
     } catch (error) {
       console.error('Error saving employee:', error);
-      toast.error('Error al guardar el empleado');
+      toastError('Error al guardar el empleado');
     }
   };
 
@@ -308,12 +308,12 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
     try {
       await deleteEmployee(employeeId);
-      toast.success('Empleado eliminado correctamente');
+      toastSuccess('Empleado eliminado correctamente');
       setSelectedEmployee(null);
       await loadMemberships(currentOrgId!);
     } catch (error) {
       console.error('Error deleting employee:', error);
-      toast.error('Error al eliminar el empleado');
+      toastError('Error al eliminar el empleado');
     }
   };
 
@@ -331,7 +331,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   const handleAssociateUserId = async () => {
     if (!selectedEmployee?.user_id || !employeeFormData.email) {
-      toast.error('Email requerido para asociar usuario');
+      toastError('Email requerido para asociar usuario');
       return;
     }
 
@@ -344,7 +344,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         .limit(1);
       
       if (!profiles || profiles.length === 0) {
-        toast.error('No se encontró un usuario con ese email');
+        toastError('No se encontró un usuario con ese email');
         return;
       }
       
@@ -359,20 +359,20 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         .single();
       
       if (!membership) {
-        toast.error('El usuario no tiene membresía en esta organización');
+        toastError('El usuario no tiene membresía en esta organización');
         return;
       }
       
       // Asociar el user_id al empleado
       if (editingEmployee) {
         await updateEmployee(editingEmployee.id, { user_id: userId });
-        toast.success('Usuario asociado correctamente');
+        toastSuccess('Usuario asociado correctamente');
         setEmployeeDialogOpen(false);
         await loadMemberships(currentOrgId!);
       }
     } catch (error) {
       console.error('Error asociando usuario:', error);
-      toast.error('Error al asociar usuario');
+      toastError('Error al asociar usuario');
     }
   };
 
@@ -537,7 +537,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     } catch (error: any) {
       console.error('Error loading organization:', error);
       const errorMsg = error.message || 'Error al cargar la organización. Verifica tu conexión.';
-      toast.error(errorMsg);
+      toastError(errorMsg);
       setOrganization(null);
       loadedOrgIdRef.current = null;
     } finally {
@@ -600,7 +600,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   const updateOrganization = async () => {
     if (!organization || !canEdit || !orgName.trim()) {
-      toast.error('El nombre es requerido');
+      toastError('El nombre es requerido');
       return;
     }
 
@@ -618,10 +618,10 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
       setOrganization({ ...organization, name: orgName.trim(), tax_id: orgTaxId.trim() });
       setEditingOrg(false);
-      toast.success('Organización actualizada correctamente');
+      toastSuccess('Organización actualizada correctamente');
     } catch (error: any) {
       console.error('Error updating organization:', error);
-      toast.error(error.message || 'Error al actualizar la organización');
+      toastError(error.message || 'Error al actualizar la organización');
     }
   };
 
@@ -746,7 +746,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setSearchResults(filteredResults);
     } catch (error) {
       console.error('Error searching users:', error);
-      toast.error('Error al buscar usuarios. Intenta de nuevo.');
+      toastError('Error al buscar usuarios. Intenta de nuevo.');
       setSearchResults([]);
     } finally {
       setSearching(false);
@@ -760,7 +760,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setInviting(true);
 
       if (isDemo) {
-        toast.success('Miembro invitado (modo demo)');
+        toastSuccess('Miembro invitado (modo demo)');
         setInviteDialogOpen(false);
         setSelectedUser(null);
         setSearchQuery('');
@@ -782,14 +782,14 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         throw error;
       }
 
-      toast.success(`Invitación enviada a ${selectedUser.email}`);
+      toastSuccess(`Invitación enviada a ${selectedUser.email}`);
       setInviteDialogOpen(false);
       setSelectedUser(null);
       setSearchQuery('');
       setSearchResults([]);
     } catch (error: any) {
       console.error('Error inviting member:', error);
-      toast.error(error.message || 'Error al invitar al miembro');
+      toastError(error.message || 'Error al invitar al miembro');
     } finally {
       setInviting(false);
     }
@@ -797,7 +797,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   const removeMember = async () => {
     if (!memberToRemove || !canManageMembers || memberToRemove.role === 'owner') {
-      toast.error('No se puede eliminar el propietario de la organización');
+      toastError('No se puede eliminar el propietario de la organización');
       return;
     }
 
@@ -806,7 +806,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
       if (isDemo) {
         setMemberships(prev => prev.filter(m => m.user_id !== memberToRemove.user_id));
-        toast.success('Miembro eliminado (modo demo)');
+        toastSuccess('Miembro eliminado (modo demo)');
         setRemoveMemberDialogOpen(false);
         setMemberToRemove(null);
         return;
@@ -832,12 +832,12 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       }
 
       setMemberships(prev => prev.filter(m => m.user_id !== memberToRemove.user_id));
-      toast.success('Miembro eliminado de la organización');
+      toastSuccess('Miembro eliminado de la organización');
       setRemoveMemberDialogOpen(false);
       setMemberToRemove(null);
     } catch (error: any) {
       console.error('Error removing member:', error);
-      toast.error(error.message || 'Error al eliminar el miembro');
+      toastError(error.message || 'Error al eliminar el miembro');
     } finally {
       setRemoving(false);
     }
@@ -850,20 +850,20 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setLeaving(true);
 
       if (isDemo) {
-        toast.success('Has salido de la organización (modo demo)');
+        toastSuccess('Has salido de la organización (modo demo)');
         setLeaveOrgDialogOpen(false);
         return;
       }
 
       await leaveOrganization(currentOrgId);
-      toast.success('Has salido de la organización correctamente');
+      toastSuccess('Has salido de la organización correctamente');
       setLeaveOrgDialogOpen(false);
       
       // La función leaveOrganization ya maneja la redirección
       // Si no hay más organizaciones, el usuario será redirigido al login
     } catch (error: any) {
       console.error('Error leaving organization:', error);
-      toast.error(error.message || 'Error al salir de la organización');
+      toastError(error.message || 'Error al salir de la organización');
     } finally {
       setLeaving(false);
     }
@@ -876,7 +876,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       setDeleting(true);
 
       if (isDemo) {
-        toast.success('Organización eliminada (modo demo)');
+        toastSuccess('Organización eliminada (modo demo)');
         setOrganization(null);
         setDeleteDialogOpen(false);
         return;
@@ -889,13 +889,13 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
       if (error) throw error;
 
-      toast.success('Organización eliminada correctamente');
+      toastSuccess('Organización eliminada correctamente');
       setDeleteDialogOpen(false);
       setOrganization(null);
       loadedOrgIdRef.current = null;
     } catch (error: any) {
       console.error('Error deleting organization:', error);
-      toast.error(error.message || 'Error al eliminar la organización');
+      toastError(error.message || 'Error al eliminar la organización');
     } finally {
       setDeleting(false);
     }
@@ -954,13 +954,15 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       <Section 
         title="Organización"
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2" role="group" aria-label="Acciones de organización">
             {canDelete && (
               <Button
                 variant="destructive"
                 onClick={() => setDeleteDialogOpen(true)}
+                aria-label="Eliminar organización"
+                data-action="delete-organization"
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
                 Eliminar
               </Button>
             )}
@@ -968,20 +970,20 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         }
       >
         {/* Tabs */}
-        <Tabs defaultValue="info" className="space-y-4">
+        <Tabs defaultValue="info" className="space-y-4" role="tablist" aria-label="Secciones de organización">
           <TabsList>
-            <TabsTrigger value="info">Información</TabsTrigger>
-            <TabsTrigger value="members">
+            <TabsTrigger value="info" aria-label="Información de la organización">Información</TabsTrigger>
+            <TabsTrigger value="members" aria-label={`Miembros de la organización: ${memberships.length}`}>
               Miembros {loadingMembers ? '(...)' : `(${memberships.length})`}
             </TabsTrigger>
-            <TabsTrigger value="employees">
+            <TabsTrigger value="employees" aria-label={`Empleados de la organización: ${employees.length}`}>
               Empleados {loadingEmployees ? '(...)' : `(${employees.length})`}
             </TabsTrigger>
           </TabsList>
 
           {/* Tab: Información */}
-          <TabsContent value="info" className="space-y-4">
-            <Card className="rounded-2xl">
+          <TabsContent value="info" className="space-y-4" role="tabpanel" aria-label="Información de la organización">
+            <Card className="rounded-2xl" role="region" aria-label="Información de la organización">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -991,25 +993,42 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                     </CardDescription>
                   </div>
                   {canEdit && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" role="group" aria-label="Acciones de edición">
                       {editingOrg ? (
                         <>
-                          <Button variant="outline" size="sm" onClick={() => {
-                            setEditingOrg(false);
-                            setOrgName(organization.name);
-                            setOrgTaxId(organization.tax_id || '');
-                          }}>
-                            <X className="h-4 w-4 mr-2" />
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              setEditingOrg(false);
+                              setOrgName(organization.name);
+                              setOrgTaxId(organization.tax_id || '');
+                            }}
+                            aria-label="Cancelar edición"
+                            data-action="cancel-edit-org"
+                          >
+                            <X className="h-4 w-4 mr-2" aria-hidden="true" />
                             Cancelar
                           </Button>
-                          <Button size="sm" onClick={updateOrganization}>
-                            <Save className="h-4 w-4 mr-2" />
+                          <Button 
+                            size="sm" 
+                            onClick={updateOrganization}
+                            aria-label="Guardar cambios de organización"
+                            data-action="save-org"
+                          >
+                            <Save className="h-4 w-4 mr-2" aria-hidden="true" />
                             Guardar
                           </Button>
                         </>
                       ) : (
-                        <Button variant="outline" size="sm" onClick={() => setEditingOrg(true)}>
-                          <Pencil className="h-4 w-4 mr-2" />
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setEditingOrg(true)}
+                          aria-label="Editar información de organización"
+                          data-action="edit-org"
+                        >
+                          <Pencil className="h-4 w-4 mr-2" aria-hidden="true" />
                           Editar
                         </Button>
                       )}
@@ -1077,8 +1096,8 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           </TabsContent>
 
           {/* Tab: Miembros */}
-          <TabsContent value="members" className="space-y-4">
-            <Card className="rounded-2xl">
+          <TabsContent value="members" className="space-y-4" role="tabpanel" aria-label="Miembros de la organización">
+            <Card className="rounded-2xl" role="region" aria-label="Miembros de la organización">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -1090,8 +1109,11 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
                   {canManageMembers && (
                     <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button>
-                          <UserPlus className="h-4 w-4 mr-2" />
+                        <Button
+                          aria-label="Invitar nuevo miembro"
+                          data-action="invite-member"
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" aria-hidden="true" />
                           Invitar Miembro
                         </Button>
                       </DialogTrigger>

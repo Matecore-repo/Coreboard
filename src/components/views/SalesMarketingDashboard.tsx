@@ -5,7 +5,7 @@ import { Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useTurnos } from '../../hooks/useTurnos';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../../lib/toast';
 import type { Appointment } from '../../types';
 
 interface SalesMarketingDashboardProps {
@@ -90,10 +90,10 @@ export default function SalesMarketingDashboard({ selectedSalon, dateRange }: Sa
       };
       
       await exportToExcel(exportData, `ventas_marketing_${new Date().toISOString().split('T')[0]}`);
-      toast.success('Datos exportados exitosamente');
+      toastSuccess('Datos exportados exitosamente');
     } catch (error) {
       console.error('Error al exportar:', error);
-      toast.error('Error al exportar los datos');
+      toastError('Error al exportar los datos');
     }
   };
 

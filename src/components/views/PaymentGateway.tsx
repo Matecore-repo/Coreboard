@@ -3,7 +3,7 @@ import { useSalons } from '../../hooks/useSalons';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useServices } from '../../hooks/useServices';
 import { supabase } from '../../lib/supabase';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../../lib/toast';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -71,7 +71,7 @@ export function PaymentGateway({ orgId, paymentLinkToken }: PaymentGatewayProps)
     e.preventDefault();
     
     if (!selectedSalon || !selectedService || !selectedEmployee || !selectedDate || !selectedTime || !clientName) {
-      toast.error('Por favor completa todos los campos requeridos');
+      toastError('Por favor completa todos los campos requeridos');
       return;
     }
 
@@ -109,7 +109,7 @@ export function PaymentGateway({ orgId, paymentLinkToken }: PaymentGatewayProps)
 
       if (error) {
         console.error('Error creando turno:', error);
-        toast.error('Error al crear el turno. Por favor intenta nuevamente.');
+        toastError('Error al crear el turno. Por favor intenta nuevamente.');
         return;
       }
 
@@ -125,7 +125,7 @@ export function PaymentGateway({ orgId, paymentLinkToken }: PaymentGatewayProps)
           notes: 'Pago realizado desde pasarela pública',
         });
 
-      toast.success('¡Turno reservado exitosamente!');
+      toastSuccess('¡Turno reservado exitosamente!');
       
       // Limpiar formulario
       setSelectedSalon('');
@@ -139,7 +139,7 @@ export function PaymentGateway({ orgId, paymentLinkToken }: PaymentGatewayProps)
 
     } catch (error) {
       console.error('Error en el proceso de reserva:', error);
-      toast.error('Error al procesar la reserva');
+      toastError('Error al procesar la reserva');
     } finally {
       setIsSubmitting(false);
     }

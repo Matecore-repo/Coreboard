@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { toast } from 'sonner';
+import { toastSuccess, toastError, toastWarning } from '../../src/lib/toast';
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -29,30 +29,30 @@ export default function AuthCallback() {
         if (inviteToken) {
           try {
             await claimInvitation(inviteToken);
-            toast.success('¡Bienvenido! Tu invitación ha sido aceptada.');
+            toastSuccess('¡Bienvenido! Tu invitación ha sido aceptada.');
           } catch (error: any) {
             console.error('Error reclamando invitación:', error);
             // No bloquear el login si el claim falla
-            toast.warning('Te has registrado correctamente. Si tuviste problemas con tu invitación, contacta al administrador.');
+            toastWarning('Te has registrado correctamente. Si tuviste problemas con tu invitación, contacta al administrador.');
           }
         } else {
           // Verificar si se agregó una nueva identidad (linking de Google)
           const hasGoogleIdentity = session.user.identities?.some((id: any) => id.provider === 'google');
           if (hasGoogleIdentity && router.query.type === 'link') {
-            toast.success('¡Cuenta de Google vinculada correctamente!');
+            toastSuccess('¡Cuenta de Google vinculada correctamente!');
             router.push('/dashboard');
             return;
           }
           
           // Usuario nuevo sin invitación - redirigir para crear su organización
-          toast.success('¡Bienvenido! Puedes crear tu organización ahora.');
+          toastSuccess('¡Bienvenido! Puedes crear tu organización ahora.');
         }
 
         // Redirigir a home (el usuario podrá crear su organización si no tiene una)
         router.push('/');
       } else if (!loading && !session) {
         // Si no hay sesión después de cargar, podría ser error
-        toast.error('No se pudo autenticar. Intenta de nuevo.');
+        toastError('No se pudo autenticar. Intenta de nuevo.');
         router.push('/');
       }
     };

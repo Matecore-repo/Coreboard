@@ -28,44 +28,61 @@ export const AppointmentCard = memo(function AppointmentCard({ appointment, onCl
   };
 
   return (
-    <div 
+    <article 
       onClick={() => onClick?.(appointment)}
       className={`bg-card border rounded-2xl p-3 hover:shadow-md transition-all cursor-pointer ${
         isSelected ? "border-primary ring-2 ring-primary/20" : "border-border"
       }`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Turno de ${appointment.clientName} para ${appointment.service} el ${appointment.date} a las ${appointment.time}`}
+      aria-pressed={isSelected}
+      data-appointment-id={appointment.id}
+      data-appointment-status={appointment.status}
+      data-appointment-date={appointment.date}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.(appointment);
+        }
+      }}
     >
       <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-2" role="group" aria-label="Cliente y servicio">
+          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0" aria-hidden="true">
             <User className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="font-medium truncate">{appointment.clientName}</p>
-            <p className="text-muted-foreground truncate">{appointment.service}</p>
+            <p className="font-medium truncate" aria-label={`Cliente: ${appointment.clientName}`}>
+              {appointment.clientName}
+            </p>
+            <p className="text-muted-foreground truncate" aria-label={`Servicio: ${appointment.service}`}>
+              {appointment.service}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Scissors className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        <div className="flex items-center gap-2" aria-label={`Estilista: ${appointment.stylist}`}>
+          <Scissors className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
           <span className="text-muted-foreground truncate">{appointment.stylist}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        <div className="flex items-center gap-2" aria-label={`Fecha: ${appointment.date}`}>
+          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
           <span>{appointment.date}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        <div className="flex items-center gap-2" aria-label={`Hora: ${appointment.time}`}>
+          <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
           <span>{appointment.time}</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Badge className={statusColors[appointment.status]}>
+        <div className="flex items-center gap-3" aria-label={`Estado: ${appointment.status}`}>
+          <Badge className={statusColors[appointment.status]} aria-label={`Estado ${appointment.status}`}>
             {appointment.status}
           </Badge>
         </div>
       </div>
-    </div>
+    </article>
   );
 });

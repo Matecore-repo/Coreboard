@@ -1,5 +1,5 @@
 import { useState, memo, useCallback, useEffect } from "react";
-import { Edit2, Trash2, Eye, X, MoreVertical, Calendar as CalendarIcon } from "lucide-react";
+import { Edit2, Trash2, Eye, X, MoreVertical } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -9,9 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from "./ui/dropdown-menu";
 
 interface ActionButton {
@@ -39,7 +36,6 @@ interface GenericActionBarProps {
   onDelete?: () => void;
   customActions?: ActionButton[];
   detailFields?: DetailField[];
-  onReschedule?: (payload: { date?: string; time?: string; openPicker?: "date" | "time" }) => void;
 }
 
 export const GenericActionBar = memo(function GenericActionBar({
@@ -52,7 +48,6 @@ export const GenericActionBar = memo(function GenericActionBar({
   onDelete,
   customActions,
   detailFields,
-  onReschedule,
 }: GenericActionBarProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -91,6 +86,16 @@ export const GenericActionBar = memo(function GenericActionBar({
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-background/60 backdrop-blur-sm z-[45]"
             onClick={onClose}
+            role="button"
+            aria-label="Cerrar barra de acciones"
+            data-action="close-action-bar"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClose();
+              }
+            }}
           />
 
           {/* Action Bar - z-index menor que modales */}
@@ -100,21 +105,26 @@ export const GenericActionBar = memo(function GenericActionBar({
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[50] w-[90%] max-w-2xl"
+            role="dialog"
+            aria-labelledby="action-bar-title"
+            aria-describedby="action-bar-subtitle"
+            aria-modal="false"
+            data-action-bar="true"
           >
             <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
               {/* Compact Header */}
-              <div className="px-4 py-3 flex items-center justify-between bg-muted/30">
+              <div className="px-4 py-3 flex items-center justify-between bg-muted/30" role="region" aria-label="Encabezado de barra de acciones">
                 <div className="flex-1 min-w-0 mr-4">
                   <div className="flex items-center gap-2">
-                    <h3 className="truncate">{title}</h3>
+                    <h3 id="action-bar-title" className="truncate">{title}</h3>
                     {badge && (
-                      <Badge variant={badge.variant || "secondary"}>
+                      <Badge variant={badge.variant || "secondary"} aria-label={`Estado: ${badge.text}`}>
                         {badge.text}
                       </Badge>
                     )}
                   </div>
                   {subtitle && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    <p id="action-bar-subtitle" className="text-xs text-muted-foreground truncate mt-0.5">
                       {subtitle}
                     </p>
                   )}
@@ -131,21 +141,26 @@ export const GenericActionBar = memo(function GenericActionBar({
                           size="sm"
                           onClick={toggleDetails}
                           className="h-8 w-8 p-0"
+                          aria-label={showDetails ? "Ocultar detalles" : "Mostrar detalles"}
+                          aria-expanded={showDetails}
+                          data-action="toggle-details"
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       )}
                       
                       {/* Mobile: Botón principal "Modificar" si hay onEdit, o menú "Acciones" si hay múltiples acciones */}
-                      {onEdit && (!customActions || customActions.length === 0) && !onReschedule ? (
+                      {onEdit && (!customActions || customActions.length === 0) ? (
                         // Si solo hay onEdit, mostrar botón directo "Modificar"
                         <Button
                           variant="default"
                           size="sm"
                           onClick={onEdit}
                           className="h-8 px-3"
+                          aria-label="Modificar elemento"
+                          data-action="edit"
                         >
-                          <Edit2 className="h-4 w-4 mr-2" />
+                          <Edit2 className="h-4 w-4 mr-2" aria-hidden="true" />
                           Modificar
                         </Button>
                       ) : (
@@ -156,20 +171,23 @@ export const GenericActionBar = memo(function GenericActionBar({
                               variant="ghost"
                               size="sm"
                               className="h-8 w-20 px-2"
+                              aria-label="Abrir menú de acciones"
+                              aria-haspopup="true"
+                              data-action="open-actions-menu"
                             >
                               Acciones
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" side="top" className="w-48">
+                          <DropdownMenuContent align="end" side="top" className="w-48" role="menu" aria-label="Acciones disponibles">
                             {onEdit && (
-                              <DropdownMenuItem onClick={onEdit}>
-                                <Edit2 className="h-4 w-4 mr-2" />
+                              <DropdownMenuItem onClick={onEdit} role="menuitem" aria-label="Modificar elemento" data-action="edit">
+                                <Edit2 className="h-4 w-4 mr-2" aria-hidden="true" />
                                 Modificar
                               </DropdownMenuItem>
                             )}
                             {customActions?.map((action, index) => (
-                              <DropdownMenuItem key={index} onClick={action.onClick}>
-                                {action.icon && <span className="mr-2">{action.icon}</span>}
+                              <DropdownMenuItem key={index} onClick={action.onClick} role="menuitem" aria-label={action.label} data-action={action.label.toLowerCase().replace(/\s+/g, '-')}>
+                                {action.icon && <span className="mr-2" aria-hidden="true">{action.icon}</span>}
                                 {action.label}
                               </DropdownMenuItem>
                             ))}
@@ -178,8 +196,11 @@ export const GenericActionBar = memo(function GenericActionBar({
                               <DropdownMenuItem 
                                 onClick={onDelete}
                                 className="text-destructive focus:text-destructive"
+                                role="menuitem"
+                                aria-label="Eliminar elemento"
+                                data-action="delete"
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
+                                <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
                                 Eliminar
                               </DropdownMenuItem>
                             )}
@@ -192,22 +213,26 @@ export const GenericActionBar = memo(function GenericActionBar({
                         size="sm"
                         onClick={onClose}
                         className="h-8 w-8 p-0"
+                        aria-label="Cerrar barra de acciones"
+                        data-action="close-action-bar"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </>
                   ) : (
                     <>
                       {/* Desktop: Botón principal "Modificar" si hay onEdit, o menú "Acciones" si hay múltiples acciones */}
-                      {onEdit && (!customActions || customActions.length === 0) && !onReschedule ? (
+                      {onEdit && (!customActions || customActions.length === 0) ? (
                         // Si solo hay onEdit, mostrar botón directo "Modificar"
                         <Button
                           variant="default"
                           size="sm"
                           onClick={onEdit}
                           className="h-8 px-3"
+                          aria-label="Modificar elemento"
+                          data-action="edit"
                         >
-                          <Edit2 className="h-4 w-4 mr-2" />
+                          <Edit2 className="h-4 w-4 mr-2" aria-hidden="true" />
                           Modificar
                         </Button>
                       ) : (
@@ -218,57 +243,50 @@ export const GenericActionBar = memo(function GenericActionBar({
                               variant="ghost"
                               size="sm"
                               className="h-8 w-24 px-2"
+                              aria-label="Abrir menú de acciones"
+                              aria-haspopup="true"
+                              data-action="open-actions-menu"
+                              data-action-type="menu-trigger"
                             >
                               Acciones
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" side="top" className="w-56">
+                          <DropdownMenuContent align="end" side="top" className="w-56" role="menu" aria-label="Acciones disponibles" data-menu="action-bar-menu">
                             {onEdit && (
-                              <DropdownMenuItem onClick={onEdit}>
-                                <Edit2 className="h-4 w-4 mr-2" />
+                              <DropdownMenuItem onClick={onEdit} role="menuitem" aria-label="Modificar elemento" data-action="edit" data-action-type="edit">
+                                <Edit2 className="h-4 w-4 mr-2" aria-hidden="true" />
                                 Modificar
                               </DropdownMenuItem>
                             )}
 
-                            {customActions?.map((action, index) => (
-                              <DropdownMenuItem key={index} onClick={action.onClick}>
-                                {action.icon && <span className="mr-2">{action.icon}</span>}
-                                {action.label}
-                              </DropdownMenuItem>
-                            ))}
+                            {customActions?.map((action, index) => {
+                              const actionType = action.label.toLowerCase().replace(/\s+/g, '-');
+                              return (
+                                <DropdownMenuItem 
+                                  key={index} 
+                                  onClick={action.onClick} 
+                                  role="menuitem" 
+                                  aria-label={action.label} 
+                                  data-action={actionType}
+                                  data-action-type={actionType}
+                                  disabled={action.disabled}
+                                >
+                                  {action.icon && <span className="mr-2" aria-hidden="true">{action.icon}</span>}
+                                  {action.label}
+                                </DropdownMenuItem>
+                              );
+                            })}
 
-                            {/* Subgrupo Reprogramar (solo si hay onReschedule) */}
-                            {onReschedule && (
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger>
-                                  <CalendarIcon className="h-4 w-4 mr-2" />
-                                  Reprogramar
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent sideOffset={8} className="w-56">
-                                  <DropdownMenuItem onClick={() => { if (onReschedule) onReschedule({ date: new Date().toISOString().slice(0,10) }); }}>
-                                    Hoy
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => { if (onReschedule) { const d = new Date(); d.setDate(d.getDate()+1); onReschedule({ date: d.toISOString().slice(0,10) }); } }}>
-                                    Mañana
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => { if (onReschedule) onReschedule({ openPicker: 'date' }); }}>
-                                    Elegir fecha...
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => { if (onReschedule) onReschedule({ openPicker: 'time' }); }}>
-                                    Elegir hora...
-                                  </DropdownMenuItem>
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                            )}
-
-                            {(onEdit || customActions || onReschedule) && onDelete && <DropdownMenuSeparator />}
+                            {(onEdit || customActions) && onDelete && <DropdownMenuSeparator />}
                             {onDelete && (
                               <DropdownMenuItem 
                                 onClick={onDelete}
                                 className="text-destructive focus:text-destructive"
+                                role="menuitem"
+                                aria-label="Eliminar elemento"
+                                data-action="delete"
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
+                                <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
                                 Eliminar
                               </DropdownMenuItem>
                             )}
@@ -283,8 +301,11 @@ export const GenericActionBar = memo(function GenericActionBar({
                           size="sm"
                           onClick={toggleDetails}
                           className="h-8 w-8 p-0"
+                          aria-label={showDetails ? "Ocultar detalles" : "Mostrar detalles"}
+                          aria-expanded={showDetails}
+                          data-action="toggle-details"
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       )}
                       <Button
@@ -292,8 +313,10 @@ export const GenericActionBar = memo(function GenericActionBar({
                         size="sm"
                         onClick={onClose}
                         className="h-8 w-8 p-0"
+                        aria-label="Cerrar barra de acciones"
+                        data-action="close-action-bar"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </>
                   )}
@@ -309,15 +332,18 @@ export const GenericActionBar = memo(function GenericActionBar({
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                     className="border-t border-border overflow-hidden"
+                    role="region"
+                    aria-label="Detalles del elemento"
+                    aria-expanded={showDetails}
                   >
-                    <div className="px-4 py-3 space-y-2 bg-muted/10">
+                    <div className="px-4 py-3 space-y-2.5 bg-muted/10">
                       {detailFields.map((field, index) => (
-                        <div key={index} className="flex items-start gap-2">
-                          <span className="text-xs text-muted-foreground min-w-[100px]">
+                        <div key={index} className="flex items-start gap-3" role="group" aria-label={field.label}>
+                          <span className="text-sm font-medium text-muted-foreground min-w-[100px]">
                             {field.label}:
                           </span>
-                          <span className="text-xs flex-1">
-                            {field.value}
+                          <span className="text-sm text-foreground flex-1 font-medium">
+                            {field.value || 'N/A'}
                           </span>
                         </div>
                       ))}

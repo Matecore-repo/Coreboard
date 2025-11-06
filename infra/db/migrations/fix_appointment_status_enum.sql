@@ -1,4 +1,4 @@
--- Fix update_appointment_status function to return correct fields
+-- Fix update_appointment_status function to handle enum casting correctly
 CREATE OR REPLACE FUNCTION public.update_appointment_status(
   p_appointment_id uuid,
   p_status text
@@ -25,8 +25,7 @@ BEGIN
   END IF;
   
   -- Actualizar appointment SOLO si el usuario tiene membresía en la organización del turno
-  -- Si la tabla usa enum, hacer casting. Si usa text, usar directamente.
-  -- Intentar primero con casting al enum (si existe)
+  -- Intentar primero con casting al enum (si la tabla usa enum)
   BEGIN
     UPDATE app.appointments
     SET status = p_status::appointment_status,
@@ -39,7 +38,7 @@ BEGIN
       )
     RETURNING * INTO v_appointment;
   EXCEPTION WHEN OTHERS THEN
-    -- Si falla el casting, intentar sin casting (tabla usa text)
+    -- Si falla el casting (tabla usa text), intentar sin casting
     UPDATE app.appointments
     SET status = p_status,
         updated_at = now()
@@ -77,4 +76,3 @@ BEGIN
   );
 END;
 $$;
-

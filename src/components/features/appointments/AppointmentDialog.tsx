@@ -22,8 +22,9 @@ import { useSalonServices } from "../../../hooks/useSalonServices";
 import { useTurnos } from "../../../hooks/useTurnos";
 import { Appointment } from "./AppointmentCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
-import { toast } from "sonner";
+import { toastSuccess, toastError } from "../../../lib/toast";
 import { Loader2, Info } from "lucide-react";
+import type { Turno } from "../../../stores/turnosStore";
 
 interface Salon {
   id: string;
@@ -104,7 +105,7 @@ export function AppointmentDialog({
     return service.price_override ?? service.base_price ?? 0;
   }, [formData.service, salonServices]);
 
-  // Validación en tiempo real
+  // Validación en tiempo real mejorada
   const validateField = (field: string, value: any) => {
     const newErrors: Record<string, string> = { ...errors };
     
@@ -114,6 +115,8 @@ export function AppointmentDialog({
           newErrors.clientName = 'El nombre del cliente es requerido';
         } else if (value.trim().length < 2) {
           newErrors.clientName = 'El nombre debe tener al menos 2 caracteres';
+        } else if (value.trim().length > 100) {
+          newErrors.clientName = 'El nombre no puede exceder 100 caracteres';
         } else {
           delete newErrors.clientName;
         }
@@ -135,7 +138,25 @@ export function AppointmentDialog({
           if (selectedDate < today) {
             newErrors.date = 'No puedes seleccionar una fecha pasada';
           } else {
-            delete newErrors.date;
+            // Validar que no sea más de 1 año en el futuro
+            const maxDate = new Date();
+            maxDate.setFullYear(maxDate.getFullYear() + 1);
+            if (selectedDate > maxDate) {
+              newErrors.date = 'No puedes agendar más de 1 año en el futuro';
+            } else {
+              // Si hay hora seleccionada, validar que fecha+hora no sea en el pasado
+              if (formData.time) {
+                const appointmentDateTime = new Date(`${value}T${formData.time}`);
+                const now = new Date();
+                if (appointmentDateTime < now) {
+                  newErrors.date = 'La fecha y hora no pueden ser en el pasado';
+                } else {
+                  delete newErrors.date;
+                }
+              } else {
+                delete newErrors.date;
+              }
+            }
           }
         }
         break;
@@ -143,7 +164,24 @@ export function AppointmentDialog({
         if (!value) {
           newErrors.time = 'La hora es requerida';
         } else {
-          delete newErrors.time;
+          // Validar formato de hora
+          const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+          if (!timeRegex.test(value)) {
+            newErrors.time = 'Formato de hora inválido';
+          } else {
+            // Si hay fecha seleccionada, validar que fecha+hora no sea en el pasado
+            if (formData.date) {
+              const appointmentDateTime = new Date(`${formData.date}T${value}`);
+              const now = new Date();
+              if (appointmentDateTime < now) {
+                newErrors.time = 'La fecha y hora no pueden ser en el pasado';
+              } else {
+                delete newErrors.time;
+              }
+            } else {
+              delete newErrors.time;
+            }
+          }
         }
         break;
       case 'salonId':
@@ -234,7 +272,7 @@ export function AppointmentDialog({
     setTouched(newTouched);
 
     if (!isFormValid) {
-      toast.error('Por favor completa todos los campos requeridos correctamente');
+      toastError('Por favor completa todos los campos requeridos correctamente');
       return;
     }
     // Si no hay salonId seleccionado o es 'all', usar el primer salón disponible
@@ -244,59 +282,97 @@ export function AppointmentDialog({
         targetSalonId = salons[0].id;
         setFormData({ ...formData, salonId: targetSalonId });
       } else {
-        toast.error('No hay locales disponibles');
+        toastError('No hay locales disponibles');
         return;
       }
     }
     
     setIsSaving(true);
     try {
-      // Preparar datos del turno
-      const turnoData = {
-        clientName: formData.clientName,
-        service: formData.service || '',
-        date: formData.date,
-        time: formData.time,
-        status: formData.status || 'pending',
-        stylist: formData.stylist || undefined, // Opcional: usar undefined en lugar de string vacío
-        salonId: targetSalonId,
-        notes: (formData as any).notes || '',
-        paymentMethod: formData.paymentMethod || 'cash',
-        total_amount: selectedServicePrice || 0,
-        discountAmount: formData.discountAmount || 0,
-        taxAmount: formData.taxAmount || 0,
-        tipAmount: formData.tipAmount || 0,
-        totalCollected: formData.totalCollected || 0,
-        directCost: formData.directCost || 0,
-        bookingSource: formData.bookingSource || 'mostrador',
-        campaignCode: formData.campaignCode || '',
-      };
-      
-      // Validar antes de guardar
-      const validation = validateTurno(turnoData);
-      if (!validation.valid) {
-        toast.error(validation.message || 'Error de validación');
-        setIsSaving(false);
-        return;
-      }
-      
-      // Verificar conflictos (solo para nuevos turnos o cuando cambian fecha/hora/empleado)
-      if (!appointment || formData.date !== appointment.date || formData.time !== appointment.time || formData.stylist !== appointment.stylist) {
-        const conflictCheck = checkConflicts(turnoData, appointment?.id);
-        if (!conflictCheck.valid) {
-          toast.error(conflictCheck.message || 'Hay un conflicto de horarios');
+      if (appointment) {
+        // Edición: solo enviar campos que realmente cambiaron
+        const turnoData: Partial<Turno> = {};
+        
+        // Comparar campos básicos
+        if (formData.clientName !== appointment.clientName) {
+          turnoData.clientName = formData.clientName;
+        }
+        if (formData.service !== appointment.service) {
+          turnoData.service = formData.service || '';
+        }
+        if (formData.date !== appointment.date) {
+          turnoData.date = formData.date;
+        }
+        if (formData.time !== appointment.time) {
+          turnoData.time = formData.time;
+        }
+        if (formData.status !== appointment.status) {
+          turnoData.status = formData.status || 'pending';
+        }
+        // Solo incluir stylist si realmente cambió
+        const currentStylist = formData.stylist || undefined;
+        const existingStylist = appointment.stylist || undefined;
+        if (currentStylist !== existingStylist) {
+          turnoData.stylist = currentStylist === '' || currentStylist === null ? undefined : currentStylist;
+        }
+        if (targetSalonId !== appointment.salonId) {
+          turnoData.salonId = targetSalonId;
+        }
+        const currentNotes = (formData as any).notes || '';
+        const existingNotes = (appointment as any).notes || '';
+        if (currentNotes !== existingNotes) {
+          turnoData.notes = currentNotes;
+        }
+        
+        // Si hay cambios, actualizar
+        if (Object.keys(turnoData).length > 0) {
+          await updateTurno(appointment.id, turnoData);
+          toastSuccess('Turno actualizado correctamente');
+        } else {
+          // No hay cambios, solo cerrar
+          toastSuccess('No se realizaron cambios');
+        }
+      } else {
+        // Creación: enviar todos los campos requeridos
+        const turnoData = {
+          clientName: formData.clientName,
+          service: formData.service || '',
+          date: formData.date,
+          time: formData.time,
+          status: formData.status || 'pending',
+          stylist: formData.stylist || undefined,
+          salonId: targetSalonId,
+          notes: (formData as any).notes || '',
+          paymentMethod: formData.paymentMethod || 'cash',
+          total_amount: selectedServicePrice || 0,
+          discountAmount: formData.discountAmount || 0,
+          taxAmount: formData.taxAmount || 0,
+          tipAmount: formData.tipAmount || 0,
+          totalCollected: formData.totalCollected || 0,
+          directCost: formData.directCost || 0,
+          bookingSource: formData.bookingSource || 'mostrador',
+          campaignCode: formData.campaignCode || '',
+        };
+        
+        // Validar antes de guardar
+        const validation = validateTurno(turnoData);
+        if (!validation.valid) {
+          toastError(validation.message || 'Error de validación');
           setIsSaving(false);
           return;
         }
-      }
-      
-      // Guardar usando useTurnos
-      if (appointment) {
-        await updateTurno(appointment.id, turnoData as any);
-        toast.success('Turno actualizado correctamente');
-      } else {
+        
+        // Verificar conflictos para nuevos turnos (ya incluye duración real del servicio)
+        const conflictCheck = checkConflicts(turnoData);
+        if (!conflictCheck.valid) {
+          const conflictMessage = conflictCheck.message || 'Hay un conflicto de horarios';
+          toastError(conflictMessage);
+          setIsSaving(false);
+          return;
+        }
+        
         await createTurno(turnoData);
-        toast.success('Turno creado correctamente');
+        toastSuccess('Turno creado correctamente');
       }
       
       // Llamar callback original para compatibilidad
@@ -307,7 +383,7 @@ export function AppointmentDialog({
       setTouched({});
     } catch (error: any) {
       console.error('Error guardando turno:', error);
-      toast.error(error?.message || 'Error al guardar el turno');
+      toastError(error?.message || 'Error al guardar el turno');
     } finally {
       setIsSaving(false);
     }
@@ -315,19 +391,26 @@ export function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto"
+        role="dialog"
+        aria-labelledby="appointment-dialog-title"
+        aria-describedby="appointment-dialog-description"
+        aria-modal="true"
+        data-modal="appointment"
+      >
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle id="appointment-dialog-title">
             {appointment ? "Editar Turno" : "Nuevo Turno"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="appointment-dialog-description">
             {appointment 
               ? "Modifica los detalles del turno existente." 
               : "Completa el formulario para crear un nuevo turno."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <form className="grid gap-4 py-4" role="form" aria-label="Formulario de turno">
           <div className="grid gap-2">
             <Label htmlFor="salon_id">
               Local <span className="text-destructive">*</span>
@@ -339,20 +422,25 @@ export function AppointmentDialog({
               <SelectTrigger 
                 id="salon_id"
                 aria-invalid={touched.salonId && !!errors.salonId}
+                aria-label="Seleccionar local"
+                aria-required="true"
                 className={touched.salonId && errors.salonId ? "border-destructive" : ""}
+                data-field="salon-id"
               >
                 <SelectValue placeholder="Seleccionar local" />
               </SelectTrigger>
               <SelectContent>
                 {salons.map((salon) => (
-                  <SelectItem key={salon.id} value={salon.id}>
+                  <SelectItem key={salon.id} value={salon.id} aria-label={`Local: ${salon.name}`}>
                     {salon.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {touched.salonId && errors.salonId && (
-              <p className="text-sm text-destructive">{errors.salonId}</p>
+              <p className="text-sm text-destructive" role="alert" aria-live="polite">
+                {errors.salonId}
+              </p>
             )}
           </div>
 
@@ -367,10 +455,15 @@ export function AppointmentDialog({
               onBlur={() => handleFieldBlur('clientName')}
               placeholder="Juan Pérez"
               aria-invalid={touched.clientName && !!errors.clientName}
+              aria-label="Nombre del cliente"
+              aria-required="true"
               className={touched.clientName && errors.clientName ? "border-destructive" : ""}
+              data-field="client-name"
             />
             {touched.clientName && errors.clientName && (
-              <p className="text-sm text-destructive">{errors.clientName}</p>
+              <p className="text-sm text-destructive" role="alert" aria-live="polite">
+                {errors.clientName}
+              </p>
             )}
           </div>
 
@@ -385,7 +478,10 @@ export function AppointmentDialog({
               <SelectTrigger 
                 id="service"
                 aria-invalid={touched.service && !!errors.service}
+                aria-label="Seleccionar servicio"
+                aria-required="true"
                 className={touched.service && errors.service ? "border-destructive" : ""}
+                data-field="service"
               >
                 <SelectValue placeholder="Seleccionar servicio" />
               </SelectTrigger>
@@ -409,6 +505,13 @@ export function AppointmentDialog({
             {formData.service && selectedServicePrice !== null && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>Precio del servicio: <strong className="text-foreground">${selectedServicePrice.toLocaleString()}</strong></span>
+                {(() => {
+                  const selectedService = salonServices.find(s => s.service_id === formData.service);
+                  const duration = selectedService?.duration_override ?? selectedService?.duration_minutes;
+                  return duration ? (
+                    <span className="text-xs">• Duración: {duration} min</span>
+                  ) : null;
+                })()}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="h-4 w-4 cursor-help" />
@@ -469,7 +572,7 @@ export function AppointmentDialog({
                 setFormData((prev) => ({ ...prev, stylist: value === "none" ? "" : value }));
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger id="stylist" aria-label="Seleccionar estilista" data-field="stylist">
                 <SelectValue placeholder="Seleccionar estilista" />
               </SelectTrigger>
               <SelectContent>
@@ -481,6 +584,7 @@ export function AppointmentDialog({
                     <SelectItem
                       key={assignment.employee_id}
                       value={assignment.employee_id}
+                      aria-label={`Estilista: ${assignment.employees?.full_name || `Empleado ${assignment.employee_id.substring(0, 8)}`}`}
                     >
                       {assignment.employees?.full_name || `Empleado ${assignment.employee_id.substring(0, 8)}`}
                     </SelectItem>
@@ -498,7 +602,7 @@ export function AppointmentDialog({
                 setFormData((prev) => ({ ...prev, paymentMethod: value }));
               }}
             >
-              <SelectTrigger id="payment-method-main">
+              <SelectTrigger id="payment-method-main" aria-label="Método de Pago" data-field="payment-method">
                 <SelectValue placeholder="Seleccionar método de pago" />
               </SelectTrigger>
               <SelectContent>
@@ -520,7 +624,7 @@ export function AppointmentDialog({
                   setFormData((prev) => ({ ...prev, status: value }));
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="status" aria-label="Estado del turno" data-field="status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -534,14 +638,14 @@ export function AppointmentDialog({
           )}
 
           {appointment && formData.status === 'completed' && (
-            <Tabs defaultValue="basic" className="w-full">
-              <TabsList>
-                <TabsTrigger value="basic">Básico</TabsTrigger>
-                <TabsTrigger value="financial">Financiero</TabsTrigger>
+            <Tabs defaultValue="basic" className="w-full" role="tablist" aria-label="Secciones de información del turno">
+              <TabsList role="tablist" aria-label="Navegación de secciones">
+                <TabsTrigger value="basic" role="tab" aria-label="Información básica" aria-controls="basic-tabpanel">Básico</TabsTrigger>
+                <TabsTrigger value="financial" role="tab" aria-label="Información financiera" aria-controls="financial-tabpanel">Financiero</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="financial" className="space-y-4 mt-4">
-                <div className="grid gap-2">
+              <TabsContent value="financial" className="space-y-4 mt-4" role="tabpanel" id="financial-tabpanel" aria-label="Información financiera del turno" aria-labelledby="financial-tab">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="list-price">Precio de Lista</Label>
                   <Input
                     id="list-price"
@@ -552,10 +656,12 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, listPrice: parseFloat(e.target.value) || 0 }));
                     }}
                     placeholder="0.00"
+                    aria-label="Precio de lista"
+                    data-field="list-price"
                   />
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="discount-amount">Descuento</Label>
                   <Input
                     id="discount-amount"
@@ -566,10 +672,12 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, discountAmount: parseFloat(e.target.value) || 0 }));
                     }}
                     placeholder="0.00"
+                    aria-label="Descuento"
+                    data-field="discount-amount"
                   />
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="tax-amount">Impuestos (IVA)</Label>
                   <Input
                     id="tax-amount"
@@ -580,10 +688,12 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, taxAmount: parseFloat(e.target.value) || 0 }));
                     }}
                     placeholder="0.00"
+                    aria-label="Impuestos IVA"
+                    data-field="tax-amount"
                   />
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="tip-amount">Propina</Label>
                   <Input
                     id="tip-amount"
@@ -594,10 +704,12 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, tipAmount: parseFloat(e.target.value) || 0 }));
                     }}
                     placeholder="0.00"
+                    aria-label="Propina"
+                    data-field="tip-amount"
                   />
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="total-collected">Total Cobrado</Label>
                   <Input
                     id="total-collected"
@@ -608,18 +720,20 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, totalCollected: parseFloat(e.target.value) || 0 }));
                     }}
                     placeholder="0.00"
+                    aria-label="Total cobrado"
+                    data-field="total-collected"
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="payment-method">Método de Pago</Label>
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
+                  <Label htmlFor="payment-method-financial">Método de Pago</Label>
                   <Select
                     value={formData.paymentMethod || "cash"}
                     onValueChange={(value) => {
                       setFormData((prev) => ({ ...prev, paymentMethod: value }));
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="payment-method-financial" aria-label="Seleccionar método de pago" data-field="payment-method-financial">
                       <SelectValue placeholder="Seleccionar método de pago" />
                     </SelectTrigger>
                     <SelectContent>
@@ -632,7 +746,7 @@ export function AppointmentDialog({
                   </Select>
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="direct-cost">Costo Directo</Label>
                   <Input
                     id="direct-cost"
@@ -643,10 +757,12 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, directCost: parseFloat(e.target.value) || 0 }));
                     }}
                     placeholder="0.00"
+                    aria-label="Costo directo"
+                    data-field="direct-cost"
                   />
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="booking-source">Fuente de Reserva</Label>
                   <Select
                     value={formData.bookingSource || "mostrador"}
@@ -654,7 +770,7 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, bookingSource: value }));
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="booking-source" aria-label="Seleccionar fuente de reserva" data-field="booking-source">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -666,7 +782,7 @@ export function AppointmentDialog({
                   </Select>
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-2" role="group" aria-label="Campos financieros">
                   <Label htmlFor="campaign-code">Código de Campaña/Cupón</Label>
                   <Input
                     id="campaign-code"
@@ -675,14 +791,16 @@ export function AppointmentDialog({
                       setFormData((prev) => ({ ...prev, campaignCode: e.target.value }));
                     }}
                     placeholder="Código de promoción..."
+                    aria-label="Código de campaña o cupón"
+                    data-field="campaign-code"
                   />
                 </div>
               </TabsContent>
             </Tabs>
           )}
-        </div>
+        </form>
 
-        <DialogFooter>
+        <DialogFooter role="group" aria-label="Acciones del formulario de turno">
           <Button 
             variant="outline" 
             onClick={() => {
@@ -691,16 +809,20 @@ export function AppointmentDialog({
               setTouched({});
             }}
             disabled={isSaving}
+            aria-label="Cancelar creación/edición de turno"
+            data-action="cancel-appointment"
           >
             Cancelar
           </Button>
           <Button 
             onClick={handleSave}
             disabled={!isFormValid || isSaving}
+            aria-label={appointment ? "Guardar cambios del turno" : "Crear nuevo turno"}
+            data-action={appointment ? "update-appointment" : "create-appointment"}
           >
             {isSaving ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                 Guardando...
               </>
             ) : (

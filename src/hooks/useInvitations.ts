@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../lib/toast';
 
 export interface Invitation {
   id: string;
@@ -45,7 +45,7 @@ export function useInvitations(orgId: string | null) {
       setInvitations(data || []);
     } catch (error: any) {
       console.error('Error cargando invitaciones:', error);
-      toast.error('Error al cargar invitaciones');
+      toastError('Error al cargar invitaciones');
     } finally {
       setLoading(false);
     }
@@ -93,7 +93,7 @@ export function useInvitations(orgId: string | null) {
       return data?.token || token;
     } catch (error: any) {
       console.error('Error creando invitación:', error);
-      toast.error(error.message || 'Error al crear invitación');
+      toastError(error.message || 'Error al crear invitación');
       return null;
     } finally {
       setLoading(false);
@@ -117,10 +117,10 @@ export function useInvitations(orgId: string | null) {
       if (error) throw error;
 
       await loadInvitations();
-      toast.success('Invitación cancelada');
+      toastSuccess('Invitación cancelada');
     } catch (error: any) {
       console.error('Error cancelando invitación:', error);
-      toast.error('Error al cancelar invitación');
+      toastError('Error al cancelar invitación');
     } finally {
       setLoading(false);
     }

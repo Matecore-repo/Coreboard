@@ -13,7 +13,7 @@ import type { Service as OrgService } from "../../hooks/useServices";
 import { EmptyStateServices } from "../empty-states/EmptyStateServices";
 import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
-import { toast } from "sonner";
+import { toastSuccess, toastError, toastInfo } from "../../lib/toast";
 import { useSalonServices } from "../../hooks/useSalonServices";
 import { useServices } from "../../hooks/useServices";
 import { useAuth } from "../../contexts/AuthContext";
@@ -101,17 +101,17 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
 
   const handleCreateAndAssignService = useCallback(async (input: { key: string; name: string; base_price: number; duration_minutes: number; }) => {
     if (!selectedSalon) {
-      toast.error("Selecciona un local primero");
+      toastError("Selecciona un local primero");
       return;
     }
     if (!currentOrgId) {
-      toast.error("Organización no disponible");
+      toastError("Organización no disponible");
       return;
     }
 
     const trimmedName = input.name.trim();
     if (!trimmedName) {
-      toast.error("El servicio debe tener un nombre");
+      toastError("El servicio debe tener un nombre");
       return;
     }
 
@@ -130,18 +130,18 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
           active: true,
         });
         serviceRecord = created as OrgService;
-        toast.success(`Servicio "${trimmedName}" creado`);
+        toastSuccess(`Servicio "${trimmedName}" creado`);
       }
 
       if (salonServices.some((ss) => ss.service_id === serviceRecord.id)) {
-        toast.info(`"${trimmedName}" ya está asignado a este salón`);
+        toastInfo(`"${trimmedName}" ya está asignado a este salón`);
       } else {
         await assignService(serviceRecord.id);
-        toast.success(`"${trimmedName}" asignado a ${selectedSalon.name}`);
+        toastSuccess(`"${trimmedName}" asignado a ${selectedSalon.name}`);
       }
     } catch (error) {
       console.error("Error creando/asignando servicio", error);
-      toast.error("No se pudo crear/asignar el servicio");
+      toastError("No se pudo crear/asignar el servicio");
     } finally {
       setServiceActionId(null);
     }
@@ -153,15 +153,15 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     const duration = Number(customService.duration);
 
     if (!customService.name.trim()) {
-      toast.error("Ingresa un nombre para el servicio");
+      toastError("Ingresa un nombre para el servicio");
       return;
     }
     if (isNaN(price) || price <= 0) {
-      toast.error("Ingresa un precio válido");
+      toastError("Ingresa un precio válido");
       return;
     }
     if (isNaN(duration) || duration <= 0) {
-      toast.error("Ingresa una duración válida");
+      toastError("Ingresa una duración válida");
       return;
     }
 
@@ -215,7 +215,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("La imagen no debe superar los 5MB");
+      toastError("La imagen no debe superar los 5MB");
       return;
     }
     setImageFile(file);
@@ -236,7 +236,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
 
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.address.trim()) {
-      toast.error("Por favor completa los campos requeridos (Nombre y Dirección)");
+      toastError("Por favor completa los campos requeridos (Nombre y Dirección)");
       return;
     }
 
@@ -250,7 +250,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
 
       if (editingSalon) {
         await onEditSalon(editingSalon.id, dataToSave);
-        toast.success("Local actualizado correctamente");
+        toastSuccess("Local actualizado correctamente");
         
         // Gestionar asignaciones de empleados al editar
         if (editingSalon.id && selectedEmployeeIds.size >= 0) {
@@ -269,7 +269,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
               await assignEmployee(employeeId);
             } catch (error) {
               console.error(`Error asignando empleado ${employeeId}:`, error);
-              toast.error(`Error al asignar empleado`);
+              toastError(`Error al asignar empleado`);
             }
           }
 
@@ -279,14 +279,14 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
               await unassignEmployee(assignment.id);
             } catch (error) {
               console.error(`Error desasignando empleado ${assignment.employee_id}:`, error);
-              toast.error(`Error al desasignar empleado`);
+              toastError(`Error al desasignar empleado`);
             }
           }
         }
       } else {
         // Crear nuevo salón
         await onAddSalon(dataToSave);
-        toast.success("Local creado correctamente");
+        toastSuccess("Local creado correctamente");
         // Nota: Las asignaciones de empleados al crear un salón nuevo
         // se pueden hacer después editando el salón recién creado
       }
@@ -294,7 +294,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       setDialogOpen(false);
     } catch (error) {
       console.error('❌ Error en handleSave:', error);
-      toast.error(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
+      toastError(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
     }
   };
 
@@ -302,11 +302,11 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       if (confirm('¿Estás seguro de eliminar "' + salon.name + '"?')) {
       try {
         await onDeleteSalon(salon.id);
-        toast.success("Local eliminado");
+        toastSuccess("Local eliminado");
         setSelectedSalon(null);
       } catch (error) {
         console.error('❌ Error eliminando salón:', error);
-        toast.error(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
+        toastError(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
       }
     }
   };
@@ -351,16 +351,20 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         title="Gestión de Locales"
         description="Administra tus sucursales y personal"
         action={
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button 
+            onClick={() => handleOpenDialog()}
+            aria-label="Crear nuevo local"
+            data-action="new-salon"
+          >
+            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
             Nuevo local
           </Button>
         }
       >
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+      <section className="space-y-4" role="region" aria-label="Gestión de locales">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4" role="list" aria-label="Lista de locales">
         {salons.map((salon) => (
-          <div
+          <article
             key={salon.id}
             onClick={() => setSelectedSalon(selectedSalon?.id === salon.id ? null : salon)}
             className={`bg-card border border-border/60 dark:border-border/40 rounded-2xl overflow-hidden transition-all cursor-pointer ${
@@ -368,15 +372,29 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 ? "border-primary ring-2 ring-primary/20 shadow-lg"
                 : "hover:shadow-md hover:border-primary/50"
             }`}
+            role="listitem"
+            tabIndex={0}
+            aria-label={`Local: ${salon.name} en ${salon.address}`}
+            aria-pressed={selectedSalon?.id === salon.id}
+            data-salon-id={salon.id}
+            data-salon-name={salon.name}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setSelectedSalon(selectedSalon?.id === salon.id ? null : salon);
+              }
+            }}
           >
             <div className="h-32 overflow-hidden relative">
               <img src={salon.image} alt={salon.name} className="w-full h-full object-cover" />
             </div>
             <div className="p-4 space-y-3">
               <div className="space-y-1">
-                <h3 className="font-semibold">{salon.name}</h3>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <MapPin className="h-3 w-3" />
+                <h3 className="font-semibold" aria-label={`Nombre del local: ${salon.name}`}>
+                  {salon.name}
+                </h3>
+                <div className="flex items-center gap-2 text-muted-foreground" aria-label={`Dirección: ${salon.address}`}>
+                  <MapPin className="h-3 w-3" aria-hidden="true" />
                   <span className="text-xs">{salon.address}</span>
                 </div>
               </div>
@@ -391,9 +409,10 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 </div>
               </div>
             </div>
-          </div>
+          </article>
         ))}
       </div>
+      </section>
 
       {selectedSalon && (
         <div className="mt-6 space-y-4">
@@ -634,15 +653,15 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                                       const assignment = salonServices.find(ss => ss.service_id === service.id);
                                       if (assignment) {
                                         await unassignService(assignment.id);
-                                        toast.success(`Servicio "${service.name}" removido`);
+                                        toastSuccess(`Servicio "${service.name}" removido`);
                                       }
                                     } else {
                                       await assignService(service.id);
-                                      toast.success(`Servicio "${service.name}" asignado`);
+                                      toastSuccess(`Servicio "${service.name}" asignado`);
                                     }
                                   } catch (error) {
                                     console.error('Error managing service assignment:', error);
-                                    toast.error('Error al gestionar el servicio');
+                                    toastError('Error al gestionar el servicio');
                                   }
                                 }}
                               >
@@ -701,11 +720,11 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
 
                             if (Object.keys(updates).length > 0) {
                               await updateServiceAssignment(service.id, updates);
-                              toast.success('Servicio actualizado');
+                              toastSuccess('Servicio actualizado');
                             }
                           } catch (error) {
                             console.error('Error updating service:', error);
-                            toast.error('Error al actualizar el servicio');
+                            toastError('Error al actualizar el servicio');
                           }
                         }}
                       >
@@ -718,10 +737,10 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                           if (confirm(`¿Remover "${service.service_name}" de este salón?`)) {
                             try {
                               await unassignService(service.id);
-                              toast.success('Servicio removido del salón');
+                              toastSuccess('Servicio removido del salón');
                             } catch (error) {
                               console.error('Error removing service:', error);
-                              toast.error('Error al remover el servicio');
+                              toastError('Error al remover el servicio');
                             }
                           }
                         }}

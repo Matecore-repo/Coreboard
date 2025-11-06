@@ -11,7 +11,7 @@ import { FloatingQuickActions } from "./components/FloatingQuickActions";
 import { FilterBar } from "./components/FilterBar";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./components/ui/sheet";
 import { useIsMobile } from "./components/ui/use-mobile";
-import { toast } from "sonner";
+import { toastSuccess, toastError, toastWarning, toastInfo } from "./lib/toast";
 import { Toaster as Sonner } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
 import type { User } from "./contexts/AuthContext";
@@ -178,9 +178,10 @@ export default function App() {
     }
   }, [selectedSalon]);
 
-  // Pre-seleccionar primer salón disponible si no hay selección válida
+  // Pre-seleccionar primer salón disponible solo si no hay selección válida Y no es 'all'
   useEffect(() => {
-    if (effectiveSalons.length > 0 && (!selectedSalon || selectedSalon === 'all')) {
+    // Solo ejecutar si no hay selectedSalon (null o undefined), NO si es 'all'
+    if (effectiveSalons.length > 0 && (selectedSalon === null || selectedSalon === undefined)) {
       // Si el salón guardado no existe en la lista, usar el primero
       const savedSalon = typeof window !== 'undefined' 
         ? localStorage.getItem('selectedSalon') 
@@ -188,12 +189,19 @@ export default function App() {
       
       if (savedSalon && savedSalon !== 'all' && effectiveSalons.some(s => s.id === savedSalon)) {
         // El salón guardado existe, mantenerlo
+        setSelectedSalon(savedSalon);
         return;
       }
       
-      // Pre-seleccionar primer salón disponible
+      // Si savedSalon es 'all', respetarlo
+      if (savedSalon === 'all') {
+        setSelectedSalon('all');
+        return;
+      }
+      
+      // Pre-seleccionar primer salón disponible solo si no hay selección guardada
       const firstSalon = effectiveSalons[0];
-      if (firstSalon && selectedSalon !== firstSalon.id) {
+      if (firstSalon && (!selectedSalon || selectedSalon !== firstSalon.id)) {
         setSelectedSalon(firstSalon.id);
       }
     }
@@ -248,9 +256,9 @@ export default function App() {
         const pendingCount = todayTurnos.filter(t => t.status === 'pending' || t.status === 'confirmed').length;
         
         // Mostrar toast completo
-        toast.success(
+        toastSuccess(
           `Bienvenido ${userName}, son las ${hours}:${minutes}, hoy te esperan ${pendingCount} turno${pendingCount !== 1 ? 's' : ''}`,
-          { duration: 4000 }
+          4000
         );
       };
       
@@ -398,13 +406,13 @@ export default function App() {
         localStorage.setItem('selectedSalon', salonId);
       } catch {}
     }
-    toast.success(`${salonName} seleccionado`);
+    toastSuccess(`${salonName} seleccionado`);
   }, []);
 
   const handleLogout = async () => {
     // Mostrar toast de despedida antes de cerrar sesión
     const userName = user?.email?.split('@')[0] || 'Usuario';
-    toast.info(`¡Hasta pronto ${userName}!`);
+    toastError(`¡Hasta pronto ${userName}!`);
     
     // Esperar un momento antes de cerrar sesión
     setTimeout(async () => {
@@ -425,7 +433,7 @@ export default function App() {
     try {
       // Validar campos requeridos
       if (!appointmentData.clientName || !appointmentData.date || !appointmentData.time) {
-        toast.error('Por favor completa todos los campos requeridos');
+        toastError('Por favor completa todos los campos requeridos');
         return;
       }
 
@@ -440,7 +448,7 @@ export default function App() {
       }
       
       if (!salonToUse) {
-        toast.error('Debes seleccionar una peluquería');
+        toastError('Debes seleccionar una peluquería');
         return;
       }
 
@@ -450,7 +458,7 @@ export default function App() {
             prev.map((apt) => (apt.id === editingAppointment.id ? { ...apt, ...appointmentData } : apt))
           );
           setEditingAppointment(null);
-          toast.success("Turno actualizado correctamente");
+          toastSuccess("Turno actualizado correctamente");
         } else {
           const newAppointment: Appointment = {
             id: Date.now().toString(),
@@ -463,7 +471,7 @@ export default function App() {
             salonId: salonToUse,
           };
           setAppointments((prev) => [newAppointment, ...prev]);
-          toast.success("Turno creado correctamente");
+          toastSuccess("Turno creado correctamente");
         }
         return;
       }
@@ -476,17 +484,17 @@ export default function App() {
           salonId: salonToUse,
         } as any);
         setEditingAppointment(null);
-        toast.success("Turno actualizado correctamente");
+        toastSuccess("Turno actualizado correctamente");
       } else {
         await createTurno({
           ...appointmentData,
           salonId: salonToUse,
         } as any);
-        toast.success("Turno creado correctamente");
+        toastSuccess("Turno creado correctamente");
       }
     } catch (e: any) {
       console.error('Error al guardar turno:', e);
-      toast.error(e?.message || 'No se pudo guardar el turno');
+      toastError(e?.message || 'No se pudo guardar el turno');
     }
   }, [isDemo, editingAppointment, selectedSalon, createTurno, updateTurno]);
 
@@ -508,18 +516,22 @@ export default function App() {
         return updated;
       });
       try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'cancelled' as any); } catch {}
-      toast.success("Turno cancelado");
+      toastSuccess("Turno cancelado");
     } else {
       try {
+        // Usar updateTurno que ya incluye todas las validaciones
         const updated = await updateTurno(id, { status: 'cancelled' as const } as any);
         if (updated) {
           setSelectedAppointment(updated as any);
           turnosStore.updateStatus(id, 'cancelled');
+          toastSuccess("Turno cancelado correctamente");
+        } else {
+          toastError('No se pudo cancelar el turno');
         }
-        toast.success("Turno cancelado");
-      } catch (e) {
+      } catch (e: any) {
         console.error('Error cancelling appointment:', e);
-        toast.error('No se pudo cancelar el turno');
+        const errorMessage = e?.message || 'No se pudo cancelar el turno';
+        toastError(errorMessage);
       }
     }
   }, [isDemo, updateTurno, selectedAppointment]);
@@ -537,42 +549,52 @@ export default function App() {
         return updated;
       });
       try { (await import('./stores/appointments')).appointmentsStore.updateStatus(id, 'completed' as any); } catch {}
-    toast.success("Turno completado");
+      toastSuccess("Turno completado");
     } else {
       try {
+        // Usar updateTurno que ya incluye todas las validaciones
         const updated = await updateTurno(id, { status: 'completed' as const } as any);
         if (updated) {
           setSelectedAppointment(updated as any);
           turnosStore.updateStatus(id, 'completed');
           // Disparar evento para refrescar comisiones
           window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: id } }));
+          toastSuccess("Turno completado correctamente");
+        } else {
+          toastError("No se pudo completar el turno");
         }
-        toast.success("Turno completado");
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error completing appointment:', error);
-        toast.error("Error al completar el turno");
+        const errorMessage = error?.message || "Error al completar el turno";
+        toastError(errorMessage);
       }
     }
   }, [isDemo, updateTurno, selectedAppointment]);
 
   const handleDeleteAppointment = useCallback(async () => {
     if (!selectedAppointment) {
-      toast.error("No hay turno seleccionado para eliminar");
+      toastError("No hay turno seleccionado para eliminar");
       return;
     }
     
+    // Confirmar antes de eliminar
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar el turno de ${selectedAppointment.clientName}?`);
+    if (!confirmed) return;
+    
     if (isDemo) {
       setAppointments((prev) => prev.filter(apt => apt.id !== selectedAppointment.id));
-      toast.success("Turno eliminado correctamente");
+      toastSuccess("Turno eliminado correctamente");
       setSelectedAppointment(null);
     } else {
       try {
+        // Usar deleteTurno que ya incluye todas las validaciones
         await deleteTurno(selectedAppointment.id);
-        toast.success("Turno eliminado correctamente");
+        toastSuccess("Turno eliminado correctamente");
         setSelectedAppointment(null);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error deleting appointment:', error);
-        toast.error("Error al eliminar el turno");
+        const errorMessage = error?.message || "Error al eliminar el turno";
+        toastError(errorMessage);
       }
     }
   }, [selectedAppointment, isDemo, deleteTurno]);
@@ -601,7 +623,7 @@ export default function App() {
       } as Appointment));
     }
     if (salonAppointments.length === 0) {
-      toast.error("No hay turnos para actualizar");
+      toastError("No hay turnos para actualizar");
       return;
     }
     const lastAppointment = salonAppointments[0];
@@ -664,7 +686,7 @@ export default function App() {
   const handleAddSalon = useCallback(async (salonData: Omit<Salon, 'id'>) => {
     if (isDemo) {
       if (salons.length >= 1) {
-        toast.error('En modo demo solo se permite 1 peluquería');
+        toastError('En modo demo solo se permite 1 peluquería');
         return;
       }
       const newSalon: Salon = {
@@ -914,7 +936,7 @@ export default function App() {
                 />
               </div>
               <div className="mt-4">
-                {!selectedSalon ? (
+                {selectedSalon === null ? (
                   <div className="text-center py-16 px-4">
                     <div className="text-muted-foreground mb-2">
                       Por favor selecciona una peluquería para ver los turnos
@@ -1134,7 +1156,7 @@ export default function App() {
         <DemoDataBubble
           onSeed={() => {
             if (salons.length !== 1) {
-              toast.error('Crea un único local para cargar datos demo');
+              toastError('Crea un único local para cargar datos demo');
               return;
             }
             const targetSalonId = salons[0].id;
@@ -1142,7 +1164,7 @@ export default function App() {
             if (typeof window !== 'undefined' && (window as any).__loadOrganizationDemoData) {
               (window as any).__loadOrganizationDemoData();
             }
-            toast.success('Datos de ejemplo cargados en tu local demo');
+            toastSuccess('Datos de ejemplo cargados en tu local demo');
           }}
         />
       )}
@@ -1182,67 +1204,47 @@ export default function App() {
           }
         }}
         onDelete={handleDeleteAppointment}
-        onReschedule={({ date, time, openPicker }) => {
-          if (!selectedAppointment) return;
-          if (openPicker) {
-            setEditingAppointment({ ...selectedAppointment, date: date || selectedAppointment.date, time: time || selectedAppointment.time });
-            setDialogOpen(true);
-            return;
-          }
-          if (isDemo) {
-            setAppointments(prev => {
-              const updated = prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, date: date || apt.date, time: time || apt.time } : apt);
-              const updatedAppointment = updated.find(apt => apt.id === selectedAppointment.id);
-              if (updatedAppointment) {
-                setSelectedAppointment(updatedAppointment);
-              }
-              return updated;
-            });
-            toast.success('Turno reprogramado');
-          } else {
-            (async () => { 
-              try { 
-                const updated = await updateTurno(selectedAppointment.id, { date, time } as any);
-                if (updated) {
-                  setSelectedAppointment(updated as any);
-                }
-                toast.success('Turno reprogramado'); 
-              } catch (e) {
-                console.error('Error rescheduling appointment:', e);
-                toast.error('No se pudo reprogramar'); 
-              } 
-            })();
-          }
-        }}
         onRestore={(id: string) => {
           if (isDemo) {
             setAppointments(prev => {
-              const updated = prev.map(apt => apt.id === id ? { ...apt, status: 'confirmed' as const } : apt);
+              const updated = prev.map(apt => apt.id === id ? { ...apt, status: 'pending' as const } : apt);
               const updatedAppointment = updated.find(apt => apt.id === id);
               if (updatedAppointment && selectedAppointment?.id === id) {
                 setSelectedAppointment(updatedAppointment);
               }
               return updated;
             });
-            toast.success('Turno restaurado');
+            toastSuccess('Turno restaurado a pendiente');
           } else {
             (async () => { 
               try { 
-                const updated = await updateTurno(id, { status: 'confirmed' as const } as any);
+                // Restaurar a estado pendiente (más común que confirmado)
+                const updated = await updateTurno(id, { status: 'pending' as const } as any);
                 if (updated) {
                   setSelectedAppointment(updated as any);
-                  turnosStore.updateStatus(id, 'confirmed');
+                  turnosStore.updateStatus(id, 'pending');
+                  toastSuccess('Turno restaurado a pendiente'); 
+                } else {
+                  toastError('No se pudo restaurar el turno');
                 }
-                toast.success('Turno restaurado'); 
-              } catch (e) {
+              } catch (e: any) {
                 console.error('Error restoring appointment:', e);
-                toast.error('No se pudo restaurar'); 
+                const errorMessage = e?.message || 'No se pudo restaurar el turno';
+                toastError(errorMessage); 
               } 
             })();
           }
         }}
         onSetStatus={(status) => {
           if (!selectedAppointment) return;
+          const statusLabels = {
+            pending: 'Pendiente',
+            confirmed: 'Confirmado',
+            completed: 'Completado',
+            cancelled: 'Cancelado',
+          };
+          const statusLabel = statusLabels[status] || status;
+          
           if (isDemo) {
             setAppointments(prev => {
               const updated = prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, status } : apt);
@@ -1253,20 +1255,28 @@ export default function App() {
               return updated;
             });
             (async () => { try { (await import('./stores/appointments')).appointmentsStore.updateStatus(selectedAppointment.id, status as any); } catch {} })();
-            toast.success('Estado actualizado');
+            toastSuccess(`Estado actualizado a ${statusLabel}`);
           } else {
             (async () => { 
               try { 
+                // Usar updateTurno que ya incluye todas las validaciones
                 const updated = await updateTurno(selectedAppointment.id, { status } as any);
                 if (updated) {
                   setSelectedAppointment(updated as any);
                   turnosStore.updateStatus(selectedAppointment.id, status as any);
+                  // Disparar evento si se completó
+                  if (status === 'completed') {
+                    window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: selectedAppointment.id } }));
+                  }
                   try { (await import('./stores/appointments')).appointmentsStore.updateStatus(selectedAppointment.id, status as any); } catch {}
+                  toastSuccess(`Estado actualizado a ${statusLabel}`); 
+                } else {
+                  toastError('No se pudo actualizar el estado');
                 }
-                toast.success('Estado actualizado'); 
-              } catch (e) {
+              } catch (e: any) {
                 console.error('Error updating status:', e);
-                toast.error('No se pudo actualizar'); 
+                const errorMessage = e?.message || 'No se pudo actualizar el estado';
+                toastError(errorMessage); 
               } 
             })();
           }

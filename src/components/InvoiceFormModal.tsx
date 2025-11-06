@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useInvoices } from '../hooks/useInvoices';
 import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'sonner';
+import { toastSuccess, toastError } from '../lib/toast';
 import type { Invoice } from '../types';
 
 interface InvoiceFormModalProps {
@@ -64,15 +64,15 @@ export function InvoiceFormModal({ isOpen, onClose, invoice }: InvoiceFormModalP
 
   const handleSubmit = async () => {
     if (!number.trim()) {
-      toast.error('Número de factura requerido');
+      toastError('Número de factura requerido');
       return;
     }
     if (!netAmount || parseFloat(netAmount) < 0) {
-      toast.error('Monto neto inválido');
+      toastError('Monto neto inválido');
       return;
     }
     if (!taxAmount || parseFloat(taxAmount) < 0) {
-      toast.error('Monto de impuesto inválido');
+      toastError('Monto de impuesto inválido');
       return;
     }
 
@@ -93,15 +93,15 @@ export function InvoiceFormModal({ isOpen, onClose, invoice }: InvoiceFormModalP
 
       if (invoice) {
         await updateInvoice(invoice.id, invoiceData);
-        toast.success('Factura actualizada exitosamente');
+        toastSuccess('Factura actualizada exitosamente');
       } else {
         await createInvoice(invoiceData);
-        toast.success('Factura creada exitosamente');
+        toastSuccess('Factura creada exitosamente');
       }
       onClose();
     } catch (error) {
       console.error('Error guardando factura:', error);
-      toast.error('Error al guardar la factura');
+      toastError('Error al guardar la factura');
     } finally {
       setLoading(false);
     }

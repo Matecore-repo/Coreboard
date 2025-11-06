@@ -2,7 +2,7 @@
 import { Lock, Mail } from "lucide-react";
 import { Button } from "../ui/button";
 import LoginCTA from "../LoginCTA";
-import { toast } from "sonner";
+import { toastSuccess, toastError } from "../../lib/toast";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import NextImage from "next/image";
@@ -49,7 +49,7 @@ function LoginView() {
 
     if (mode === "login") {
       if (!email || !password) {
-        toast.error("Ingresa email y contraseña");
+        toastError("Ingresa email y contraseña");
         return;
       }
       try {
@@ -59,49 +59,49 @@ function LoginView() {
         setIsLoggingIn(false);
       } catch (error: any) {
         setIsLoggingIn(false);
-        toast.error(error.message || "Error al iniciar sesión");
+        toastError(error.message || "Error al iniciar sesión");
       }
       return;
     }
 
     if (mode === "register") {
       if (!email || !password || !confirmPassword) {
-        toast.error("Completa todos los campos");
+        toastError("Completa todos los campos");
         return;
       }
       if (password !== confirmPassword) {
-        toast.error("Las contraseñas no coinciden");
+        toastError("Las contraseñas no coinciden");
         return;
       }
       if (password.length < 6) {
-        toast.error("La contraseña debe tener al menos 6 caracteres");
+        toastError("La contraseña debe tener al menos 6 caracteres");
         return;
       }
       try {
         setIsLoggingIn(true);
         await signUp(email, password);
-        toast.success("¡Cuenta creada! Revisa tu email para verificar tu cuenta.");
+        toastSuccess("¡Cuenta creada! Revisa tu email para verificar tu cuenta.");
         setMode("login");
         setPassword("");
         setConfirmPassword("");
         setIsLoggingIn(false);
       } catch (error: any) {
         setIsLoggingIn(false);
-        toast.error(error.message || "Error al registrarse");
+        toastError(error.message || "Error al registrarse");
       }
       return;
     }
 
     if (!email) {
-      toast.error("Ingresa tu email");
+      toastError("Ingresa tu email");
       return;
     }
     try {
       await resetPassword(email);
-      toast.success("Te enviamos un email para recuperar tu contraseña");
+      toastSuccess("Te enviamos un email para recuperar tu contraseña");
       setMode("login");
     } catch (error: any) {
-      toast.error(error.message || "Error enviando recuperación");
+      toastError(error.message || "Error enviando recuperación");
     }
   };
 
@@ -112,7 +112,7 @@ function LoginView() {
       // No redirigir aquí porque signInAsDemo en AuthContext ya lo hace
       setIsLoggingIn(false);
     } else {
-      toast.error("Demo no disponible en este entorno");
+      toastError("Demo no disponible en este entorno");
     }
   };
 
@@ -123,7 +123,7 @@ function LoginView() {
       // No redirigir aquí porque el OAuth redirige automáticamente a Google y luego al callback
     } catch (error: any) {
       setIsLoggingIn(false);
-      toast.error(error.message || "Error al iniciar sesión con Google");
+      toastError(error.message || "Error al iniciar sesión con Google");
     }
   };
 

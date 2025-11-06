@@ -1,6 +1,10 @@
-import { CheckCircle, XCircle, RefreshCw, Book, Clock } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, Book } from "lucide-react";
 import { Appointment } from "./AppointmentCard";
 import { GenericActionBar } from "../../GenericActionBar";
+import { useEmployees } from "../../../hooks/useEmployees";
+import { useSalonServices } from "../../../hooks/useSalonServices";
+import { useAuth } from "../../../contexts/AuthContext";
+import { useMemo } from "react";
 
 interface AppointmentActionBarProps {
   appointment: Appointment | null;
@@ -9,7 +13,6 @@ interface AppointmentActionBarProps {
   onComplete: () => void;
   onCancel: () => void;
   onDelete: () => void;
-  onReschedule?: (payload: { date?: string; time?: string; openPicker?: "date" | "time" }) => void;
   onRestore?: (id: string) => void;
   onSetStatus?: (status: Appointment['status']) => void;
 }
@@ -21,10 +24,31 @@ export function AppointmentActionBar({
   onComplete, 
   onCancel,
   onDelete,
-  onReschedule,
   onRestore,
   onSetStatus,
 }: AppointmentActionBarProps) {
+  const { currentOrgId } = useAuth() as any;
+  const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: !!currentOrgId });
+  const { services: salonServices } = useSalonServices(appointment?.salonId, { enabled: !!appointment?.salonId });
+
+  // Mapear el ID del estilista al nombre legible
+  const stylistName = useMemo(() => {
+    if (!appointment?.stylist || appointment.stylist === '') {
+      return 'Sin asignar';
+    }
+    const employee = employees.find(e => e.id === appointment.stylist);
+    return employee?.full_name || appointment.stylist;
+  }, [appointment?.stylist, employees]);
+
+  // Mapear el ID del servicio al nombre legible
+  const serviceName = useMemo(() => {
+    if (!appointment?.service || appointment.service === '') {
+      return 'Sin servicio';
+    }
+    const service = salonServices.find(s => s.service_id === appointment.service);
+    return service?.service_name || appointment.service;
+  }, [appointment?.service, salonServices]);
+
   if (!appointment) return null;
 
   const statusLabels = {
@@ -91,9 +115,8 @@ export function AppointmentActionBar({
     disabled: false,
   });
 
-  // Añadir acciones de estado explícitas
+  // Añadir acción de estado Confirmado
   const confirmedDisabled = appointment.status === 'confirmed';
-  const pendingDisabled = appointment.status === 'pending';
 
   fullCustomActions.push({
     label: 'Confirmado',
@@ -101,14 +124,6 @@ export function AppointmentActionBar({
     variant: 'ghost' as const,
     icon: <Book className="h-3.5 w-3.5" />,
     disabled: confirmedDisabled,
-  });
-
-  fullCustomActions.push({
-    label: 'Pendiente',
-    onClick: () => { if (onSetStatus) onSetStatus('pending'); },
-    variant: 'ghost' as const,
-    icon: <Clock className="h-3.5 w-3.5" />,
-    disabled: pendingDisabled,
   });
 
   return (
@@ -124,13 +139,13 @@ export function AppointmentActionBar({
       onEdit={onEdit}
       onDelete={onDelete}
       customActions={fullCustomActions}
-      onReschedule={onReschedule}
       detailFields={[
-        { label: "Servicio", value: appointment.service },
+        { label: "Servicio", value: serviceName },
         { label: "Fecha", value: appointment.date },
         { label: "Hora", value: appointment.time },
-        { label: "Estilista", value: appointment.stylist },
+        { label: "Estilista", value: stylistName },
         { label: "Estado", value: statusLabels[appointment.status] },
+        ...(appointment.notes ? [{ label: "Notas", value: appointment.notes }] : []),
       ]}
     />
   );

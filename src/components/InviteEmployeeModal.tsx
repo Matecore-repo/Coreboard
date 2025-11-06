@@ -99,19 +99,26 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent 
+        className="sm:max-w-[500px]"
+        role="dialog"
+        aria-labelledby="invite-employee-title"
+        aria-describedby="invite-employee-description"
+        aria-modal="true"
+        data-modal="invite-employee"
+      >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <UserPlus className="h-6 w-6 text-primary" />
+          <DialogTitle id="invite-employee-title" className="flex items-center gap-2 text-2xl">
+            <UserPlus className="h-6 w-6 text-primary" aria-hidden="true" />
             Invitar Empleado
           </DialogTitle>
-          <DialogDescription className="text-base">
+          <DialogDescription id="invite-employee-description" className="text-base">
             Agregá un nuevo miembro a tu equipo. Podrán gestionar sus propios turnos y comisiones.
           </DialogDescription>
         </DialogHeader>
 
         {!canInvite ? (
-          <Card>
+          <Card role="alert" aria-label="Permisos insuficientes">
             <CardContent className="pt-6">
               <p className="text-center text-muted-foreground">
                 No tienes permisos para invitar empleados. Solo los propietarios y administradores pueden invitar miembros.
@@ -119,11 +126,11 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
             </CardContent>
           </Card>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <Card>
+          <form onSubmit={handleSubmit} className="space-y-6" role="form" aria-label="Formulario de invitación de empleado">
+            <Card role="region" aria-label="Información del empleado">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <User className="h-5 w-5 text-primary" />
+                  <User className="h-5 w-5 text-primary" aria-hidden="true" />
                   Información del Empleado
                 </CardTitle>
                 <CardDescription>
@@ -140,6 +147,9 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   required
                   className="mt-1"
+                  aria-label="Nombre completo del empleado"
+                  aria-required="true"
+                  data-field="employee-name"
                 />
               </div>
               
@@ -153,6 +163,9 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   required
                   className="mt-1"
+                  aria-label="Email del empleado"
+                  aria-required="true"
+                  data-field="employee-email"
                 />
               </div>
               
@@ -164,22 +177,24 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
                   className="mt-1"
+                  aria-label="Teléfono del empleado (opcional)"
+                  data-field="employee-phone"
                 />
               </div>
 
               <div className="space-y-2.5">
                 <Label htmlFor="role" className="text-sm font-medium">Rol *</Label>
                 <Select value={role} onValueChange={(value: 'employee' | 'admin' | 'viewer') => setRole(value)} disabled={invitationLoading}>
-                  <SelectTrigger id="role" className="mt-1">
+                  <SelectTrigger id="role" className="mt-1" aria-label="Seleccionar rol del empleado">
                     <SelectValue placeholder="Seleccionar rol" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="employee">Empleado</SelectItem>
-                    {canSetAdminRole && <SelectItem value="admin">Administrador</SelectItem>}
-                    <SelectItem value="viewer">Visualizador</SelectItem>
+                    <SelectItem value="employee" aria-label="Rol: Empleado">Empleado</SelectItem>
+                    {canSetAdminRole && <SelectItem value="admin" aria-label="Rol: Administrador">Administrador</SelectItem>}
+                    <SelectItem value="viewer" aria-label="Rol: Visualizador">Visualizador</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1.5">
+                <p className="text-xs text-muted-foreground mt-1.5" role="note" aria-label={`Descripción del rol ${role}`}>
                   {role === 'employee' && 'Puede gestionar sus propios turnos y comisiones'}
                   {role === 'admin' && 'Puede gestionar la organización y sus miembros'}
                   {role === 'viewer' && 'Solo puede ver información, no puede realizar cambios'}
@@ -188,18 +203,22 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
             </CardContent>
           </Card>
 
-            <div className="flex justify-end gap-3 pt-4">
+            <div className="flex justify-end gap-3 pt-4" role="group" aria-label="Acciones del formulario">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onClose}
                 disabled={invitationLoading}
+                aria-label="Cancelar invitación"
+                data-action="cancel-invite"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={invitationLoading || !formData.name.trim() || !formData.email.trim()}
+                aria-label="Enviar invitación de empleado"
+                data-action="submit-invite"
               >
                 {invitationLoading ? 'Enviando invitación...' : 'Enviar invitación'}
               </Button>

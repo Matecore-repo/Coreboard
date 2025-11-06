@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { toast } from 'sonner';
+import { toastError } from '../lib/toast';
 import type { MPPreferenceResponse, MPPreferenceRequest } from '../types';
 
 export function usePaymentLinks() {
@@ -61,7 +61,7 @@ export function usePaymentLinks() {
       return data.url || data.sandbox_init_point || '';
     } catch (error: any) {
       console.error('Error generando payment link:', error);
-      toast.error(error.message || 'Error al generar link de pago');
+      toastError(error.message || 'Error al generar link de pago');
       throw error;
     } finally {
       setIsLoading(false);

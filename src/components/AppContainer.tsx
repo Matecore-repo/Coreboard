@@ -100,8 +100,11 @@ const NavigationMenuItem = memo(function NavigationMenuItem({
         onMouseEnter={handleMouseEnter}
         tooltip={item.label}
         aria-label={item.label}
+        aria-current={isActive ? "page" : undefined}
+        data-nav-item={item.id}
+        data-view={item.id}
       >
-        <item.icon className="h-4 w-4" />
+        <item.icon className="h-4 w-4" aria-hidden="true" />
         <span>{item.label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -116,7 +119,7 @@ const NavigationMenu = memo(function NavigationMenu({
   onSelect: (view: ViewKey) => void;
 }) {
   return (
-    <SidebarMenu>
+    <SidebarMenu role="navigation" aria-label="Menú de navegación">
       {NAV_ITEMS.map((item) => (
         <NavigationMenuItem
           key={item.id}
@@ -131,9 +134,9 @@ const NavigationMenu = memo(function NavigationMenu({
 
 // Suspense fallback
 const ViewLoadingFallback = () => (
-  <div className="flex items-center justify-center py-12">
+  <div className="flex items-center justify-center py-12" role="status" aria-live="polite" aria-label="Cargando vista">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" aria-hidden="true" />
       <p className="text-sm text-muted-foreground">Cargando vista...</p>
     </div>
   </div>
@@ -376,7 +379,11 @@ export default function AppContainer() {
   }, [activeView, viewProps, normalizedSalons, salonHandlers, isDemo]);
 
   if (!user) {
-    return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center" role="status" aria-live="polite" aria-label="Cargando aplicación">
+        Cargando...
+      </div>
+    );
   }
 
   if (showOnboarding) {
@@ -393,12 +400,12 @@ export default function AppContainer() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-background">
-        <Sidebar className="border-r">
+      <div className="flex min-h-screen bg-background" role="application" aria-label="Coreboard CRM">
+        <Sidebar className="border-r" role="navigation" aria-label="Navegación principal">
           <SidebarHeader className="border-b px-4 py-3">
-            <span className="text-lg font-semibold tracking-tight">
+            <h2 className="text-lg font-semibold tracking-tight" aria-label="Coreboard">
               Coreboard
-            </span>
+            </h2>
           </SidebarHeader>
           <SidebarContent className="px-2 py-4">
             <SidebarGroup>
@@ -413,19 +420,26 @@ export default function AppContainer() {
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
-          <SidebarFooter className="px-2 pb-4">
+          <SidebarFooter className="px-2 pb-4" role="contentinfo">
             <div className="px-2 pb-3 text-xs text-muted-foreground">
-              <div className="text-sm font-medium text-foreground">
+              <div className="text-sm font-medium text-foreground" aria-label="Usuario actual">
                 {user?.email ?? "Usuario"}
               </div>
               {currentRole && (
-                <div className="capitalize">Rol: {currentRole}</div>
+                <div className="capitalize" aria-label={`Rol: ${currentRole}`}>
+                  Rol: {currentRole}
+                </div>
               )}
             </div>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout} tooltip="Cerrar sesion">
-                  <LogOut className="h-4 w-4" />
+                <SidebarMenuButton 
+                  onClick={handleLogout} 
+                  tooltip="Cerrar sesion"
+                  aria-label="Cerrar sesión"
+                  data-action="logout"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                   <span>Cerrar sesion</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -434,30 +448,32 @@ export default function AppContainer() {
           <SidebarRail />
         </Sidebar>
         <SidebarInset className="flex min-w-0 flex-1 flex-col bg-background">
-          <header className="border-b">
+          <header className="border-b" role="banner">
             <div className="mx-auto flex h-14 w-full items-center gap-3 px-4 sm:px-6 lg:px-8 max-w-[1320px] xl:max-w-[1380px] 2xl:max-w-[1440px]">
-              <SidebarTrigger className="-ml-1" />
+              <SidebarTrigger className="-ml-1" aria-label="Alternar menú lateral" />
               <div className="flex flex-1 items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h1 className="truncate text-base font-semibold leading-none sm:text-lg">
+                  <h1 className="truncate text-base font-semibold leading-none sm:text-lg" data-view={activeView}>
                     {activeNavItem?.label ?? "Inicio"}
                   </h1>
-                  <p className="text-xs text-muted-foreground sm:text-sm">
+                  <p className="text-xs text-muted-foreground sm:text-sm" aria-label="Sistema Coreboard">
                     Coreboard
                   </p>
                 </div>
                 {currentRole && (
-                  <span className="text-xs text-muted-foreground sm:inline sm:text-sm">
+                  <span className="text-xs text-muted-foreground sm:inline sm:text-sm" aria-label={`Rol actual: ${currentRole}`}>
                     Rol: <span className="capitalize">{currentRole}</span>
                   </span>
                 )}
               </div>
             </div>
           </header>
-          <main className="flex-1 py-6 lg:py-8">
+          <main className="flex-1 py-6 lg:py-8" role="main" aria-label={`Vista: ${activeNavItem?.label ?? "Inicio"}`} data-view-content={activeView}>
             <div className="mx-auto flex w-full flex-col gap-6 px-4 sm:px-6 lg:px-8 max-w-[1320px] xl:max-w-[1380px] 2xl:max-w-[1440px]">
               {isPending && (
-                <div className="text-xs text-muted-foreground">Cambiando vista...</div>
+                <div className="text-xs text-muted-foreground" role="status" aria-live="polite">
+                  Cambiando vista...
+                </div>
               )}
               <Suspense fallback={<ViewLoadingFallback />}>
                 <ViewErrorBoundary>

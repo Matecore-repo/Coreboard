@@ -6,7 +6,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Copy, Check, Link as LinkIcon } from "lucide-react";
-import { toast } from "sonner";
+import { toastSuccess, toastError } from "../lib/toast";
 import { usePaymentLinks } from "../hooks/usePaymentLinks";
 import { useAuth } from "../contexts/AuthContext";
 import { useSalons } from "../hooks/useSalons";
@@ -39,7 +39,7 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
 
   const handleGenerateLink = async () => {
     if (!currentOrgId || !selectedSalonId) {
-      toast.error('Selecciona un salón');
+      toastError('Selecciona un salón');
       return;
     }
 
@@ -78,10 +78,10 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
 
       const data = await response.json();
       setPaymentLink(data.url);
-      toast.success('Link de pago generado correctamente');
+      toastSuccess('Link de pago generado correctamente');
     } catch (error: any) {
       console.error('Error generando link de pago:', error);
-      toast.error(error.message || 'Error al generar link de pago');
+      toastError(error.message || 'Error al generar link de pago');
     } finally {
       setIsGenerating(false);
     }
@@ -93,36 +93,43 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
     try {
       await navigator.clipboard.writeText(paymentLink);
       setCopied(true);
-      toast.success('Link copiado al portapapeles');
+      toastSuccess('Link copiado al portapapeles');
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('Error copiando link:', error);
-      toast.error('Error al copiar link');
+      toastError('Error al copiar link');
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg w-[90vw] sm:w-full">
+      <DialogContent 
+        className="max-w-lg w-[90vw] sm:w-full"
+        role="dialog"
+        aria-labelledby="payment-link-title"
+        aria-describedby="payment-link-description"
+        aria-modal="true"
+        data-modal="payment-link"
+      >
         <DialogHeader className="mb-4">
-          <DialogTitle className="mb-2">Generar link de pago</DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogTitle id="payment-link-title" className="mb-2">Generar link de pago</DialogTitle>
+          <DialogDescription id="payment-link-description" className="text-sm">
             Genera un link público para que tus clientes puedan reservar turnos y pagar online.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-6 py-2">
+        <section className="space-y-6 py-2" role="region" aria-label="Formulario de link de pago">
           {!paymentLink ? (
-            <div className="space-y-4">
+            <div className="space-y-4" role="form" aria-label="Configuración del link de pago">
               <div className="space-y-2">
                 <Label htmlFor="salon">Salón</Label>
                 <Select value={selectedSalonId} onValueChange={setSelectedSalonId} disabled={salonsLoading}>
-                  <SelectTrigger>
+                  <SelectTrigger id="salon" aria-label="Seleccionar salón">
                     <SelectValue placeholder="Selecciona un salón" />
                   </SelectTrigger>
                   <SelectContent>
                     {salons.map((salon) => (
-                      <SelectItem key={salon.id} value={salon.id}>
+                      <SelectItem key={salon.id} value={salon.id} aria-label={`Salón: ${salon.name}`}>
                         {salon.name}
                       </SelectItem>
                     ))}
@@ -137,6 +144,8 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Reserva tu turno"
+                  aria-label="Título del link de pago"
+                  data-field="title"
                 />
               </div>
 
@@ -148,6 +157,8 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Descripción del link de pago"
                   rows={3}
+                  aria-label="Descripción del link de pago (opcional)"
+                  data-field="description"
                 />
               </div>
 
@@ -155,66 +166,77 @@ export function PaymentLinkModal({ isOpen, onClose }: PaymentLinkModalProps) {
                 onClick={handleGenerateLink} 
                 disabled={isGenerating || !selectedSalonId || salonsLoading}
                 className="w-full mt-4"
+                aria-label="Generar link de pago"
+                data-action="generate-payment-link"
               >
-                <LinkIcon className="h-4 w-4 mr-2" />
+                <LinkIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                 {isGenerating ? 'Generando...' : 'Generar link'}
               </Button>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6" role="region" aria-label="Link de pago generado">
               <div className="space-y-3">
-                <Label className="mb-2 block">Link de pago</Label>
+                <Label className="mb-2 block" htmlFor="payment-link-input">Link de pago</Label>
                 <div className="flex gap-3">
                   <Input
+                    id="payment-link-input"
                     value={paymentLink}
                     readOnly
                     className="flex-1 font-mono text-sm px-3 py-2"
+                    aria-label="Link de pago generado"
+                    data-field="payment-link"
                   />
                   <Button
                     onClick={handleCopyLink}
                     variant="outline"
                     size="icon"
                     className="shrink-0"
+                    aria-label={copied ? "Link copiado" : "Copiar link de pago"}
+                    data-action="copy-payment-link"
                   >
                     {copied ? (
-                      <Check className="h-4 w-4 text-green-600" />
+                      <Check className="h-4 w-4 text-green-600" aria-hidden="true" />
                     ) : (
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-4 w-4" aria-hidden="true" />
                     )}
                   </Button>
                 </div>
               </div>
               
-              <div className="rounded-lg bg-muted p-4 space-y-3">
+              <div className="rounded-lg bg-muted p-4 space-y-3" role="region" aria-label="Instrucciones de uso">
                 <p className="text-sm font-medium mb-2">Instrucciones:</p>
-                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside ml-1">
-                  <li className="pl-1">Comparte este link con tus clientes</li>
-                  <li className="pl-1">Ellos podrán ver todos los locales, profesionales y servicios disponibles</li>
-                  <li className="pl-1">Podrán reservar turnos y pagar online</li>
-                  <li className="pl-1">Los turnos se reflejarán automáticamente en tu CRM</li>
+                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside ml-1" role="list">
+                  <li className="pl-1" role="listitem">Comparte este link con tus clientes</li>
+                  <li className="pl-1" role="listitem">Ellos podrán ver todos los locales, profesionales y servicios disponibles</li>
+                  <li className="pl-1" role="listitem">Podrán reservar turnos y pagar online</li>
+                  <li className="pl-1" role="listitem">Los turnos se reflejarán automáticamente en tu CRM</li>
                 </ol>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-2" role="group" aria-label="Acciones del link generado">
                 <Button
                   onClick={() => {
                     setPaymentLink(undefined);
                   }}
                   variant="outline"
                   className="flex-1"
+                  aria-label="Generar nuevo link de pago"
+                  data-action="new-payment-link"
                 >
                   Generar nuevo link
                 </Button>
                 <Button
                   onClick={onClose}
                   className="flex-1"
+                  aria-label="Cerrar modal de link de pago"
+                  data-action="close-payment-link"
                 >
                   Cerrar
                 </Button>
               </div>
             </div>
           )}
-        </div>
+        </section>
       </DialogContent>
     </Dialog>
   );

@@ -628,7 +628,6 @@ SET search_path TO 'app', 'public'
 as $$
 declare
   v_appointment app.appointments%rowtype;
-  v_status_enum appointment_status;
   v_user_id uuid;
 begin
   -- Obtener el user_id actual
@@ -638,17 +637,15 @@ begin
     raise exception 'User not authenticated';
   end if;
   
-  -- Validar y convertir status a enum
+  -- Validar status (la tabla usa text con CHECK constraint, no enum)
   if p_status not in ('pending', 'confirmed', 'completed', 'cancelled', 'no_show') then
     raise exception 'Invalid status: %', p_status;
   end if;
   
-  -- Cast el texto al enum
-  v_status_enum := p_status::appointment_status;
-  
   -- Actualizar appointment SOLO si el usuario tiene membresía en la organización del turno
+  -- Usar text directamente ya que la tabla usa text, no enum
   update app.appointments
-  set status = v_status_enum,
+  set status = p_status,
       updated_at = now()
   where id = p_appointment_id
     and org_id IN (
