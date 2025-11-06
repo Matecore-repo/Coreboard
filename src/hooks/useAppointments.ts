@@ -319,11 +319,50 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       }
     }
     
+    // Crear o obtener cliente si no existe
+    if (appointmentData.clientName && currentOrgId && !isDemo) {
+      const clientName = appointmentData.clientName.trim();
+      
+      try {
+        // Buscar cliente existente por nombre (case-insensitive)
+        const { data: existingClients } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('org_id', currentOrgId)
+          .ilike('full_name', clientName)
+          .is('deleted_at', null)
+          .limit(1);
+        
+        if (!existingClients || existingClients.length === 0) {
+          // Crear cliente nuevo si no existe
+          const { data: newClient, error: clientError } = await supabase
+            .from('clients')
+            .insert([{
+              full_name: clientName,
+              phone: (appointmentData as any).client_phone || null,
+              email: (appointmentData as any).client_email || null,
+              org_id: currentOrgId,
+            }])
+            .select('id')
+            .single();
+          
+          if (clientError) {
+            console.error('Error creando cliente:', clientError);
+            // Continuar sin client_id si falla la creación (el appointment puede tener client_name)
+          }
+        }
+      } catch (clientError) {
+        console.error('Error buscando/creando cliente:', clientError);
+        // Continuar sin client_id si falla (el appointment puede tener client_name)
+      }
+    }
+    
     const row = {
       ...mapAppointmentToRow({ ...appointmentData, salonId }),
       org_id: currentOrgId || null,
       total_amount: totalAmount,
       created_by: user?.id || null,
+      ...(clientId ? { client_id: clientId } : {}),
     } as any;
     const { data, error } = await supabase
       .from('appointments')

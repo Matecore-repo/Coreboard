@@ -16,14 +16,30 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../../ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "../../ui/command";
 import { CustomDatePicker } from "../../ui/DatePicker";
 import { useSalonEmployees } from "../../../hooks/useSalonEmployees";
 import { useSalonServices } from "../../../hooks/useSalonServices";
 import { useTurnos } from "../../../hooks/useTurnos";
+import { useClients } from "../../../hooks/useClients";
+import { useAuth } from "../../../contexts/AuthContext";
 import { Appointment } from "./AppointmentCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { toastSuccess, toastError } from "../../../lib/toast";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "../../ui/utils";
 import type { Turno } from "../../../stores/turnosStore";
 
 interface Salon {
@@ -90,12 +106,31 @@ export function AppointmentDialog({
   const currentSalonId = (formData.salonId || salonId || undefined) === 'all' ? undefined : (formData.salonId || salonId || undefined);
   const { assignments: salonEmployees, isLoading: loadingEmployees } = useSalonEmployees(currentSalonId, { enabled: open && !!currentSalonId });
   const { services: salonServices, loading: loadingServices } = useSalonServices(currentSalonId, { enabled: open && !!currentSalonId });
+  const { currentOrgId } = useAuth();
+  const { clients, loading: loadingClients } = useClients(currentOrgId ?? undefined);
   
   // Usar useTurnos para validaciones y acciones
   const { createTurno, updateTurno, validateTurno, checkConflicts } = useTurnos({
     salonId: currentSalonId,
     enabled: open && !!currentSalonId
   });
+  
+  // Estado para el autocompletado de clientes
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  
+  // Filtrar clientes según búsqueda
+  const filteredClients = useMemo(() => {
+    if (!clientSearch.trim()) {
+      return clients.slice(0, 10); // Mostrar primeros 10 si no hay búsqueda
+    }
+    const searchLower = clientSearch.toLowerCase();
+    return clients.filter(client => 
+      client.full_name.toLowerCase().includes(searchLower) ||
+      client.email?.toLowerCase().includes(searchLower) ||
+      client.phone?.includes(searchLower)
+    ).slice(0, 10);
+  }, [clients, clientSearch]);
 
   // Obtener precio del servicio seleccionado
   const selectedServicePrice = useMemo(() => {
@@ -448,21 +483,95 @@ export function AppointmentDialog({
             <Label htmlFor="client_name">
               Nombre del cliente <span className="text-destructive">*</span>
             </Label>
+            <Popover open={clientOpen} onOpenChange={setClientOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={clientOpen}
+                  aria-label="Seleccionar cliente"
+                  className={cn(
+                    "w-full justify-between",
+                    touched.clientName && errors.clientName ? "border-destructive" : "",
+                    !formData.clientName && "text-muted-foreground"
+                  )}
+                  data-field="client-name"
+                >
+                  {formData.clientName || "Buscar o ingresar cliente..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                  <CommandInput 
+                    placeholder="Buscar cliente por nombre, email o teléfono..." 
+                    value={clientSearch}
+                    onValueChange={setClientSearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {loadingClients ? "Cargando clientes..." : "No se encontraron clientes. Puedes escribir un nombre nuevo."}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {filteredClients.map((client) => (
+                        <CommandItem
+                          key={client.id}
+                          value={client.full_name}
+                          onSelect={() => {
+                            handleFieldChange('clientName', client.full_name);
+                            setClientOpen(false);
+                            setClientSearch("");
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              formData.clientName === client.full_name ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span>{client.full_name}</span>
+                            {(client.email || client.phone) && (
+                              <span className="text-xs text-muted-foreground">
+                                {client.email && client.phone 
+                                  ? `${client.email} • ${client.phone}`
+                                  : client.email || client.phone}
+                              </span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             <Input
-              id="client_name"
+              id="client_name_input"
               value={formData.clientName}
-              onChange={(e) => handleFieldChange('clientName', e.target.value)}
+              onChange={(e) => {
+                handleFieldChange('clientName', e.target.value);
+                setClientSearch(e.target.value);
+              }}
               onBlur={() => handleFieldBlur('clientName')}
-              placeholder="Juan Pérez"
+              placeholder="O escribe un nombre nuevo..."
               aria-invalid={touched.clientName && !!errors.clientName}
-              aria-label="Nombre del cliente"
+              aria-label="Nombre del cliente (campo de texto)"
               aria-required="true"
-              className={touched.clientName && errors.clientName ? "border-destructive" : ""}
-              data-field="client-name"
+              className={cn(
+                touched.clientName && errors.clientName ? "border-destructive" : "",
+                "mt-2"
+              )}
+              data-field="client-name-input"
             />
             {touched.clientName && errors.clientName && (
               <p className="text-sm text-destructive" role="alert" aria-live="polite">
                 {errors.clientName}
+              </p>
+            )}
+            {formData.clientName && !loadingClients && !clients.find(c => c.full_name.toLowerCase() === formData.clientName?.toLowerCase()) && (
+              <p className="text-xs text-muted-foreground">
+                Este cliente será creado automáticamente al guardar el turno
               </p>
             )}
           </div>

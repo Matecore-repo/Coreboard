@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useClients } from '../../hooks/useClients';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -9,21 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from '../ui/badge';
 import { EmptyStateClients } from '../empty-states/EmptyStateClients';
 import { toastSuccess, toastError, toastInfo } from '../../lib/toast';
-import { Trash2, Edit3, Plus } from 'lucide-react';
+import { Trash2, Edit3, Plus, User, Phone, Mail, Search } from 'lucide-react';
 import { EmptyState } from '../ui/empty-state';
 import { Building2 } from 'lucide-react';
 import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
-import { SalonCarousel } from '../SalonCarousel';
-import type { Salon } from '../../types/salon';
+interface ClientsViewProps {}
 
-interface ClientsViewProps {
-  salons?: Salon[];
-  selectedSalon?: string | null;
-  onSelectSalon?: (salonId: string, salonName: string) => void;
-}
-
-const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = null, onSelectSalon }) => {
+const ClientsView: React.FC<ClientsViewProps> = () => {
   const { currentOrgId, isDemo } = useAuth();
   const { clients, loading: hooksLoading, error: clientsError, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
 
@@ -34,6 +27,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
     phone: '',
     email: '',
   });
+  const [searchQuery, setSearchQuery] = useState('');
   const [displayLoading, setDisplayLoading] = useState(false);
   const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
@@ -133,6 +127,19 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
     setDialogOpen(true);
   };
 
+  // Filtrar clientes según el término de búsqueda
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return clients;
+    }
+    const query = searchQuery.toLowerCase();
+    return clients.filter(client => 
+      client.full_name.toLowerCase().includes(query) ||
+      client.email?.toLowerCase().includes(query) ||
+      client.phone?.includes(query)
+    );
+  }, [clients, searchQuery]);
+
   if (!currentOrgId && !isDemo) {
     return (
       <div className="p-6">
@@ -168,34 +175,34 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
 
   return (
     <PageContainer>
-      {salons.length > 0 && (
-        <section className="mb-4 p-4 sm:p-6" role="region" aria-label="Selector de salón para clientes">
-          <h2 className="mb-4 text-xl md:text-2xl font-semibold">Seleccionar clientes</h2>
-          <div>
-            <SalonCarousel 
-              salons={salons}
-              selectedSalon={selectedSalon}
-              onSelectSalon={onSelectSalon || (() => {})}
-            />
-          </div>
-        </section>
-      )}
       <section className="mt-4" role="region" aria-label="Gestión de clientes">
         <Section
           title="Gestión de Clientes"
-          description={`${clients.length} ${clients.length === 1 ? 'cliente registrado' : 'clientes registrados'}`}
+          description={`${filteredClients.length} ${filteredClients.length === 1 ? 'cliente' : 'clientes'}${searchQuery ? ' encontrado' + (filteredClients.length === 1 ? '' : 's') : ' registrado' + (clients.length === 1 ? '' : 's')}${clients.length !== filteredClients.length ? ` (de ${clients.length} total)` : ''}`}
           action={
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  onClick={handleNew}
-                  aria-label="Crear nuevo cliente"
-                  data-action="new-client"
-                >
-                  <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
-                  Nuevo Cliente
-                </Button>
-              </DialogTrigger>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <Input
+                  placeholder="Buscar clientes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-9"
+                  aria-label="Buscar clientes"
+                  data-field="search-clients"
+                />
+              </div>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    onClick={handleNew}
+                    aria-label="Crear nuevo cliente"
+                    data-action="new-client"
+                  >
+                    <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
+                    Nuevo Cliente
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
@@ -244,6 +251,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
         }
       >
       {clients.length === 0 ? (
@@ -252,47 +260,83 @@ const ClientsView: React.FC<ClientsViewProps> = ({ salons = [], selectedSalon = 
           onImportClients={() => toastInfo('Importar clientes próximamente')}
           onSyncContacts={() => toastInfo('Sincronizar contactos próximamente')}
         />
+      ) : filteredClients.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <p className="text-sm">No se encontraron clientes que coincidan con "{searchQuery}"</p>
+        </div>
       ) : (
-        <div className="space-y-3" role="list" aria-label={`Lista de ${clients.length} clientes`}>
-          {clients.map((client) => (
-            <Card key={client.id} role="listitem" aria-label={`Cliente: ${client.full_name}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
+        <div className="space-y-3" role="list" aria-label={`Lista de ${filteredClients.length} clientes`}>
+          {filteredClients.map((client) => (
+            <article 
+              key={client.id}
+              className="bg-card border rounded-2xl p-3 hover:shadow-md transition-all cursor-pointer border-border"
+              role="listitem"
+              aria-label={`Cliente: ${client.full_name}`}
+              data-client-id={client.id}
+            >
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="flex items-center gap-2" role="group" aria-label="Información del cliente">
+                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
                     <p className="font-medium truncate" aria-label={`Nombre: ${client.full_name}`}>
                       {client.full_name}
                     </p>
-                    <p className="text-sm text-muted-foreground truncate" aria-label={`Contacto: ${client.phone || ''} ${client.email || ''}`}>
-                      {client.phone && <span>{client.phone}</span>}
-                      {client.phone && client.email && <span> • </span>}
-                      {client.email && <span>{client.email}</span>}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 ml-4 flex-shrink-0" role="group" aria-label={`Acciones para ${client.full_name}`}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEdit(client)}
-                      aria-label={`Editar cliente ${client.full_name}`}
-                      data-action="edit-client"
-                      data-client-id={client.id}
-                    >
-                      <Edit3 className="w-4 h-4" aria-hidden="true" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDelete(client.id)}
-                      aria-label={`Eliminar cliente ${client.full_name}`}
-                      data-action="delete-client"
-                      data-client-id={client.id}
-                    >
-                      <Trash2 className="w-4 h-4" aria-hidden="true" />
-                    </Button>
+                    {(client.phone || client.email) && (
+                      <p className="text-sm text-muted-foreground truncate" aria-label={`Contacto: ${client.phone || ''} ${client.email || ''}`}>
+                        {client.phone && client.email 
+                          ? `${client.phone} • ${client.email}`
+                          : client.phone || client.email}
+                      </p>
+                    )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+
+                {client.phone && (
+                  <div className="flex items-center gap-2" aria-label={`Teléfono: ${client.phone}`}>
+                    <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                    <span className="text-muted-foreground truncate">{client.phone}</span>
+                  </div>
+                )}
+
+                {client.email && (
+                  <div className="flex items-center gap-2" aria-label={`Email: ${client.email}`}>
+                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                    <span className="text-muted-foreground truncate">{client.email}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto" role="group" aria-label={`Acciones para ${client.full_name}`}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(client);
+                    }}
+                    aria-label={`Editar cliente ${client.full_name}`}
+                    data-action="edit-client"
+                    data-client-id={client.id}
+                  >
+                    <Edit3 className="w-4 h-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(client.id);
+                    }}
+                    aria-label={`Eliminar cliente ${client.full_name}`}
+                    data-action="delete-client"
+                    data-client-id={client.id}
+                  >
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              </div>
+            </article>
           ))}
         </div>
       )}

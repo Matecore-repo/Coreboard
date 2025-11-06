@@ -849,11 +849,7 @@ export default function App() {
       case "clients":
         return (
           <Suspense fallback={<LoadingView />}>
-            <ClientsView 
-              salons={effectiveSalons}
-              selectedSalon={selectedSalon}
-              onSelectSalon={handleSelectSalon}
-            />
+            <ClientsView />
           </Suspense>
         );
       case "salons":

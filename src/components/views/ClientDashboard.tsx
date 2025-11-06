@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Download } from 'lucide-react';
 import { useTurnos } from '../../hooks/useTurnos';
+import { useClients } from '../../hooks/useClients';
+import { useAuth } from '../../contexts/AuthContext';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
 import { toastSuccess, toastError } from '../../lib/toast';
 import type { Appointment } from '../../types';
@@ -15,6 +17,8 @@ interface ClientDashboardProps {
 export default function ClientDashboard({ selectedSalon, dateRange }: ClientDashboardProps) {
   const { exportToExcel } = useFinancialExports();
   const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  const { currentOrgId } = useAuth();
+  const { clients } = useClients(currentOrgId ?? undefined);
   
   // Convertir turnos a appointments para compatibilidad
   const allAppointments = useMemo(() => {
@@ -49,24 +53,43 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
   }, [turnos, dateRange]);
 
   const topClients = useMemo(() => {
-    const map: Record<string, { name: string; count: number; revenue: number }> = {};
+    const map: Record<string, { name: string; count: number; revenue: number; clientId?: string }> = {};
+    
+    // Obtener nombres de clientes de la tabla clients para priorizar clientes registrados
+    const clientNamesMap = new Map(clients.map(c => [c.full_name.toLowerCase(), c.id]));
     
     allAppointments
       .filter(apt => apt.status === 'completed')
       .forEach(apt => {
-        // Appointment del tipo usado en AppointmentCard tiene clientName, no client_name
         const clientName = (apt as any).clientName || (apt as any).client_name || 'Sin nombre';
-        if (!map[clientName]) {
-          map[clientName] = { name: clientName, count: 0, revenue: 0 };
+        const clientNameLower = clientName.toLowerCase();
+        
+        if (!map[clientNameLower]) {
+          map[clientNameLower] = { 
+            name: clientName, 
+            count: 0, 
+            revenue: 0,
+            clientId: clientNamesMap.get(clientNameLower)
+          };
         }
-        map[clientName].count += 1;
-        map[clientName].revenue += (apt as any).total_amount || 0;
+        map[clientNameLower].count += 1;
+        map[clientNameLower].revenue += (apt as any).total_amount || 0;
       });
 
+    // Ordenar por revenue, pero priorizar clientes registrados si tienen el mismo revenue
     return Object.values(map)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
-  }, [allAppointments]);
+      .sort((a, b) => {
+        if (a.revenue !== b.revenue) {
+          return b.revenue - a.revenue;
+        }
+        // Si tienen el mismo revenue, priorizar clientes registrados
+        if (a.clientId && !b.clientId) return -1;
+        if (!a.clientId && b.clientId) return 1;
+        return 0;
+      })
+      .slice(0, 10)
+      .map(({ clientId, ...rest }) => rest); // Remover clientId del resultado final
+  }, [allAppointments, clients]);
 
   const abandonmentRisk = useMemo(() => {
     const now = new Date();
@@ -75,8 +98,8 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
 
     const clientLastVisit: Record<string, Date> = {};
     
+    // Primero, obtener última visita de todos los clientes desde turnos
     allAppointments.forEach(apt => {
-      // Appointment del tipo usado en AppointmentCard tiene clientName y date, no client_name y starts_at
       const clientName = (apt as any).clientName || (apt as any).client_name || 'Sin nombre';
       const aptDate = (apt as any).date 
         ? new Date(`${(apt as any).date}T${(apt as any).time || '00:00'}:00`)
@@ -85,16 +108,22 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
         clientLastVisit[clientName] = aptDate;
       }
     });
-
+    
+    // Filtrar clientes que tienen más de 30 días sin visita Y que existen en la tabla clients
+    const clientNamesInClients = new Set(clients.map(c => c.full_name.toLowerCase()));
+    
     return Object.entries(clientLastVisit)
-      .filter(([_, lastVisit]) => lastVisit < thirtyDaysAgo)
+      .filter(([name, lastVisit]) => {
+        // Solo incluir clientes que existen en la tabla clients y tienen más de 30 días sin visita
+        return clientNamesInClients.has(name.toLowerCase()) && lastVisit < thirtyDaysAgo;
+      })
       .map(([name, lastVisit]) => ({
         name,
         daysSinceLastVisit: Math.floor((now.getTime() - lastVisit.getTime()) / (1000 * 60 * 60 * 24)),
       }))
       .sort((a, b) => b.daysSinceLastVisit - a.daysSinceLastVisit)
       .slice(0, 10);
-  }, [allAppointments]);
+  }, [allAppointments, clients]);
 
   const handleExport = async () => {
     try {

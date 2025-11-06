@@ -4,6 +4,8 @@ import { Button } from '../ui/button';
 import { Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useTurnos } from '../../hooks/useTurnos';
+import { useClients } from '../../hooks/useClients';
+import { useAuth } from '../../contexts/AuthContext';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
 import { toastSuccess, toastError } from '../../lib/toast';
 import type { Appointment } from '../../types';
@@ -16,6 +18,8 @@ interface SalesMarketingDashboardProps {
 export default function SalesMarketingDashboard({ selectedSalon, dateRange }: SalesMarketingDashboardProps) {
   const { exportToExcel } = useFinancialExports();
   const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  const { currentOrgId } = useAuth();
+  const { clients } = useClients(currentOrgId ?? undefined);
   
   // Convertir turnos a appointments para compatibilidad
   const appointments = useMemo(() => {
@@ -59,13 +63,48 @@ export default function SalesMarketingDashboard({ selectedSalon, dateRange }: Sa
   }, [appointments, selectedSalon, dateRange]);
 
   const newVsRecurrentData = useMemo(() => {
-    const newClients = filteredAppointments.filter(apt => (apt as any).is_new_client).length;
-    const recurrentClients = filteredAppointments.length - newClients;
+    // Calcular nuevos clientes basándose en clientes creados en el período de fechas
+    let newClientsCount = 0;
+    let recurrentClientsCount = 0;
+    
+    if (dateRange) {
+      // Clientes creados en el período de fechas
+      const clientsCreatedInPeriod = clients.filter(client => {
+        if (!client.created_at) return false;
+        const createdDate = new Date(client.created_at).toISOString().split('T')[0];
+        return createdDate >= dateRange.startDate && createdDate <= dateRange.endDate;
+      });
+      
+      // Obtener nombres de clientes nuevos
+      const newClientNames = new Set(clientsCreatedInPeriod.map(c => c.full_name.toLowerCase()));
+      
+      // Contar turnos: nuevos vs recurrentes
+      filteredAppointments.forEach(apt => {
+        const clientName = ((apt as any).clientName || (apt as any).client_name || '').toLowerCase();
+        if (newClientNames.has(clientName)) {
+          newClientsCount++;
+        } else {
+          recurrentClientsCount++;
+        }
+      });
+    } else {
+      // Si no hay rango de fechas, usar todos los clientes vs turnos
+      const allClientNames = new Set(clients.map(c => c.full_name.toLowerCase()));
+      filteredAppointments.forEach(apt => {
+        const clientName = ((apt as any).clientName || (apt as any).client_name || '').toLowerCase();
+        if (allClientNames.has(clientName)) {
+          recurrentClientsCount++;
+        } else {
+          newClientsCount++;
+        }
+      });
+    }
+    
     return [
-      { name: 'Nuevos', value: newClients },
-      { name: 'Recurrentes', value: recurrentClients },
+      { name: 'Nuevos', value: newClientsCount },
+      { name: 'Recurrentes', value: recurrentClientsCount },
     ];
-  }, [filteredAppointments]);
+  }, [filteredAppointments, clients, dateRange]);
 
   const bookingSourceData = useMemo(() => {
     const map: Record<string, number> = {};
