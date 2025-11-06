@@ -29,6 +29,7 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
   const [gatewayTransactionId, setGatewayTransactionId] = useState(payment?.gatewayTransactionId || '');
   const [gatewaySettlementDate, setGatewaySettlementDate] = useState(payment?.gatewaySettlementDate || '');
   const [gatewaySettlementAmount, setGatewaySettlementAmount] = useState(payment?.gatewaySettlementAmount?.toString() || '');
+  const [paymentMethodDetail, setPaymentMethodDetail] = useState(payment?.paymentMethodDetail || '');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
       setGatewayTransactionId(payment.gatewayTransactionId || '');
       setGatewaySettlementDate(payment.gatewaySettlementDate || '');
       setGatewaySettlementAmount(payment.gatewaySettlementAmount?.toString() || '');
+      setPaymentMethodDetail(payment.paymentMethodDetail || '');
     } else {
       setAmount('');
       setPaymentMethod('cash');
@@ -56,6 +58,7 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
       setGatewayTransactionId('');
       setGatewaySettlementDate('');
       setGatewaySettlementAmount('');
+      setPaymentMethodDetail('');
     }
   }, [payment, isOpen]);
 
@@ -80,6 +83,7 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
         gatewayTransactionId: gatewayTransactionId.trim() || undefined,
         gatewaySettlementDate: gatewaySettlementDate || undefined,
         gatewaySettlementAmount: gatewaySettlementAmount ? parseFloat(gatewaySettlementAmount) : undefined,
+        paymentMethodDetail: paymentMethodDetail.trim() || undefined,
       };
 
       if (payment) {
@@ -128,6 +132,7 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
               <SelectContent>
                 <SelectItem value="cash">Efectivo</SelectItem>
                 <SelectItem value="card">Tarjeta</SelectItem>
+                <SelectItem value="mercadopago">Mercado Pago</SelectItem>
                 <SelectItem value="transfer">Transferencia</SelectItem>
                 <SelectItem value="other">Otro</SelectItem>
               </SelectContent>
@@ -151,6 +156,16 @@ export function PaymentFormModal({ isOpen, onClose, payment }: PaymentFormModalP
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Notas adicionales..."
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="payment-method-detail">Detalle del Método</Label>
+            <Input
+              id="payment-method-detail"
+              value={paymentMethodDetail}
+              onChange={(e) => setPaymentMethodDetail(e.target.value)}
+              placeholder="Ej: Link MP, caja, terminal..."
             />
           </div>
 

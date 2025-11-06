@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -17,6 +17,17 @@ interface ExpenseFormModalProps {
   salonId?: string;
 }
 
+const COMMON_CATEGORIES = [
+  'Alquiler',
+  'Servicios',
+  'Sueldos',
+  'Insumos',
+  'Marketing',
+  'Impuestos',
+  'Mantenimiento',
+  'Seguros',
+];
+
 export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseFormModalProps) {
   const { currentOrgId } = useAuth();
   const { createExpense, updateExpense } = useExpenses({ enabled: true });
@@ -27,6 +38,24 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
   const [paymentStatus, setPaymentStatus] = useState<Expense['payment_status']>(expense?.payment_status || 'pending');
   const [incurredAt, setIncurredAt] = useState(expense?.incurred_at || new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (expense) {
+      setAmount(expense.amount.toString());
+      setDescription(expense.description);
+      setCategory(expense.category || '');
+      setType(expense.type || 'variable');
+      setPaymentStatus(expense.payment_status || 'pending');
+      setIncurredAt(expense.incurred_at);
+    } else if (isOpen) {
+      setAmount('');
+      setDescription('');
+      setCategory('');
+      setType('variable');
+      setPaymentStatus('pending');
+      setIncurredAt(new Date().toISOString().split('T')[0]);
+    }
+  }, [expense, isOpen]);
 
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -119,7 +148,13 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
               placeholder="Ej: Alquiler, Marketing, Insumos..."
               aria-label="Categoría del gasto (opcional)"
               data-field="category"
+              list="expense-category-options"
             />
+            <datalist id="expense-category-options">
+              {COMMON_CATEGORIES.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </div>
 
           <div>

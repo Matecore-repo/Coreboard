@@ -1,8 +1,10 @@
 CRM de turnos
 
-iangel.oned@gmail.com (propietario)
-nachoangelone@gmail.com (empleado)
+1.a iniciar con npm run dev
 
-contraseñas: 123456
+2.a entrar a la ip: http://192.168.0.17:3000
 
-ip: http://192.168.100.50:3000
+3.a usar alguna de estas cuentas
+
+b. iangel.oned@gmail.com (propietario) contraseña: 123456
+c. nachoangelone@gmail.com (empleado) contraseña: 123456

@@ -87,12 +87,17 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
       setExpenses([]);
       return;
     }
+    if (!currentOrgId) {
+      setExpenses([]);
+      return;
+    }
     
     setLoading(true);
     try {
       let query = supabase
         .from('expenses')
-        .select('id, org_id, salon_id, amount, description, category, incurred_at, created_at');
+        .select('id, org_id, salon_id, amount, description, category, type, payment_status, supplier_id, invoice_number, invoice_date, due_date, incurred_at, created_at, created_by')
+        .eq('org_id', currentOrgId);
       
       if (options?.filters) {
         const filters = options.filters;
@@ -102,7 +107,9 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
         if (filters.category) {
           query = query.eq('category', filters.category);
         }
-        // Nota: filtro por type removido porque la columna no existe en la BD
+        if (filters.type) {
+          query = query.eq('type', filters.type);
+        }
         if (filters.paymentStatus) {
           query = query.eq('payment_status', filters.paymentStatus);
         }
@@ -133,7 +140,7 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
     } finally {
       setLoading(false);
     }
-  }, [enabled, isDemo, options?.filters]);
+  }, [enabled, isDemo, options?.filters, currentOrgId]);
 
   useEffect(() => {
     if (!enabled || isDemo) return;

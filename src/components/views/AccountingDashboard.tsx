@@ -180,6 +180,11 @@ export default function AccountingDashboard({ selectedSalon, dateRange }: Accoun
       Descuento: pay.discountAmount || 0,
       Impuesto: pay.taxAmount || 0,
       Propina: pay.tipAmount || 0,
+      'Comisión Pasarela': pay.gatewayFee || 0,
+      'Detalle Método': pay.paymentMethodDetail || '',
+      'ID Pasarela': pay.gatewayTransactionId || '',
+      'Fecha Liquidación': pay.gatewaySettlementDate || '',
+      'Monto Liquidado': pay.gatewaySettlementAmount || 0,
     }));
   }, [filteredPayments]);
 
@@ -347,6 +352,9 @@ export default function AccountingDashboard({ selectedSalon, dateRange }: Accoun
                   <TableHead>Monto</TableHead>
                   <TableHead>Método</TableHead>
                   <TableHead>Notas</TableHead>
+                  <TableHead>Detalle</TableHead>
+                  <TableHead>Comisión Pasarela</TableHead>
+                  <TableHead>Liquidación</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -357,6 +365,13 @@ export default function AccountingDashboard({ selectedSalon, dateRange }: Accoun
                     <TableCell>${pay.amount.toLocaleString()}</TableCell>
                     <TableCell>{pay.paymentMethod}</TableCell>
                     <TableCell>{pay.notes || '-'}</TableCell>
+                    <TableCell>{pay.paymentMethodDetail || '-'}</TableCell>
+                    <TableCell>{pay.gatewayFee !== undefined && pay.gatewayFee !== null ? `$${pay.gatewayFee.toLocaleString()}` : '-'}</TableCell>
+                    <TableCell>
+                      {pay.gatewaySettlementDate
+                        ? `${new Date(`${pay.gatewaySettlementDate}T00:00:00`).toLocaleDateString('es-AR')}${pay.gatewaySettlementAmount ? ` · $${pay.gatewaySettlementAmount.toLocaleString()}` : ''}`
+                        : '-'}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="sm" onClick={() => handleEditPayment(pay)}>

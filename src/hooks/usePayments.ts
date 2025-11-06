@@ -20,8 +20,15 @@ export type Payment = {
   gatewaySettlementAmount?: number;
 };
 
+function normaliseDate(value?: string | null) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString().split('T')[0];
+}
+
 function mapRowToPayment(row: any): Payment {
-  const processedAt = row.processed_at || row.date || row.received_at || row.created_at;
+  const processedAt = row.received_at || row.processed_at || row.date || row.created_at;
   const dateValue = processedAt ? new Date(processedAt) : new Date();
   const yyyy = dateValue.getFullYear();
   const mm = String(dateValue.getMonth() + 1).padStart(2, '0');
@@ -47,14 +54,14 @@ function mapRowToPayment(row: any): Payment {
     date,
     notes: row.notes || undefined,
     orgId: row.org_id ? String(row.org_id) : undefined,
-    discountAmount: undefined,
-    taxAmount: undefined,
-    tipAmount: undefined,
-    gatewayFee: undefined,
-    paymentMethodDetail: undefined,
-    gatewayTransactionId: undefined,
-    gatewaySettlementDate: undefined,
-    gatewaySettlementAmount: undefined,
+    discountAmount: row.discount_amount !== undefined && row.discount_amount !== null ? Number(row.discount_amount) : undefined,
+    taxAmount: row.tax_amount !== undefined && row.tax_amount !== null ? Number(row.tax_amount) : undefined,
+    tipAmount: row.tip_amount !== undefined && row.tip_amount !== null ? Number(row.tip_amount) : undefined,
+    gatewayFee: row.gateway_fee !== undefined && row.gateway_fee !== null ? Number(row.gateway_fee) : undefined,
+    paymentMethodDetail: row.payment_method_detail || undefined,
+    gatewayTransactionId: row.gateway_transaction_id || undefined,
+    gatewaySettlementDate: normaliseDate(row.gateway_settlement_date),
+    gatewaySettlementAmount: row.gateway_settlement_amount !== undefined && row.gateway_settlement_amount !== null ? Number(row.gateway_settlement_amount) : undefined,
   };
 }
 
@@ -76,10 +83,16 @@ function mapPaymentToRow(payload: Partial<Payment>) {
       'mercadopago': 'mercadopago',
       'other': 'other',
     };
-    row.payment_method = methodMap[payload.paymentMethod] || 'cash';
+    row.method = methodMap[payload.paymentMethod] || 'cash';
   }
   if (payload.date !== undefined) {
-    row.processed_at = new Date(payload.date).toISOString();
+    try {
+      const isoDate = new Date(`${payload.date}T00:00:00`);
+      row.received_at = Number.isNaN(isoDate.getTime()) ? new Date(payload.date).toISOString() : isoDate.toISOString();
+    } catch (error) {
+      console.warn('No se pudo formatear received_at, usando fecha cruda', error);
+      row.received_at = payload.date as any;
+    }
   }
   if (payload.notes !== undefined) {
     row.notes = payload.notes || null;
@@ -88,16 +101,16 @@ function mapPaymentToRow(payload: Partial<Payment>) {
     row.org_id = payload.orgId;
   }
   if (payload.discountAmount !== undefined) {
-    row.discount_amount = payload.discountAmount || null;
+    row.discount_amount = payload.discountAmount ?? null;
   }
   if (payload.taxAmount !== undefined) {
-    row.tax_amount = payload.taxAmount || null;
+    row.tax_amount = payload.taxAmount ?? null;
   }
   if (payload.tipAmount !== undefined) {
-    row.tip_amount = payload.tipAmount || null;
+    row.tip_amount = payload.tipAmount ?? null;
   }
   if (payload.gatewayFee !== undefined) {
-    row.gateway_fee = payload.gatewayFee || null;
+    row.gateway_fee = payload.gatewayFee ?? null;
   }
   if (payload.paymentMethodDetail !== undefined) {
     row.payment_method_detail = payload.paymentMethodDetail || null;
@@ -106,10 +119,20 @@ function mapPaymentToRow(payload: Partial<Payment>) {
     row.gateway_transaction_id = payload.gatewayTransactionId || null;
   }
   if (payload.gatewaySettlementDate !== undefined) {
-    row.gateway_settlement_date = payload.gatewaySettlementDate || null;
+    if (payload.gatewaySettlementDate) {
+      try {
+        const isoDate = new Date(`${payload.gatewaySettlementDate}T00:00:00`);
+        row.gateway_settlement_date = Number.isNaN(isoDate.getTime()) ? new Date(payload.gatewaySettlementDate).toISOString() : isoDate.toISOString();
+      } catch (error) {
+        console.warn('No se pudo formatear gateway_settlement_date, usando valor crudo', error);
+        row.gateway_settlement_date = payload.gatewaySettlementDate as any;
+      }
+    } else {
+      row.gateway_settlement_date = null;
+    }
   }
   if (payload.gatewaySettlementAmount !== undefined) {
-    row.gateway_settlement_amount = payload.gatewaySettlementAmount || null;
+    row.gateway_settlement_amount = payload.gatewaySettlementAmount ?? null;
   }
   
   return row;
@@ -127,12 +150,17 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
       setPayments([]);
       return;
     }
+    if (!currentOrgId) {
+      setPayments([]);
+      return;
+    }
     
     setLoading(true);
     try {
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, method, received_at, notes, org_id, created_at');
+        .select('id, appointment_id, amount, method, received_at, notes, org_id, created_at, discount_amount, tax_amount, tip_amount, gateway_fee, payment_method_detail, gateway_transaction_id, gateway_settlement_date, gateway_settlement_amount')
+        .eq('org_id', currentOrgId);
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
@@ -157,7 +185,7 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     } finally {
       setLoading(false);
     }
-  }, [enabled, isDemo, options?.appointmentId]);
+  }, [enabled, isDemo, options?.appointmentId, currentOrgId]);
 
   useEffect(() => {
     if (!enabled || isDemo) return;
