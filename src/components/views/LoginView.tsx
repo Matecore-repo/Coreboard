@@ -1,7 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Lock, Mail, CalendarCheck, BellRing, BarChart3 } from "lucide-react";
 import { Button } from "../ui/button";
-import LoginCTA from "../LoginCTA";
 import { toastSuccess, toastError } from "../../lib/toast";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -22,7 +21,7 @@ const heroSlides = [
     id: "automation",
     headline: "Automatizá recordatorios efectivos",
     body: "Disminuí ausencias con mensajes inteligentes y recordatorios personalizados para cada cliente.",
-    image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1600&q=70",
+    image: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1600&q=70",
     icon: <BellRing className="h-6 w-6" aria-hidden="true" />,
   },
   {
@@ -35,7 +34,7 @@ const heroSlides = [
 ] as const;
 
 function LoginView() {
-  const { signInAsDemo, signIn, signUp, resetPassword, signInWithGoogle, user, loading } = useAuth();
+  const { signIn, signUp, resetPassword, signInWithGoogle, user, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -122,17 +121,6 @@ function LoginView() {
     }
   };
 
-  const handleForceLogin = () => {
-    if (typeof signInAsDemo === "function") {
-      setIsLoggingIn(true);
-      signInAsDemo();
-      // No redirigir aquí porque signInAsDemo en AuthContext ya lo hace
-      setIsLoggingIn(false);
-    } else {
-      toastError("Demo no disponible en este entorno");
-    }
-  };
-
   const handleGoogleLogin = async () => {
     try {
       setIsLoggingIn(true);
@@ -153,6 +141,7 @@ function LoginView() {
     const baseClass = "relative overflow-hidden bg-muted";
     const desktopClass = "hidden lg:block lg:w-1/2 min-h-[60vh] lg:h-screen";
     const mobileClass = "lg:hidden w-full h-[45vh] sm:h-[50vh]";
+    const overlayPadding = isDesktop ? "p-12 lg:p-16 xl:p-20" : "p-6";
 
     return (
       <div className={`${baseClass} ${isDesktop ? desktopClass : mobileClass}`}>
@@ -178,25 +167,21 @@ function LoginView() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent lg:bg-gradient-to-br lg:from-black/70 lg:via-black/45 lg:to-transparent" />
 
         {isDesktop && (
-          <div className="absolute bottom-0 left-0 right-0 px-8 py-8 sm:px-11 sm:py-12 lg:px-14 lg:py-14 text-white">
+          <div className={`absolute inset-0 flex flex-col justify-end ${overlayPadding}`}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={`copy-${currentSlide.id}`}
-                initial={{ opacity: 0, y: 14 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -14 }}
+                exit={{ opacity: 0, y: -18 }}
                 transition={{ duration: 0.55, ease: "easeOut" }}
-                className="space-y-4"
+                className="relative z-10 max-w-2xl"
               >
-                <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium text-white/95 backdrop-blur-xl border border-white/30 bg-gradient-to-r from-white/30 via-white/18 to-white/10 shadow-[0_8px_40px_rgba(255,255,255,0.12)]">
-                  {currentSlide.icon}
-                  CRM Coreboard
-                </div>
-                <div className="space-y-3 rounded-2xl bg-black/35 p-6 backdrop-blur-md border border-white/20 shadow-[0_18px_55px_rgba(0,0,0,0.35)] max-w-xl">
-                  <h2 className="text-3xl sm:text-4xl font-semibold drop-shadow-[0_12px_35px_rgba(0,0,0,0.55)] tracking-tight">
+                <div className="mt-auto rounded-3xl bg-black/70 px-10 py-9 sm:px-11 sm:py-10 shadow-[0_18px_55px_rgba(0,0,0,0.55)] text-white space-y-4">
+                  <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight leading-tight text-white">
                     {currentSlide.headline}
                   </h2>
-                  <p className="text-base sm:text-lg text-white/92 leading-relaxed">
+                  <p className="text-base sm:text-lg leading-relaxed text-white/85">
                     {currentSlide.body}
                   </p>
                 </div>
@@ -394,12 +379,17 @@ function LoginView() {
                 Continuar con Google
               </Button>
 
-              <div className="group">
-                <LoginCTA onClick={handleForceLogin}>Explorar la app</LoginCTA>
-              </div>
+              <Button
+                type="button"
+                onClick={() => window.open('https://www.matecore.com.ar/', '_blank', 'noopener,noreferrer')}
+                className="w-full h-12 text-base"
+                variant="secondary"
+              >
+                Conocé Matecore
+              </Button>
             </form>
 
-            <div className="text-center text-base text-muted-foreground pt-4">
+            <div className="text-center text-base text-muted-foreground">
               ¿No tienes cuenta?{" "}
               <button className="text-foreground hover:underline" onClick={() => setMode("register")}>Regístrate aquí</button>
             </div>

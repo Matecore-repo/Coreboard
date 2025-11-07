@@ -1,17 +1,20 @@
 import React from 'react';
 
 export interface LoginCTAProps {
-  onClick?: () => void;
+  href?: string;
+  target?: string;
+  rel?: string;
   children?: React.ReactNode;
 }
 
-export const LoginCTA: React.FC<LoginCTAProps> = ({ onClick, children }) => {
+export const LoginCTA: React.FC<LoginCTAProps> = ({ href = 'https://www.matecore.com.ar/', target = '_blank', rel = 'noopener noreferrer', children }) => {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <a
+      href={href}
+      target={target}
+      rel={rel}
       className="login-cta w-full h-12 rounded-xl overflow-hidden relative focus:outline-none"
-      aria-label="Explorar la app"
+      aria-label="Conoce Matecore"
     >
       {/* Glass base */}
       <span className="cta-glass" />
@@ -28,8 +31,8 @@ export const LoginCTA: React.FC<LoginCTAProps> = ({ onClick, children }) => {
       <span className="cta-shine" />
 
       {/* Label */}
-      <span className="cta-label font-semibold">{children ?? 'Explorar la app'}</span>
-    </button>
+      <span className="cta-label font-semibold">{children ?? 'Conoce Matecore'}</span>
+    </a>
   );
 };
 
