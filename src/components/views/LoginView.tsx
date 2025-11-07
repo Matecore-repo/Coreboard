@@ -149,56 +149,64 @@ function LoginView() {
 
   const currentSlide = heroSlides[activeSlide];
 
-  const renderMedia = (isDesktop: boolean) => (
-    <div className={`${isDesktop ? "hidden lg:block lg:w-1/2" : "lg:hidden w-full"} relative overflow-hidden bg-muted min-h-[45vh] lg:min-h-[60vh] lg:h-screen`}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentSlide.id}
-          className="absolute inset-0"
-          initial={{ opacity: 0.2 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          <NextImage
-            src={currentSlide.image}
-            alt="Vista CRM"
-            fill
-            className="object-cover"
-            sizes={isDesktop ? "50vw" : "100vw"}
-            priority={isDesktop}
-          />
-        </motion.div>
-      </AnimatePresence>
-      <div className="absolute inset-0 bg-gradient-to-br from-black/55 via-black/30 to-transparent" />
+  const renderMedia = (isDesktop: boolean) => {
+    const baseClass = "relative overflow-hidden bg-muted";
+    const desktopClass = "hidden lg:block lg:w-1/2 min-h-[60vh] lg:h-screen";
+    const mobileClass = "lg:hidden w-full h-[45vh] sm:h-[50vh]";
 
-      <div className="absolute bottom-0 left-0 right-0 px-6 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-14 text-white">
+    return (
+      <div className={`${baseClass} ${isDesktop ? desktopClass : mobileClass}`}>
         <AnimatePresence mode="wait">
           <motion.div
-            key={`copy-${currentSlide.id}`}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-            transition={{ duration: 0.55, ease: "easeOut" }}
-            className="space-y-4"
+            key={currentSlide.id}
+            className="absolute inset-0"
+            initial={{ opacity: 0.2 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
           >
-            <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium text-white/95 backdrop-blur-xl border border-white/30 bg-gradient-to-r from-white/30 via-white/18 to-white/10 shadow-[0_8px_40px_rgba(255,255,255,0.12)]">
-              {currentSlide.icon}
-              CRM Coreboard
-            </div>
-            <div className="space-y-3 rounded-2xl bg-black/35 p-4 sm:p-6 backdrop-blur-md border border-white/20 shadow-[0_18px_55px_rgba(0,0,0,0.35)] max-w-xl">
-              <h2 className="text-3xl sm:text-4xl font-semibold drop-shadow-[0_12px_35px_rgba(0,0,0,0.55)] tracking-tight">
-                {currentSlide.headline}
-              </h2>
-              <p className="text-base sm:text-lg text-white/92 leading-relaxed">
-                {currentSlide.body}
-              </p>
-            </div>
+            <NextImage
+              src={currentSlide.image}
+              alt="Vista CRM"
+              fill
+              className="object-cover"
+              sizes={isDesktop ? "50vw" : "100vw"}
+              priority={isDesktop}
+            />
           </motion.div>
         </AnimatePresence>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent lg:bg-gradient-to-br lg:from-black/70 lg:via-black/45 lg:to-transparent" />
+
+        {isDesktop && (
+          <div className="absolute bottom-0 left-0 right-0 px-8 py-8 sm:px-11 sm:py-12 lg:px-14 lg:py-14 text-white">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`copy-${currentSlide.id}`}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                transition={{ duration: 0.55, ease: "easeOut" }}
+                className="space-y-4"
+              >
+                <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium text-white/95 backdrop-blur-xl border border-white/30 bg-gradient-to-r from-white/30 via-white/18 to-white/10 shadow-[0_8px_40px_rgba(255,255,255,0.12)]">
+                  {currentSlide.icon}
+                  CRM Coreboard
+                </div>
+                <div className="space-y-3 rounded-2xl bg-black/35 p-6 backdrop-blur-md border border-white/20 shadow-[0_18px_55px_rgba(0,0,0,0.35)] max-w-xl">
+                  <h2 className="text-3xl sm:text-4xl font-semibold drop-shadow-[0_12px_35px_rgba(0,0,0,0.55)] tracking-tight">
+                    {currentSlide.headline}
+                  </h2>
+                  <p className="text-base sm:text-lg text-white/92 leading-relaxed">
+                    {currentSlide.body}
+                  </p>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen flex">
