@@ -32,6 +32,20 @@ interface SearchedUser {
   full_name?: string;
 }
 
+interface SyncedEmployee {
+  id: string;
+  user_id: string;
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  commission_type?: 'percentage' | 'fixed' | null;
+  default_commission_pct?: number | null;
+  default_commission_amount?: number | null;
+  active?: boolean | null;
+  hasEmployeeRecord: boolean;
+  role: Membership['role'];
+}
+
 interface OrganizationViewProps {
   isDemo?: boolean;
 }
@@ -112,49 +126,110 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const canManageTeam = canEdit;
   const canEditCommissions = canEdit;
 
+  const employeesByUserId = useMemo(() => {
+    const map = new Map<string, any>();
+    (employees || []).forEach((employee: any) => {
+      if (employee?.user_id) {
+        map.set(employee.user_id, employee);
+      }
+    });
+    return map;
+  }, [employees]);
+
+  const syncedEmployees = useMemo<SyncedEmployee[]>(() => {
+    if (!memberships || memberships.length === 0) return [];
+
+    return memberships
+      .filter((member) => Boolean(member.user_id) && member.role !== 'viewer')
+      .map((member) => {
+        if (!member.user_id) return null;
+
+        const record = employeesByUserId.get(member.user_id);
+        const fallbackName = member.user?.full_name || member.user?.email || `Usuario ${member.user_id.substring(0, 8)}`;
+
+        return {
+          id: record?.id ?? member.user_id,
+          user_id: member.user_id,
+          full_name: record?.full_name ?? fallbackName,
+          email: record?.email ?? member.user?.email ?? null,
+          phone: record?.phone ?? null,
+          commission_type: (record?.commission_type as 'percentage' | 'fixed' | null) ?? null,
+          default_commission_pct: record?.default_commission_pct ?? null,
+          default_commission_amount: record?.default_commission_amount ?? null,
+          active: record?.active ?? true,
+          hasEmployeeRecord: Boolean(record),
+          role: member.role,
+        } as SyncedEmployee;
+      })
+      .filter((member): member is SyncedEmployee => Boolean(member));
+  }, [employeesByUserId, memberships]);
+
   // ============================================================================
   // FUNCIONES DE GESTIÓN DE EMPLEADOS
   // ============================================================================
 
-  const handleSelectEmployeeFromList = useCallback(async (employee: any) => {
-    // Cargar salones asignados
+  const handleSelectEmployeeFromList = useCallback(async (employee: SyncedEmployee) => {
+    if (!employee.hasEmployeeRecord) {
+      setSelectedSalons(new Set());
+      setSelectedEmployee({
+        employee: null,
+        membership: memberships.find((m) => m.user_id === employee.user_id) || null,
+      });
+      return;
+    }
+
     const { data: assignments } = await supabase
       .from('salon_employees')
       .select('salon_id')
       .eq('employee_id', employee.id)
       .eq('is_active', true);
-    
-    const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
+
+    const assignedSalonIds = new Set((assignments || []).map((a) => a.salon_id));
     setSelectedSalons(assignedSalonIds);
-    
+
     setSelectedEmployee({
-      employee: employee,
-      membership: memberships.find(m => m.user_id === employee.user_id) || null
+      employee,
+      membership: memberships.find((m) => m.user_id === employee.user_id) || null,
     });
   }, [memberships]);
 
-  const handleEditEmployeeFromList = useCallback(async (employee: any) => {
+  const handleEditEmployeeFromList = useCallback(async (employee: SyncedEmployee) => {
+    if (!employee.hasEmployeeRecord) {
+      setEditingEmployee(null);
+      setEmployeeFormData({
+        full_name: employee.full_name || '',
+        email: employee.email || '',
+        phone: employee.phone || '',
+        commission_type: 'percentage',
+        default_commission_pct: typeof employee.default_commission_pct === 'number' ? employee.default_commission_pct : 50,
+        default_commission_amount: employee.default_commission_amount ?? 0,
+      });
+      setSelectedSalons(new Set());
+      setSelectedEmployee(null);
+      setTimeout(() => setEmployeeDialogOpen(true), 0);
+      return;
+    }
+
     setEditingEmployee(employee);
     setEmployeeFormData({
-      full_name: employee.full_name,
+      full_name: employee.full_name || '',
       email: employee.email || '',
       phone: employee.phone || '',
       commission_type: (employee.commission_type as 'percentage' | 'fixed') || 'percentage',
       default_commission_pct: employee.default_commission_pct || 0,
       default_commission_amount: employee.default_commission_amount || 0,
     });
-    
-    // Cargar salones asignados
+
     const { data: assignments } = await supabase
       .from('salon_employees')
       .select('salon_id')
       .eq('employee_id', employee.id)
       .eq('is_active', true);
-    
-    const assignedSalonIds = new Set((assignments || []).map(a => a.salon_id));
+
+    const assignedSalonIds = new Set((assignments || []).map((a) => a.salon_id));
     setSelectedSalons(assignedSalonIds);
-    
-    setSelectedEmployee(null); // Cerrar action bar
+
+    setSelectedEmployee(null);
     setTimeout(() => {
       setEmployeeDialogOpen(true);
     }, 200);

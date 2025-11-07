@@ -18,7 +18,6 @@ interface OrganizationSummarySidebarProps {
   canDelete: boolean;
   getInitials: (text: string | undefined) => string;
   onMemberOptions?: (member: Membership) => void;
-  onManageTeam?: () => void;
 }
 
 const OrganizationSummarySidebar: React.FC<OrganizationSummarySidebarProps> = ({
@@ -33,7 +32,6 @@ const OrganizationSummarySidebar: React.FC<OrganizationSummarySidebarProps> = ({
   canDelete,
   getInitials,
   onMemberOptions,
-  onManageTeam,
 }) => {
   return (
     <Card className="h-fit">
@@ -132,7 +130,7 @@ const OrganizationSummarySidebar: React.FC<OrganizationSummarySidebarProps> = ({
           </div>
         </div>
       </CardContent>
-      {(onInvite || onEdit || onManageTeam || (canDelete && onDelete)) && (
+      {(onInvite || onEdit || (canDelete && onDelete)) && (
         <CardFooter className="flex flex-wrap gap-2">
           {onInvite && (
             <Button size="sm" className="flex-1 min-w-[120px]" onClick={onInvite}>
@@ -142,16 +140,6 @@ const OrganizationSummarySidebar: React.FC<OrganizationSummarySidebarProps> = ({
           {onEdit && (
             <Button size="sm" variant="outline" className="flex-1 min-w-[120px]" onClick={onEdit}>
               Editar
-            </Button>
-          )}
-          {onManageTeam && (
-            <Button
-              size="sm"
-              variant="secondary"
-              className="flex-1 min-w-[120px]"
-              onClick={onManageTeam}
-            >
-              Gestionar equipo
             </Button>
           )}
           {canDelete && onDelete && (
