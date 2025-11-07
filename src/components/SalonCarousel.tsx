@@ -1,54 +1,51 @@
-﻿import { GenericCarousel } from "./GenericCarousel";
-import { SalonCard } from "./SalonCard";
-import { ViewAllSalonCard } from "./ViewAllSalonCard";
+import React from "react";
+import { Card, CardContent } from "./ui/card";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "./ui/carousel";
 
 interface Salon {
   id: string;
   name: string;
-  address: string;
-  image: string;
-  staff?: string[];
+  address?: string;
 }
 
 interface SalonCarouselProps {
-  salons: Salon[];
-  selectedSalon: string | null;
-  onSelectSalon: (id: string, name: string) => void;
+  salons?: Salon[];
 }
 
-export function SalonCarousel({ 
-  salons, 
-  selectedSalon, 
-  onSelectSalon,
-}: SalonCarouselProps) {
+const FALLBACK_ITEMS: Salon[] = Array.from({ length: 5 }).map((_, index) => ({
+  id: `placeholder-${index}`,
+  name: `Local ${index + 1}`,
+  address: "Dirección pendiente",
+}));
+
+export function SalonCarousel({ salons }: SalonCarouselProps) {
+  const items = salons?.length ? salons.slice(0, 5) : FALLBACK_ITEMS;
+
   return (
-    <GenericCarousel
-      items={salons}
-      selectedItem={selectedSalon}
-      onSelectItem={onSelectSalon}
-      getItemId={(salon) => salon.id}
-      getItemName={(salon) => salon.name}
-      renderItem={(salon, isSelected, isDimmed) => (
-        <SalonCard
-          name={salon.name}
-          address={salon.address}
-          image={salon.image}
-          onClick={() => onSelectSalon(salon.id, salon.name)}
-          isSelected={isSelected}
-          isDimmed={isDimmed}
-        />
-      )}
-      specialItem={{
-        id: 'all',
-        name: 'Todas',
-        render: (isSelected, isDimmed) => (
-          <ViewAllSalonCard
-            onClick={() => onSelectSalon('all', 'Todas')}
-            isSelected={isSelected}
-            isDimmed={isDimmed}
-          />
-        ),
-      }}
-    />
+    <Carousel className="w-full max-w-xs">
+      <CarouselContent>
+        {items.map((item, index) => (
+          <CarouselItem key={item.id}>
+            <div className="p-1">
+              <Card>
+                <CardContent className="flex aspect-square items-center justify-center p-6">
+                  <span className="text-3xl font-semibold">
+                    {item.name || `Local ${index + 1}`}
+                  </span>
+                </CardContent>
+              </Card>
+            </div>
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+      <CarouselPrevious />
+      <CarouselNext />
+    </Carousel>
   );
 }

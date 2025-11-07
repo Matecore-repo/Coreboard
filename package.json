@@ -71,6 +71,7 @@
     "@types/react": "19.2.2",
     "@types/react-datepicker": "^4.19.6",
     "jsdom": "27.0.0",
+    "shadcn": "^3.5.0",
     "typescript": "5.9.3",
     "vitest": "3.2.4"
   }
