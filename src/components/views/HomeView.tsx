@@ -10,6 +10,7 @@ import { Section } from "../layout/Section";
 import { useTurnos } from "../../hooks/useTurnos";
 import React, { lazy, Suspense, useState, useMemo } from "react";
 import { ShortcutBanner } from "../ShortcutBanner";
+import { useCommandPalette } from "../../contexts/CommandPaletteContext";
 
 const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
 const ClientsPanel = lazy(() => import("../ClientsPanel").then(m => ({ default: m.ClientsPanel })));
@@ -35,6 +36,7 @@ interface HomeViewProps {
 
 export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppointmentClick, onAddAppointment, orgName, isNewUser }: HomeViewProps) {
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const palette = useCommandPalette(true);
   
   // Usar useTurnos internamente como fuente única de verdad
   const { turnos } = useTurnos({
@@ -100,6 +102,7 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
               Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
             </>
           )}
+          onShortcutClick={palette?.openPalette}
         />
         <section className="text-center mb-8" role="region" aria-label="Bienvenida">
           <h1 className="text-2xl font-semibold mb-2">¡Bienvenido a {orgName || 'tu local'}!</h1>
@@ -131,6 +134,7 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
             Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
           </>
         )}
+        onShortcutClick={palette?.openPalette}
       />
       <Section 
         title="Mis Locales"

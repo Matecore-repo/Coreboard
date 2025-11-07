@@ -43,6 +43,9 @@ export function useCommandPalette(optional?: boolean): CommandPaletteContextValu
 export function useCommandPaletteActions(actions: CommandAction[], deps: React.DependencyList = []) {
   const context = useCommandPalette();
   React.useEffect(() => {
+    if (!context) {
+      return undefined;
+    }
     context.setActions(actions);
     return () => {
       context.clearActions();

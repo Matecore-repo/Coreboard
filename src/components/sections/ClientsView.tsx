@@ -15,10 +15,12 @@ import { Building2 } from 'lucide-react';
 import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
 import { ShortcutBanner } from '../ShortcutBanner';
+import { useCommandPalette } from '../../contexts/CommandPaletteContext';
 interface ClientsViewProps {}
 
 const ClientsView: React.FC<ClientsViewProps> = () => {
   const { currentOrgId, isDemo } = useAuth();
+  const palette = useCommandPalette(true);
   const { clients, loading: hooksLoading, error: clientsError, createClient, updateClient, deleteClient } = useClients(currentOrgId ?? undefined);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -183,6 +185,7 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
             Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
           </>
         )}
+        onShortcutClick={palette?.openPalette}
       />
       <section className="mt-4" role="region" aria-label="Gestión de clientes">
         <Section

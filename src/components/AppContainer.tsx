@@ -523,9 +523,18 @@ export default function AppContainer() {
     );
   }
 
+  const handleCommandSelect = useCallback(
+    (action: CommandAction) => {
+      action.onSelect?.();
+      closeCommandPalette();
+    },
+    [closeCommandPalette],
+  );
+
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen bg-background" role="application" aria-label="Coreboard CRM">
+    <CommandPaletteProvider value={commandPaletteValue}>
+      <SidebarProvider>
+        <div className="flex min-h-screen bg-background" role="application" aria-label="Coreboard CRM">
         <Sidebar className="border-r" role="navigation" aria-label="Navegación principal">
           <SidebarHeader className="border-b px-4 py-3">
             <h2 className="text-lg font-semibold tracking-tight" aria-label="Coreboard">
@@ -609,27 +618,64 @@ export default function AppContainer() {
           </main>
         </SidebarInset>
 
-        {isDemoModeEnv && (
-          <DemoDataBubble
-            onSeed={() => {
-              console.log("Seeding demo data...");
-            }}
-          />
-        )}
+          {isDemoModeEnv && (
+            <DemoDataBubble
+              onSeed={() => {
+                console.log("Seeding demo data...");
+              }}
+            />
+          )}
 
-        {showDemoWelcome && (
-          <DemoWelcomeModal
-            isOpen={showDemoWelcome}
-            onSave={() => {
-              handleDemoWelcomeComplete();
-            }}
-            onClose={handleDemoWelcomeComplete}
-          />
-        )}
+          {showDemoWelcome && (
+            <DemoWelcomeModal
+              isOpen={showDemoWelcome}
+              onSave={() => {
+                handleDemoWelcomeComplete();
+              }}
+              onClose={handleDemoWelcomeComplete}
+            />
+          )}
 
-        <Toaster position="top-right" />
-      </div>
-    </SidebarProvider>
+          <Toaster position="top-right" />
+        </div>
+      </SidebarProvider>
+
+      <CommandDialog
+        open={isCommandPaletteOpen}
+        onOpenChange={(open) => (open ? openCommandPalette() : closeCommandPalette())}
+        title="Atajos del CRM"
+        description="Busca vistas o acciones disponibles"
+      >
+        <CommandInput placeholder="Buscar acción, vista o comando..." />
+        <CommandList>
+          <CommandEmpty>No se encontraron resultados</CommandEmpty>
+          {commandActionGroups.map(([group, actions], index) => (
+            <React.Fragment key={group}>
+              {index > 0 && <CommandSeparator />}
+              <CommandGroup heading={group}>
+                {actions.map((action) => (
+                  <CommandItem
+                    key={action.id}
+                    value={`${group}-${action.id}`}
+                    onSelect={() => handleCommandSelect(action)}
+                    className="gap-3"
+                  >
+                    {action.icon}
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium leading-none">{action.label}</span>
+                      {action.description && (
+                        <span className="text-xs text-muted-foreground">{action.description}</span>
+                      )}
+                    </div>
+                    {action.shortcut && <CommandShortcut>{action.shortcut}</CommandShortcut>}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </React.Fragment>
+          ))}
+        </CommandList>
+      </CommandDialog>
+    </CommandPaletteProvider>
   );
 }
 

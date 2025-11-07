@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
-import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, UserCog, Scissors, MapPin } from "lucide-react";
+import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, MapPin, LogOut, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
@@ -30,6 +30,9 @@ import { Card, CardContent } from "./components/ui/card";
 import { SkeletonList } from "./components/ui/SkeletonLoader";
 import type { Salon, SalonService } from "./types/salon";
 import { sampleSalons } from "./constants/salons";
+import { CommandPaletteProvider, CommandAction } from "./contexts/CommandPaletteContext";
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "./components/ui/command";
+import { applyTheme } from "./lib/theme";
 
 // Lazy-loaded views
 const HomeView = lazy(() => {
@@ -79,6 +82,16 @@ const viewPreloadMap: Record<string, () => void> = {
   settings: () => { import("./components/views/SettingsView"); },
   salons: () => { import("./components/views/SalonsManagementView"); },
   organization: () => { import("./components/views/OrganizationView"); },
+};
+
+const NAVIGATION_DESCRIPTIONS: Record<string, string> = {
+  home: "Ver el tablero principal",
+  appointments: "Gestionar turnos y agenda",
+  clients: "Administrar la base de clientes",
+  organization: "Gestionar la organización y su equipo",
+  salons: "Configurar locales y recursos",
+  finances: "Revisar reportes financieros",
+  settings: "Ajustar preferencias generales",
 };
 
 // ============================================================================
@@ -134,8 +147,37 @@ export default function App() {
     { id: 's1', name: 'Corte', price: 1200, durationMinutes: 30 },
     { id: 's2', name: 'Coloración', price: 3000, durationMinutes: 90 },
   ]);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [viewActions, setViewActions] = useState<CommandAction[]>([]);
 
   const isMobile = useIsMobile();
+
+  const openCommandPalette = useCallback(() => setIsCommandPaletteOpen(true), []);
+  const closeCommandPalette = useCallback(() => setIsCommandPaletteOpen(false), []);
+  const handleSetActions = useCallback((actions: CommandAction[]) => {
+    setViewActions(actions);
+  }, []);
+  const handleClearActions = useCallback(() => {
+    setViewActions([]);
+  }, []);
+
+  const commandPaletteValue = useMemo(
+    () => ({
+      openPalette: openCommandPalette,
+      closePalette: closeCommandPalette,
+      setActions: handleSetActions,
+      clearActions: handleClearActions,
+    }),
+    [openCommandPalette, closeCommandPalette, handleSetActions, handleClearActions],
+  );
+
+  const handleCommandSelect = useCallback(
+    (action: CommandAction) => {
+      action.onSelect?.();
+      closeCommandPalette();
+    },
+    [closeCommandPalette],
+  );
 
   // =========================================================================
   // DATOS REMOTOS (Supabase) - Usando useTurnos como fuente única de verdad
@@ -784,6 +826,114 @@ export default function App() {
     return allNavItems;
   }, [currentRole, isDemo]);
 
+  const navigateToView = useCallback((itemId: string) => {
+    if (itemId === activeNavItem) return;
+    try {
+      viewPreloadMap[itemId]?.();
+    } catch {}
+    setNextViewName(viewNames[itemId] || itemId);
+    setIsNavigating(true);
+    startTransition(() => {
+      setActiveNavItem(itemId);
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', itemId);
+        window.history.replaceState({}, '', url.toString());
+      }
+      setTimeout(() => {
+        setIsNavigating(false);
+        setNextViewName(null);
+      }, 2000);
+    });
+  }, [activeNavItem, viewNames, startTransition]);
+
+  const moveView = useCallback((direction: "next" | "prev") => {
+    if (!navItems.length) return;
+    const ids = navItems.map((item) => item.id);
+    const currentIndex = ids.indexOf(activeNavItem);
+    if (currentIndex === -1) return;
+    const nextIndex = direction === "next"
+      ? (currentIndex + 1) % ids.length
+      : (currentIndex - 1 + ids.length) % ids.length;
+    const targetId = ids[nextIndex];
+    if (targetId) {
+      navigateToView(targetId);
+    }
+  }, [navItems, activeNavItem, navigateToView]);
+
+  const navigationActions = useMemo<CommandAction[]>(() => {
+    return navItems.map((item) => {
+      const Icon = item.icon;
+      return {
+        id: `nav-${item.id}`,
+        group: "Navegación",
+        label: item.label,
+        description: NAVIGATION_DESCRIPTIONS[item.id] || "Ir a la vista seleccionada",
+        icon: <Icon className="size-4" aria-hidden="true" />,
+        onSelect: () => navigateToView(item.id),
+      } satisfies CommandAction;
+    });
+  }, [navItems, navigateToView]);
+
+  const handleToggleTheme = useCallback(() => {
+    const isCurrentlyDark = typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : theme === "dark";
+    const nextTheme: "light" | "dark" = isCurrentlyDark ? "light" : "dark";
+    applyTheme(nextTheme);
+    setTheme(nextTheme);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent<"light" | "dark">("theme:changed", { detail: nextTheme }));
+    }
+  }, [theme]);
+
+  const systemActions = useMemo<CommandAction[]>(() => {
+    const actions: CommandAction[] = [
+      {
+        id: "toggle-theme",
+        group: "Preferencias",
+        label: "Alternar tema (claro/oscuro)",
+        description: "Cambia entre los modos claro y oscuro",
+        shortcut: "Ctrl+Alt+T",
+        icon: theme === "dark" ? <Sun className="size-4" aria-hidden="true" /> : <Moon className="size-4" aria-hidden="true" />,
+        onSelect: handleToggleTheme,
+      },
+    ];
+
+    if (user) {
+      actions.push({
+        id: "logout",
+        group: "Cuenta",
+        label: "Cerrar sesión",
+        description: "Finaliza tu sesión actual",
+        icon: <LogOut className="size-4" aria-hidden="true" />,
+        onSelect: () => {
+          handleLogout();
+        },
+      });
+    }
+
+    return actions;
+  }, [theme, handleToggleTheme, user, handleLogout]);
+
+  const allActions = useMemo(() => {
+    const combined = [...navigationActions, ...systemActions, ...viewActions];
+    const unique = new Map<string, CommandAction>();
+    combined.forEach((action) => {
+      unique.set(action.id, action);
+    });
+    return Array.from(unique.values());
+  }, [navigationActions, systemActions, viewActions]);
+
+  const commandActionGroups = useMemo(() => {
+    const map = new Map<string, CommandAction[]>();
+    allActions.forEach((action) => {
+      if (!map.has(action.group)) {
+        map.set(action.group, []);
+      }
+      map.get(action.group)!.push(action);
+    });
+    return Array.from(map.entries()).map(([group, actions]) => [group, actions.sort((a, b) => a.label.localeCompare(b.label))] as [string, CommandAction[]]);
+  }, [allActions]);
+
   // Leer parámetro view de la URL al inicializar
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -793,6 +943,40 @@ export default function App() {
       setActiveNavItem(viewParam);
     }
   }, []);
+
+  useEffect(() => {
+    const isTypingElement = (target: EventTarget | null) => {
+      if (!target || !(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      return target.isContentEditable || tag === "input" || tag === "textarea" || tag === "select";
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTypingElement(event.target)) return;
+      const key = event.key.toLowerCase();
+      const isMod = event.metaKey || event.ctrlKey;
+
+      if (isMod && key === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      if (isMod && event.key === "ArrowRight") {
+        event.preventDefault();
+        moveView("next");
+        return;
+      }
+
+      if (isMod && event.key === "ArrowLeft") {
+        event.preventDefault();
+        moveView("prev");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [moveView]);
 
   const selectedSalonName = useMemo(() => {
     if (!selectedSalon) return "Ninguna peluquería seleccionada";
@@ -1029,7 +1213,7 @@ export default function App() {
   // RENDERIZADO PRINCIPAL
   // =========================================================================
   return (
-    <>
+    <CommandPaletteProvider value={commandPaletteValue}>
       <Sonner theme={theme} position="top-right" />
       <div className={`flex h-screen bg-background overflow-hidden`}>
         {/* Desktop Sidebar */}
@@ -1043,23 +1227,7 @@ export default function App() {
             showQuickActions={showQuickActions}
             isMobile={isMobile}
             onProfileClick={() => setIsProfileModalOpen(true)}
-            onNavItemClick={(itemId) => {
-              if (itemId === activeNavItem) return;
-              try { viewPreloadMap[itemId]?.(); } catch {}
-              setNextViewName(viewNames[itemId] || itemId);
-              setIsNavigating(true);
-              startTransition(() => {
-                setActiveNavItem(itemId);
-                const url = new URL(window.location.href);
-                url.searchParams.set('view', itemId);
-                window.history.replaceState({}, '', url.toString());
-                // Mínimo 2 segundos para que cargue todo bien
-                setTimeout(() => {
-                  setIsNavigating(false);
-                  setNextViewName(null);
-                }, 2000);
-              });
-            }}
+            onNavItemClick={(itemId) => navigateToView(itemId)}
             onLogout={handleLogout}
             onQuickActionsToggle={() => setShowQuickActions(!showQuickActions)}
           />
@@ -1089,16 +1257,8 @@ export default function App() {
                   setMobileMenuOpen(false);
                   return;
                 }
-                setNextViewName(viewNames[itemId] || itemId);
-                setIsNavigating(true);
-                startTransition(() => {
-                  setActiveNavItem(itemId);
-                  setMobileMenuOpen(false);
-                  setTimeout(() => {
-                    setIsNavigating(false);
-                    setNextViewName(null);
-                  }, 2000);
-                });
+                navigateToView(itemId);
+                setMobileMenuOpen(false);
               }}
               onLogout={handleLogout}
               onQuickActionsToggle={() => setShowQuickActions(!showQuickActions)}
@@ -1298,8 +1458,44 @@ export default function App() {
         isOpen={showPaymentLinkModal}
         onClose={() => setShowPaymentLinkModal(false)}
       />
-    </div>
-    </>
+      </div>
+
+      <CommandDialog
+        open={isCommandPaletteOpen}
+        onOpenChange={(open) => (open ? openCommandPalette() : closeCommandPalette())}
+        title="Paleta de comandos"
+        description="Busca vistas o acciones disponibles"
+      >
+        <CommandInput placeholder="Buscar acción o vista..." />
+        <CommandList>
+          <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+          {commandActionGroups.map(([group, actions], index) => (
+            <React.Fragment key={group}>
+              {index > 0 && <CommandSeparator />}
+              <CommandGroup heading={group}>
+                {actions.map((action) => (
+                  <CommandItem
+                    key={action.id}
+                    value={`${group}-${action.id}`}
+                    onSelect={() => handleCommandSelect(action)}
+                    className="gap-3"
+                  >
+                    {action.icon}
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium leading-none">{action.label}</span>
+                      {action.description && (
+                        <span className="text-xs text-muted-foreground">{action.description}</span>
+                      )}
+                    </div>
+                    {action.shortcut && <CommandShortcut>{action.shortcut}</CommandShortcut>}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </React.Fragment>
+          ))}
+        </CommandList>
+      </CommandDialog>
+    </CommandPaletteProvider>
   );
 }
 

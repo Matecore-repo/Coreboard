@@ -21,6 +21,14 @@ interface GenericCarouselProps<T> {
   itemClassName?: string;
   specialItemClassName?: string;
   showNavigation?: boolean;
+  gap?: number;
+  slidesToShow?: {
+    default?: number;
+    640?: number;
+    768?: number;
+    1024?: number;
+    1280?: number;
+  };
 }
 
 export function GenericCarousel<T>({
@@ -40,15 +48,76 @@ export function GenericCarousel<T>({
   emptyState,
   loading = false,
   className,
-  itemClassName = "pl-4 last:pr-4 md:basis-1/2 lg:basis-1/3 xl:basis-1/4 min-w-0",
-  specialItemClassName = "pl-4 md:basis-1/2 lg:basis-1/3 xl:basis-1/4 min-w-0",
+  gap = 16,
+  slidesToShow = { default: 1, 640: 2, 1024: 3 },
+  itemClassName,
+  specialItemClassName,
   showNavigation = true,
 }: GenericCarouselProps<T>) {
   const hasSelection = selectedItem !== null && selectedItem !== undefined;
 
+  const gapClassMap: Record<number, string> = {
+    0: "pl-0",
+    4: "pl-1",
+    8: "pl-2",
+    12: "pl-3",
+    16: "pl-4",
+    20: "pl-5",
+    24: "pl-6",
+  };
+
+  const negativeGapClassMap: Record<number, string> = {
+    0: "-ml-0",
+    4: "-ml-1",
+    8: "-ml-2",
+    12: "-ml-3",
+    16: "-ml-4",
+    20: "-ml-5",
+    24: "-ml-6",
+  };
+
+  const gapClass = gapClassMap[gap] ?? "pl-4";
+  const negativeGapClass = negativeGapClassMap[gap] ?? "-ml-4";
+
+  const getBasisClass = (count?: number) => {
+    switch (count) {
+      case 1:
+      case undefined:
+        return "basis-full";
+      case 2:
+        return "basis-1/2";
+      case 3:
+        return "basis-1/3";
+      case 4:
+        return "basis-1/4";
+      default:
+        return "basis-full";
+    }
+  };
+
+  const responsiveClasses = [
+    getBasisClass(slidesToShow?.default),
+    slidesToShow?.[640] ? `sm:${getBasisClass(slidesToShow[640])}` : null,
+    slidesToShow?.[768] ? `md:${getBasisClass(slidesToShow[768])}` : null,
+    slidesToShow?.[1024] ? `lg:${getBasisClass(slidesToShow[1024])}` : null,
+    slidesToShow?.[1280] ? `xl:${getBasisClass(slidesToShow[1280])}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const defaultItemClasses = `${gapClass} ${responsiveClasses || "basis-full sm:basis-1/2 lg:basis-1/3"} min-w-0`;
+
+  const sharedItemStyle = gapClassMap[gap]
+    ? undefined
+    : ({ paddingLeft: gap } as React.CSSProperties);
+
+  const contentStyle = negativeGapClassMap[gap]
+    ? undefined
+    : ({ marginLeft: -gap } as React.CSSProperties);
+
   if (loading) {
     return (
-      <div className={className || "relative py-4"}>
+      <div className={className || "relative py-6"}>
         <div className="flex items-center justify-center py-12">
           <div className="text-muted-foreground text-sm">Cargando...</div>
         </div>
@@ -60,7 +129,7 @@ export function GenericCarousel<T>({
 
   if (!hasItems && emptyState) {
     return (
-      <div className={className || "relative py-4"}>
+      <div className={className || "relative py-6"}>
         {emptyState}
       </div>
     );
@@ -71,16 +140,20 @@ export function GenericCarousel<T>({
   }
 
   return (
-    <div className={className || "relative py-4 px-2 sm:px-4"}>
+    <div className={className || "relative py-6"}>
       <Carousel 
         className="w-full" 
         opts={carouselOpts}
       >
-        <CarouselContent className="-ml-4 py-2 sm:py-3">
+        <CarouselContent
+          className={`${negativeGapClass} py-3 sm:py-4`}
+          style={contentStyle}
+        >
           {specialItem && (
             <CarouselItem 
               key={specialItem.id} 
-              className={specialItemClassName}
+              className={specialItemClassName || defaultItemClasses}
+              style={sharedItemStyle}
             >
               {specialItem.render(
                 selectedItem === specialItem.id || selectedItem === null,
@@ -94,7 +167,8 @@ export function GenericCarousel<T>({
             return (
               <CarouselItem 
                 key={itemId} 
-                className={itemClassName}
+                className={itemClassName || defaultItemClasses}
+                style={sharedItemStyle}
               >
                 {renderItem(
                   item,
@@ -107,8 +181,8 @@ export function GenericCarousel<T>({
         </CarouselContent>
         {showNavigation && (
           <>
-            <CarouselPrevious className="left-2 md:left-4" />
-            <CarouselNext className="right-2 md:right-4" />
+            <CarouselPrevious />
+            <CarouselNext />
           </>
         )}
       </Carousel>

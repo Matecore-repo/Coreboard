@@ -20,6 +20,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useEmployees } from "../../hooks/useEmployees";
 import { useSalonEmployees } from "../../hooks/useSalonEmployees";
 import { ShortcutBanner } from "../ShortcutBanner";
+import { useCommandPalette } from "../../contexts/CommandPaletteContext";
 
 interface Salon {
   id: string;
@@ -53,6 +54,7 @@ const RECOMMENDED_SERVICES: Array<{ key: string; name: string; base_price: numbe
 
 function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }: SalonsManagementViewProps) {
   const { currentOrgId } = useAuth();
+  const palette = useCommandPalette(true);
   const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
   const { services: allServices, createService: createOrgService, isLoading: servicesLoading } = useServices(currentOrgId ?? undefined);
   
@@ -355,6 +357,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
             Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
           </>
         )}
+        onShortcutClick={palette?.openPalette}
       />
       <Section 
         title="Gestión de Locales"

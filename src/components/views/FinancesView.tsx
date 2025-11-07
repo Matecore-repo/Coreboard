@@ -1,4 +1,4 @@
-import React, { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Calendar, Wallet, Sun, Moon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -15,10 +15,10 @@ import AccountingDashboard from "./AccountingDashboard";
 import ClientDashboard from "./ClientDashboard";
 import { Button } from "../ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "../ui/command";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, getStoredTheme } from "../../lib/theme";
 import { ShortcutBanner } from "../ShortcutBanner";
+import { useCommandPaletteActions, CommandAction } from "../../contexts/CommandPaletteContext";
 
 interface FinancesViewProps {
   selectedSalon: string | null;
@@ -42,7 +42,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   const { canViewFinances } = useFinancialPermissions();
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [activeTab, setActiveTab] = useState<string>("owner");
-  const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -99,15 +98,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     setFilterLabel(null);
     setIsFilterOpen(false);
   }, []);
-
-  type QuickAction = {
-    group: string;
-    label: string;
-    description: string;
-    shortcut?: string;
-    action: () => void;
-    icon?: React.ReactNode;
-  };
 
   const tabItems = useMemo(
     () => [
@@ -171,11 +161,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
       const key = event.key.toLowerCase();
       const isMod = event.metaKey || event.ctrlKey;
 
-      if (isMod && key === "k") {
-        event.preventDefault();
-        setIsCommandOpen((prev) => !prev);
-      }
-
       if (isMod && key === "arrowright") {
         event.preventDefault();
         moveTab("next");
@@ -219,37 +204,41 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     }
   }, []);
 
-  const quickActions = useMemo<QuickAction[]>(() => {
-    const tabActions = tabItems.map((item) => ({
-      group: "Vistas",
+  const quickActions = useMemo<CommandAction[]>(() => {
+    const tabActions: CommandAction[] = tabItems.map((item) => ({
+      id: `finances-tab-${item.id}`,
+      group: "Finanzas",
       label: item.label,
       description: item.description,
       shortcut: `Ctrl+${item.label.charAt(0).toLowerCase()}`,
-      action: () => setActiveTab(item.id),
       icon: <ArrowRight className="size-3.5" aria-hidden="true" />,
+      onSelect: () => setActiveTab(item.id),
     }));
 
-    const miscActions = [
+    const miscActions: CommandAction[] = [
       {
+        id: "finances-go-accounting",
         group: "Finanzas",
         label: "Ir a Finanzas/Contabilidad",
         description: "Pagos, gastos, comisiones y exportaciones",
         shortcut: "Ctrl+Shift+F",
-        action: () => setActiveTab("accounting"),
         icon: <Wallet className="size-3.5" aria-hidden="true" />,
+        onSelect: () => setActiveTab("accounting"),
       },
       {
+        id: "finances-edit-date-range",
         group: "Filtros",
         label: "Editar rango de fechas",
         description: "Enfoca el control de fechas para aplicar filtros",
         shortcut: "Ctrl+J",
-        action: () => setIsFilterOpen(true),
         icon: <CalendarRange className="size-3.5" aria-hidden="true" />,
+        onSelect: () => setIsFilterOpen(true),
       },
     ];
 
-    const preferenceActions: QuickAction[] = [
+    const preferenceActions: CommandAction[] = [
       {
+        id: "finances-toggle-theme",
         group: "Preferencias",
         label: theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
         description:
@@ -257,33 +246,20 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
             ? "Iluminá la interfaz con tonos claros"
             : "Descansá la vista activando el modo oscuro",
         shortcut: "Ctrl+Alt+T",
-        action: () => handleThemeSwitch(theme === "dark" ? "light" : "dark"),
         icon:
           theme === "dark" ? (
             <Sun className="size-3.5 text-yellow-400" aria-hidden="true" />
           ) : (
             <Moon className="size-3.5 text-indigo-500" aria-hidden="true" />
           ),
+        onSelect: () => handleThemeSwitch(theme === "dark" ? "light" : "dark"),
       },
     ];
 
     return [...tabActions, ...miscActions, ...preferenceActions];
   }, [handleThemeSwitch, setIsFilterOpen, tabItems, theme]);
 
-  const handleCommandSelect = useCallback((action: () => void) => {
-    action();
-    setIsCommandOpen(false);
-  }, []);
-
-  const quickActionGroups = useMemo(() => {
-    return quickActions.reduce<Record<string, QuickAction[]>>((acc, action) => {
-      if (!acc[action.group]) {
-        acc[action.group] = [];
-      }
-      acc[action.group].push(action);
-      return acc;
-    }, {});
-  }, [quickActions]);
+  useCommandPaletteActions(quickActions, [activeTab, theme]);
   
   // Validar permisos
   if (!isDemo && !canViewFinances) {
@@ -313,7 +289,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
               Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
             </>
           )}
-          onShortcutClick={() => setIsCommandOpen(true)}
         />
 
         {salons.length > 0 && (
@@ -486,34 +461,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
           </Section>
         </motion.section>
       </div>
-
-      <CommandDialog open={isCommandOpen} onOpenChange={setIsCommandOpen} title="Atajos de Finanzas" description="Acciones rápidas">
-        <CommandInput placeholder="Buscar acción o vista..." />
-        <CommandList>
-          <CommandEmpty>Sin coincidencias, intenta otro término.</CommandEmpty>
-          {Object.entries(quickActionGroups).map(([group, actions], index) => (
-            <Fragment key={group}>
-              {index > 0 && <CommandSeparator />}
-              <CommandGroup heading={group}>
-                {actions.map((action) => (
-                  <CommandItem
-                    key={action.label}
-                    onSelect={() => handleCommandSelect(action.action)}
-                    className="gap-3"
-                  >
-                    {action.icon}
-                    <div className="flex flex-col items-start">
-                      <span className="font-medium leading-none">{action.label}</span>
-                      <span className="text-xs text-muted-foreground">{action.description}</span>
-                    </div>
-                    {action.shortcut && <CommandShortcut>{action.shortcut}</CommandShortcut>}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </Fragment>
-          ))}
-        </CommandList>
-      </CommandDialog>
     </PageContainer>
   );
 }

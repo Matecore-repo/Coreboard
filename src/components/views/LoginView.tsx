@@ -8,6 +8,7 @@ import NextImage from "next/image";
 import { useAuth } from "../../contexts/AuthContext";
 import { motion, AnimatePresence } from "motion/react";
 import { useRouter } from "next/router";
+import { getStoredTheme } from "../../lib/theme";
 
 const heroSlides = [
   {
@@ -42,7 +43,48 @@ function LoginView() {
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document !== "undefined") {
+      return document.documentElement.classList.contains("dark") ? "dark" : "light";
+    }
+    const stored = getStoredTheme();
+    return stored ?? "light";
+  });
  
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateFromDocument = () => {
+      setTheme(document.documentElement.classList.contains("dark") ? "dark" : "light");
+    };
+
+    updateFromDocument();
+
+    const handleThemeEvent = (event: Event) => {
+      try {
+        const detail = (event as CustomEvent<"light" | "dark">).detail;
+        if (detail === "light" || detail === "dark") {
+          setTheme(detail);
+          return;
+        }
+      } catch {}
+      updateFromDocument();
+    };
+
+    window.addEventListener("theme:changed", handleThemeEvent as EventListener);
+    window.addEventListener("storage", updateFromDocument);
+
+    return () => {
+      window.removeEventListener("theme:changed", handleThemeEvent as EventListener);
+      window.removeEventListener("storage", updateFromDocument);
+    };
+  }, []);
+
+  const isDarkTheme = theme === "dark";
+  const gradientOverlayClass = isDarkTheme
+    ? "bg-gradient-to-t from-black/90 via-black/65 to-transparent lg:bg-gradient-to-br lg:from-black/70 lg:via-black/45 lg:to-transparent"
+    : "bg-gradient-to-t from-white/90 via-white/65 to-transparent lg:bg-gradient-to-br lg:from-white/70 lg:via-white/45 lg:to-transparent";
+
 
   // Si el usuario ya está autenticado, redirigir al dashboard
   useEffect(() => {
@@ -164,7 +206,7 @@ function LoginView() {
             />
           </motion.div>
         </AnimatePresence>
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent lg:bg-gradient-to-br lg:from-black/70 lg:via-black/45 lg:to-transparent" />
+        <div className={`pointer-events-none absolute inset-0 ${gradientOverlayClass}`} />
 
         {isDesktop && (
           <div className={`absolute inset-0 flex flex-col justify-end ${overlayPadding}`}>

@@ -23,6 +23,7 @@ import { supabase } from '../../lib/supabase';
 import { Users, UserPlus, LineChart, Sparkles } from 'lucide-react';
 import { Membership, Organization } from './organization/types';
 import { ShortcutBanner } from '../ShortcutBanner';
+import { useCommandPalette } from '../../contexts/CommandPaletteContext';
 
 const OrganizationSummarySidebar = dynamic(() => import('./organization/OrganizationSummarySidebar'), { ssr: false });
 const OrganizationPeoplePanel = dynamic(() => import('./organization/OrganizationPeoplePanel'), { ssr: false });
@@ -62,6 +63,7 @@ const getInitials = (text: string | undefined) => {
 
 const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) => {
   const { user: currentUser, currentRole, currentOrgId, leaveOrganization } = useAuth() as any;
+  const palette = useCommandPalette(true);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1073,6 +1075,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
             Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
           </>
         )}
+        onShortcutClick={palette?.openPalette}
       />
       <Card>
         <CardHeader className="gap-6 sm:flex-row sm:items-start sm:justify-between">
