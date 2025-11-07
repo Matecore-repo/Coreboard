@@ -7,7 +7,6 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import NextImage from "next/image";
 import { useAuth } from "../../contexts/AuthContext";
-import ThemeBubble from "../../components/ThemeBubble";
 import { motion, AnimatePresence } from "motion/react";
 import { useRouter } from "next/router";
 
@@ -132,7 +131,6 @@ function LoginView() {
 
   return (
     <div className="min-h-screen flex">
-      <ThemeBubble />
       <div className="w-full lg:w-1/2 flex flex-col">
         <div className="lg:hidden w-full h-[45vh] relative overflow-hidden">
           <NextImage src={currentImage} alt="Hair Salon" fill className="object-cover" sizes="100vw" />

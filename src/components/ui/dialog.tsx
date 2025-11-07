@@ -40,7 +40,7 @@ const DialogOverlay = React.forwardRef<
       data-slot="dialog-overlay"
       data-action="close-dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[1000] bg-black/40",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm",
         className,
       )}
       aria-label="Cerrar diálogo haciendo clic aquí"

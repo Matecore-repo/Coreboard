@@ -4,7 +4,6 @@ import { useSalons } from "../hooks/useSalons";
 import { OnboardingModal } from "./OnboardingModal";
 import DemoDataBubble from "./DemoDataBubble";
 import DemoWelcomeModal from "./DemoWelcomeModal";
-import ThemeBubble from "./ThemeBubble";
 import { Toaster } from "sonner";
 import {
   Sidebar,
@@ -503,7 +502,6 @@ export default function AppContainer() {
         )}
 
         <Toaster position="top-right" />
-        <ThemeBubble />
       </div>
     </SidebarProvider>
   );

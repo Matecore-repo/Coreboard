@@ -6,7 +6,6 @@ import { Label } from '../ui/label';
 import { useAuth } from '../../contexts/AuthContext';
 import { toastSuccess, toastError } from '../../lib/toast';
 import { useRouter } from 'next/router';
-import ThemeBubble from '../ThemeBubble';
 import { useEffect } from 'react';
 
 export function ResetPasswordPage() {
@@ -73,7 +72,6 @@ export function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <ThemeBubble />
       <div className="w-full max-w-md">
         <div className="space-y-6">
           <div className="space-y-2 text-center">

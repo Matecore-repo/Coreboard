@@ -15,7 +15,6 @@ import { toastSuccess, toastError, toastWarning, toastInfo } from "./lib/toast";
 import { Toaster as Sonner } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
 import type { User } from "./contexts/AuthContext";
-import ThemeBubble from "./components/ThemeBubble";
 import DemoDataBubble from "./components/DemoDataBubble";
 import DemoWelcomeModal from "./components/DemoWelcomeModal";
 import { useTurnos } from "./hooks/useTurnos";
@@ -1147,7 +1146,6 @@ export default function App() {
       />
 
       {/* Floating Theme Bubble */}
-      <ThemeBubble />
       {isDemo && (
         <DemoDataBubble
           onSeed={() => {

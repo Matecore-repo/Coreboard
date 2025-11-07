@@ -1,5 +1,5 @@
 import React, { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Sparkles, Command as CommandIcon, ArrowRight, CalendarRange, Wallet } from "lucide-react";
+import { AlertCircle, Sparkles, Command as CommandIcon, ArrowRight, CalendarRange, Wallet, Sun, Moon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { PageContainer } from "../layout/PageContainer";
@@ -17,6 +17,7 @@ import ClientDashboard from "./ClientDashboard";
 import { Button } from "../ui/button";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "../ui/command";
 import { motion, AnimatePresence } from "framer-motion";
+import { applyTheme, getStoredTheme } from "../../lib/theme";
 
 interface FinancesViewProps {
   selectedSalon: string | null;
@@ -31,6 +32,14 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [activeTab, setActiveTab] = useState<string>("owner");
   const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document !== "undefined") {
+      const stored = getStoredTheme();
+      if (stored) return stored;
+      return document.documentElement.classList.contains("dark") ? "dark" : "light";
+    }
+    return "light";
+  });
 
   type QuickAction = {
     group: string;
@@ -63,6 +72,40 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     },
     [activeTab, tabItems],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateFromDocument = () => {
+      setTheme(document.documentElement.classList.contains("dark") ? "dark" : "light");
+    };
+
+    const stored = getStoredTheme();
+    if (stored) {
+      setTheme(stored);
+    } else {
+      updateFromDocument();
+    }
+
+    const handleThemeEvent = (event: Event) => {
+      try {
+        const detail = (event as CustomEvent<"light" | "dark">).detail;
+        if (detail === "light" || detail === "dark") {
+          setTheme(detail);
+          return;
+        }
+      } catch {}
+      updateFromDocument();
+    };
+
+    window.addEventListener("theme:changed", handleThemeEvent as EventListener);
+    window.addEventListener("storage", updateFromDocument);
+
+    return () => {
+      window.removeEventListener("theme:changed", handleThemeEvent as EventListener);
+      window.removeEventListener("storage", updateFromDocument);
+    };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -108,6 +151,16 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [moveTab, tabItems]);
 
+  const handleThemeSwitch = useCallback((next: "light" | "dark") => {
+    applyTheme(next);
+    setTheme(next);
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent<"light" | "dark">("theme:changed", { detail: next }));
+      } catch {}
+    }
+  }, []);
+
   const quickActions = useMemo<QuickAction[]>(() => {
     const tabActions = tabItems.map((item) => ({
       group: "Vistas",
@@ -140,8 +193,27 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
       },
     ];
 
-    return [...tabActions, ...miscActions];
-  }, [tabItems]);
+    const preferenceActions: QuickAction[] = [
+      {
+        group: "Preferencias",
+        label: theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
+        description:
+          theme === "dark"
+            ? "Iluminá la interfaz con tonos claros"
+            : "Descansá la vista activando el modo oscuro",
+        shortcut: "Ctrl+Alt+T",
+        action: () => handleThemeSwitch(theme === "dark" ? "light" : "dark"),
+        icon:
+          theme === "dark" ? (
+            <Sun className="size-3.5 text-yellow-400" aria-hidden="true" />
+          ) : (
+            <Moon className="size-3.5 text-indigo-500" aria-hidden="true" />
+          ),
+      },
+    ];
+
+    return [...tabActions, ...miscActions, ...preferenceActions];
+  }, [handleThemeSwitch, tabItems, theme]);
 
   const handleCommandSelect = useCallback((action: () => void) => {
     action();
@@ -179,7 +251,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   return (
     <PageContainer>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/50 bg-card/80 p-4 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-2 border border-border/50 bg-card/80 p-4 shadow-sm backdrop-blur">
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">
