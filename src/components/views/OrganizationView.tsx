@@ -5,82 +5,26 @@
 // Layout simplificado consistente con HomeView
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useSalons } from '../../hooks/useSalons';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { PageContainer } from '../layout/PageContainer';
 import { GenericActionBar } from '../GenericActionBar';
-import { toastSuccess, toastError } from '../../lib/toast';
+import { toastSuccess, toastError, toastInfo } from '../../lib/toast';
 import { supabase } from '../../lib/supabase';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { Separator } from '../ui/separator';
-import { ScrollArea } from '../ui/scroll-area';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../ui/sheet';
-import { Avatar, AvatarFallback } from '../ui/avatar';
-import { cn } from '../ui/utils';
-import {
-  Trash2,
-  Pencil,
-  Save,
-  X,
-  Users,
-  UserPlus,
-  Search,
-  Check,
-  Edit3,
-  Home,
-  MessageCircle,
-  Settings,
-  Plus,
-  MoreHorizontal,
-  Menu,
-  Sparkles,
-  Star,
-  Bookmark,
-  Copy,
-  Laugh,
-  Info,
-} from 'lucide-react';
-import useOrganizationChat from '../../hooks/useOrganizationChat';
+import { Users, UserPlus, LineChart } from 'lucide-react';
+import { Membership, Organization } from './organization/types';
 
-interface Organization {
-  id: string;
-  name: string;
-  tax_id?: string;
-  settings?: any;
-  created_at: string;
-}
-
-interface Membership {
-  id?: string;
-  user_id: string;
-  role: 'admin' | 'owner' | 'employee' | 'viewer';
-  is_primary: boolean;
-  user?: {
-    email: string;
-    full_name?: string;
-  };
-  employee?: {
-    id: string;
-    user_id?: string;
-    full_name: string;
-    email?: string;
-    phone?: string;
-    commission_type?: 'percentage' | 'fixed';
-    default_commission_pct?: number;
-    default_commission_amount?: number;
-    active: boolean;
-  };
-}
+const OrganizationSummarySidebar = dynamic(() => import('./organization/OrganizationSummarySidebar'), { ssr: false });
+const OrganizationPeoplePanel = dynamic(() => import('./organization/OrganizationPeoplePanel'), { ssr: false });
 
 interface SearchedUser {
   id: string;
@@ -91,81 +35,6 @@ interface SearchedUser {
 interface OrganizationViewProps {
   isDemo?: boolean;
 }
-
-interface NavItem {
-  id: string;
-  label: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  href?: string;
-}
-
-interface DisplayMessage {
-  id: string;
-  author: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: string;
-}
-
-interface HistoryItem {
-  id: string;
-  title: string;
-  description: string;
-}
-
-const FALLBACK_MESSAGES: DisplayMessage[] = [
-  {
-    id: 'sample-1',
-    author: 'Nacho Angelone',
-    role: 'user',
-    content: '¿Podemos enviar una campaña de bienvenida a los nuevos clientes esta semana?',
-    timestamp: '09:32',
-  },
-  {
-    id: 'sample-2',
-    author: 'Coreboard Assistant',
-    role: 'assistant',
-    content: 'Claro, preparé un borrador de mensaje. ¿Querés que lo agregue al editor para que lo ajustes?',
-    timestamp: '09:33',
-  },
-  {
-    id: 'sample-3',
-    author: 'Ignacio Angelone',
-    role: 'user',
-    content: 'Sí, sumale también un recordatorio de promo para servicios de color.',
-    timestamp: '09:35',
-  },
-  {
-    id: 'sample-4',
-    author: 'Coreboard Assistant',
-    role: 'assistant',
-    content: 'Listo. Actualicé el borrador con la promo y lo dejé marcado como “Pendiente de revisión”.',
-    timestamp: '09:36',
-  },
-  {
-    id: 'sample-5',
-    author: 'Coreboard Assistant',
-    role: 'system',
-    content: 'Recordatorio: hay 12 clientes sin confirmar turno esta semana.',
-    timestamp: '09:40',
-  },
-  {
-    id: 'sample-6',
-    author: 'Nacho Angelone',
-    role: 'user',
-    content: 'Perfecto, mañana vemos métricas. Gracias.',
-    timestamp: '09:41',
-  },
-];
-
-const FALLBACK_HISTORY: HistoryItem[] = [
-  { id: 'h1', title: 'Resumen de objetivos', description: 'Metas del Q4 y próximos pasos' },
-  { id: 'h2', title: 'Capacitación staff', description: 'Documento de onboarding' },
-  { id: 'h3', title: 'Promo verano', description: 'Borrador campaña redes sociales' },
-  { id: 'h4', title: 'Checklist diaria', description: 'Flujo apertura/cierre' },
-  { id: 'h5', title: 'Script ventas', description: 'Preguntas para upsell' },
-  { id: 'h6', title: 'Reporte fidelización', description: 'Análisis clientes recurrentes' },
-];
 
 const getInitials = (text: string | undefined) => {
   if (!text) return '';
@@ -226,27 +95,22 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     default_commission_amount: 0,
   });
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-
-  const [composerValue, setComposerValue] = useState('');
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [composerError, setComposerError] = useState<string | null>(null);
-
   // Refs para evitar cargas múltiples
   const loadingRef = useRef(false);
   const loadedOrgIdRef = useRef<string | null>(null);
   const previousOrgIdRef = useRef<string | null>(null);
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const MAX_COMPOSER_HEIGHT = 24 * 6;
 
   const isAdmin = currentRole === 'admin';
   const isOwner = currentRole === 'owner';
-  const isEmployee = currentRole === 'employee';
   const canEdit = isAdmin || isOwner;
   const canManageMembers = isAdmin || isOwner;
   const canDelete = isOwner;
   const canViewMembers = true; // Todos los usuarios pueden ver miembros
+  const canInviteMembers = canManageMembers;
+  const canRemoveMembers = canManageMembers;
+  const canManageTeam = canEdit;
+  const canEditCommissions = canEdit;
 
   // ============================================================================
   // FUNCIONES DE GESTIÓN DE EMPLEADOS
@@ -438,6 +302,20 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     }
   };
 
+  const handleCreateEmployeeClick = useCallback(() => {
+    setEditingEmployee(null);
+    setSelectedSalons(new Set());
+    setEmployeeFormData({
+      full_name: '',
+      email: '',
+      phone: '',
+      commission_type: 'percentage',
+      default_commission_pct: 50.0,
+      default_commission_amount: 0,
+    });
+    setEmployeeDialogOpen(true);
+  }, []);
+
   const handleToggleSalon = (salonId: string) => {
     setSelectedSalons(prev => {
       const next = new Set(prev);
@@ -544,330 +422,16 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     return directory;
   }, [memberships]);
 
-  const {
-    channels,
-    currentChannel,
-    messages,
-    loadingChannels,
-    loadingMessages,
-    realtimeStatus,
-    selectedChannelId,
-    selectChannel,
-    sendMessage: sendChatMessage,
-    createChannel: createChatChannel,
-  } = useOrganizationChat(currentOrgId, { initialChannelId: null });
-
-  const hasChannels = channels.length > 0;
-
-  const navItems = useMemo<NavItem[]>(() => [
-    { id: 'home', label: 'Inicio', icon: Home },
-    { id: 'chat', label: 'Chat', icon: MessageCircle },
-    { id: 'members', label: 'Miembros', icon: Users },
-    { id: 'settings', label: 'Ajustes', icon: Settings },
-  ], []);
-
-  const historyItems = useMemo<HistoryItem[]>(() => {
-    if (channels.length > 0) {
-      return channels.slice(0, 6).map((channel) => ({
-        id: channel.id,
-        title: channel.name,
-        description: channel.slug ? `#${channel.slug}` : channel.is_private ? 'Conversación privada' : 'Canal de la organización',
-      }));
-    }
-    return FALLBACK_HISTORY;
-  }, [channels]);
-
-  const displayMessages: DisplayMessage[] = useMemo(() => {
-    if (messages.length > 0) {
-      return messages.map((message) => {
-        const isCurrentUser = message.sender_id === currentUser?.id;
-        const author = isCurrentUser ? 'Tú' : memberDirectory[message.sender_id]?.label || 'Miembro';
-        return {
-          id: message.id,
-          author,
-          role: isCurrentUser ? 'user' : 'assistant',
-          content: message.body || '',
-          timestamp: message.created_at ? new Date(message.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '',
-        };
-      });
-    }
-    return FALLBACK_MESSAGES;
-  }, [messages, currentUser?.id, memberDirectory]);
-
   const membersPreview = useMemo(() => {
     if (memberships.length === 0) return [] as typeof memberships;
     return memberships.slice(0, 5);
   }, [memberships]);
-
-  const activeChannel = useMemo(() => {
-    if (!channels || channels.length === 0) return null;
-    return channels.find((channel) => channel.id === selectedChannelId) ?? channels[0];
-  }, [channels, selectedChannelId]);
-
-  const historyLoading = loadingChannels && !hasChannels;
-
-  const lastAssistantMessage = useMemo(() => {
-    for (let index = displayMessages.length - 1; index >= 0; index -= 1) {
-      const message = displayMessages[index];
-      if (message.role === 'assistant') {
-        return message;
-      }
-    }
-    return null;
-  }, [displayMessages]);
-
-  const hasAssistantMessage = Boolean(lastAssistantMessage);
-  const channelSelectValue = activeChannel?.id ?? '';
-  const channelSubtitle = activeChannel ? (activeChannel.is_private ? 'Chat privado' : 'Canal de la organización') : 'Canal general';
   const ownerMembership = useMemo(() => memberships.find((member) => member.role === 'owner'), [memberships]);
-  const headerTitle = activeChannel?.name ?? 'General';
 
-  const renderSidebarPanels = (org: Organization) => (
-    <div className="flex h-full flex-col gap-4">
-      <section className="rounded-3xl border border-border/60 bg-card/80 p-5 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-foreground">History Chat</span>
-            <span className="text-xs text-muted-foreground">Resumen de prompts recientes</span>
-          </div>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" aria-label="Opciones de historial">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
-        <Separator className="my-4" />
-        <div className="space-y-3">
-          {historyLoading ? (
-            Array.from({ length: 4 }).map((_, index) => (
-              <div key={`history-skeleton-${index}`} className="h-14 animate-pulse rounded-2xl bg-muted/50" />
-            ))
-          ) : historyItems.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 px-4 py-6 text-center text-sm text-muted-foreground">
-              Sin historial disponible
-            </div>
-          ) : (
-            historyItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/90 px-3 py-3 transition hover:border-primary/40 hover:bg-card"
-              >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/5 text-primary">
-                  <Sparkles className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">{item.description}</p>
-                </div>
-                <Button size="icon" variant="ghost" className="text-muted-foreground hover:text-foreground" aria-label={`Acciones para ${item.title}`}>
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-border/60 bg-card/80 p-5 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-foreground">Organización</p>
-            <p className="text-xs text-muted-foreground">Información y acceso rápido</p>
-          </div>
-          <Badge variant="outline" className="text-xs uppercase">Activo</Badge>
-        </div>
-        <Separator className="my-4" />
-        <div className="space-y-5">
-          <div>
-            <p className="text-xs font-semibold uppercase text-muted-foreground tracking-[0.08em]">Información</p>
-            <div className="mt-3 space-y-2 rounded-2xl bg-muted/40 p-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Nombre</span>
-                <span className="font-medium text-foreground">{org.name}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Propietario</span>
-                <span className="font-medium text-foreground">{ownerMembership?.user?.email || ownerMembership?.user?.full_name || 'No asignado'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Creada</span>
-                <span className="text-foreground">
-                  {new Date(org.created_at).toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Miembros</p>
-              <span className="text-xs text-muted-foreground">{memberships.length} en total</span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {loadingMembers ? (
-                Array.from({ length: 3 }).map((_, index) => (
-                  <div key={`member-skeleton-${index}`} className="h-14 animate-pulse rounded-2xl bg-muted/40" />
-                ))
-              ) : membersPreview.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 px-4 py-4 text-center text-sm text-muted-foreground">
-                  No hay miembros cargados
-                </div>
-              ) : (
-                membersPreview.map((member) => {
-                  const label = member.user?.full_name || member.user?.email || `Usuario ${member.user_id.substring(0, 4)}`;
-                  const roleLabel = member.role === 'owner'
-                    ? 'Propietario'
-                    : member.role === 'admin'
-                      ? 'Administrador'
-                      : member.role === 'employee'
-                        ? 'Empleado'
-                        : 'Visualizador';
-
-                  return (
-                    <div
-                      key={member.user_id}
-                      className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/90 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 border border-border/40">
-                          <AvatarFallback>{getInitials(label)}</AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">{label}</p>
-                          <p className="text-xs text-muted-foreground">{roleLabel}</p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label={`Opciones para ${label}`}
-                        onClick={() => {
-                          if (member.role === 'owner') return;
-                          setMemberToRemove(member);
-                          setRemoveMemberDialogOpen(true);
-                        }}
-                        disabled={member.role === 'owner'}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" className="flex-1 min-w-[120px]" onClick={() => setInviteDialogOpen(true)}>
-              Invitar
-            </Button>
-            <Button size="sm" variant="outline" className="flex-1 min-w-[120px]" onClick={() => setEditingOrg(true)}>
-              Editar
-            </Button>
-            {canDelete && (
-              <Button size="sm" variant="destructive" className="flex-1 min-w-[120px]" onClick={() => setDeleteDialogOpen(true)}>
-                Eliminar
-              </Button>
-            )}
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-
-  const handleCreateChatChannel = useCallback(
-    async (params: { name: string; type: 'organization' | 'direct' | 'custom'; isPrivate: boolean; memberIds?: string[] }) => {
-      if (!currentOrgId) return;
-      await createChatChannel(currentOrgId, params);
-    },
-    [createChatChannel, currentOrgId]
-  );
-
-  const handleSendChatMessage = useCallback(
-    async (channelId: string, params: { body: string; attachments?: unknown[]; replyTo?: string | null }) => {
-      if (!currentOrgId) return;
-      await sendChatMessage(channelId, currentOrgId, params);
-    },
-    [currentOrgId, sendChatMessage]
-  );
-
-  const handlePromptNewChannel = useCallback(async () => {
-    const name = window.prompt('Nombre para el nuevo canal');
-    if (!name) return;
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    await handleCreateChatChannel({ name: trimmed, type: 'custom', isPrivate: false });
-  }, [handleCreateChatChannel]);
-
-  const handleCopyMessage = useCallback(async (content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      toastSuccess('Mensaje copiado al portapapeles');
-    } catch (error) {
-      console.error('Error copiando mensaje:', error);
-      toastError('No se pudo copiar el mensaje');
-    }
+  const handleMemberOptions = useCallback((member: Membership) => {
+    setMemberToRemove(member);
+    setRemoveMemberDialogOpen(true);
   }, []);
-
-  const handleAddToComposer = useCallback((content: string) => {
-    setComposerValue((prev) => (prev ? `${prev}\n\n${content}` : content));
-    setComposerError(null);
-    requestAnimationFrame(() => {
-      composerRef.current?.focus();
-    });
-  }, []);
-
-  const handleRegenerateClick = useCallback(() => {
-    if (lastAssistantMessage) {
-      setComposerValue(lastAssistantMessage.content);
-      requestAnimationFrame(() => {
-        composerRef.current?.focus();
-      });
-    }
-  }, [lastAssistantMessage]);
-
-  const handleComposerInput = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const target = event.target;
-    target.style.height = 'auto';
-    target.style.height = `${Math.min(target.scrollHeight, MAX_COMPOSER_HEIGHT)}px`;
-    setComposerValue(target.value);
-    if (composerError) {
-      setComposerError(null);
-    }
-  }, [composerError, MAX_COMPOSER_HEIGHT]);
-
-  const handleComposerSubmit = useCallback(async (event?: React.FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
-    if (!hasChannels) {
-      setComposerError('Crea un canal para poder comenzar a chatear.');
-      return;
-    }
-
-    const channelId = activeChannel?.id;
-    if (!channelId) {
-      setComposerError('Selecciona un canal antes de enviar.');
-      return;
-    }
-
-    const trimmed = composerValue.trim();
-    if (!trimmed) {
-      setComposerError('Escribe un mensaje antes de enviar.');
-      return;
-    }
-
-    try {
-      setIsSendingMessage(true);
-      await handleSendChatMessage(channelId, { body: trimmed });
-      setComposerValue('');
-      if (composerRef.current) {
-        composerRef.current.style.height = 'auto';
-      }
-    } catch (error) {
-      console.error('Error enviando mensaje:', error);
-      setComposerError('No se pudo enviar el mensaje. Intenta nuevamente.');
-    } finally {
-      setIsSendingMessage(false);
-    }
-  }, [activeChannel?.id, composerValue, handleSendChatMessage, hasChannels]);
 
   // ============================================================================
   // FUNCIONES DE CARGA (Memoizadas y optimizadas)
@@ -1402,257 +966,137 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
     );
   }
 
-  const navActiveId = 'chat';
+  const totalMembers = memberships.length;
+  const adminMembers = memberships.filter((member) => member.role === 'admin').length;
+  const activeEmployeesCount = employees.filter((employee: any) => employee?.active !== false).length;
+  const connectedSalons = salons.length;
+  const ownerLabel =
+    ownerMembership?.user?.full_name ||
+    ownerMembership?.user?.email ||
+    'Propietario sin asignar';
+  const formattedCreatedAt = organization.created_at
+    ? new Date(organization.created_at).toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '—';
+  const heroStats = [
+    { label: 'Miembros activos', value: totalMembers },
+    { label: 'Administradores', value: adminMembers },
+    { label: 'Empleados activos', value: activeEmployeesCount },
+    { label: 'Locales conectados', value: connectedSalons },
+  ];
 
   return (
-    <TooltipProvider delayDuration={80}>
-      <PageContainer>
-        <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-          <div className="grid gap-6 lg:grid-cols-[72px_minmax(0,1fr)_360px] xl:grid-cols-[84px_minmax(0,1fr)_400px]">
-            <nav className="hidden lg:flex flex-col items-center rounded-3xl border border-border/60 bg-card/80 py-6 text-muted-foreground" role="navigation" aria-label="Barra lateral">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
-                {getInitials(organization.name)}
-              </div>
-              <Separator className="my-6 h-px w-10 bg-border/60" />
-              <div className="flex flex-1 flex-col items-center gap-4">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = item.id === navActiveId;
-                  return (
-                    <Tooltip key={item.id}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            'flex h-12 w-12 items-center justify-center rounded-2xl border border-transparent transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                            isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-primary/5 hover:text-primary'
-                          )}
-                          aria-label={item.label}
-                        >
-                          <Icon className="h-5 w-5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">{item.label}</TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-              <Separator className="my-6 h-px w-10 bg-border/60" />
-              <Button variant="outline" size="icon" className="text-muted-foreground hover:text-primary" aria-label="Crear canal" onClick={handlePromptNewChannel}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </nav>
-
-            <main className="relative flex min-h-[75vh] flex-col overflow-hidden rounded-3xl border border-border/60 bg-card shadow-sm" role="main">
-              <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border/60 bg-card/95 px-5 py-4 backdrop-blur">
-                <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Abrir navegación">
-                      <Menu className="h-5 w-5" />
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="left" className="w-[260px] sm:w-[320px]">
-                    <SheetHeader>
-                      <SheetTitle>Navegación</SheetTitle>
-                    </SheetHeader>
-                    <div className="mt-6 flex flex-col gap-2" role="navigation" aria-label="Principal">
-                      {navItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = item.id === navActiveId;
-                        return (
-                          <Button
-                            key={item.id}
-                            variant={isActive ? 'secondary' : 'ghost'}
-                            className="justify-start gap-3"
-                            onClick={() => setIsMobileNavOpen(false)}
-                          >
-                            <Icon className="h-4 w-4" />
-                            {item.label}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  </SheetContent>
-                </Sheet>
-
-                <div className="flex flex-1 flex-wrap items-center gap-3">
-                  <div className="flex min-w-[220px] flex-1 items-center gap-3">
-                    <div className="min-w-[140px]">
-                      <p className="text-sm font-semibold text-foreground">{headerTitle}</p>
-                      <p className="text-xs text-muted-foreground">{channelSubtitle}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Select value={channelSelectValue} onValueChange={(value) => selectChannel(value)} disabled={!hasChannels}>
-                        <SelectTrigger className="w-48">
-                          <SelectValue placeholder={hasChannels ? 'Selecciona un canal' : 'Sin canales'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {channels.map((channel) => (
-                            <SelectItem key={channel.id} value={channel.id}>
-                              {channel.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button variant="outline" size="icon" className="text-muted-foreground hover:text-primary" onClick={handlePromptNewChannel} aria-label="Crear canal">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="relative hidden min-w-[200px] flex-1 sm:flex">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input placeholder="Buscar en el chat" className="pl-9" aria-label="Buscar" role="search" />
-                  </div>
-                </div>
-
-                <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
-                  <div className="ml-auto flex items-center gap-2">
-                    <SheetTrigger asChild>
-                      <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Abrir panel lateral">
-                        <Info className="h-5 w-5" />
-                      </Button>
-                    </SheetTrigger>
-                    <Button variant="ghost" size="icon" aria-label="Más acciones">
-                      <MoreHorizontal className="h-5 w-5" />
-                    </Button>
-                  </div>
-                  <SheetContent side="right" className="w-[320px] sm:w-[360px] overflow-y-auto">
-                    <SheetHeader>
-                      <SheetTitle>Resumen</SheetTitle>
-                    </SheetHeader>
-                    <div className="mt-4">{renderSidebarPanels(organization)}</div>
-                  </SheetContent>
-                </Sheet>
-              </header>
-
-              <div className="flex-1 overflow-hidden">
-                {hasChannels ? (
-                  <ScrollArea className="h-full px-6 py-6" type="hover" role="log" aria-live="polite">
-                    <div className="space-y-5">
-                      {displayMessages.map((message) => {
-                        const isUserMessage = message.role === 'user';
-                        const isSystemMessage = message.role === 'system';
-                        const avatarLabel = getInitials(message.author);
-
-                        return (
-                          <div
-                            key={message.id}
-                            className={cn(
-                              'rounded-3xl border border-border/60 bg-card/90 px-4 py-4 shadow-sm transition hover:border-border',
-                              isUserMessage && 'border-primary/40 bg-primary/10',
-                              isSystemMessage && 'border-dashed border-border/50 bg-muted/60'
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-start gap-3">
-                                <Avatar className="h-10 w-10 border border-border/40">
-                                  <AvatarFallback>{avatarLabel}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <div className="flex items-center gap-3">
-                                    <p className="text-sm font-medium text-foreground">{message.author}</p>
-                                    <span className="text-xs text-muted-foreground">{message.timestamp}</span>
-                                  </div>
-                                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{message.content}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                  aria-label="Copiar mensaje"
-                                  onClick={() => handleCopyMessage(message.content)}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                  aria-label="Reaccionar"
-                                  onClick={() => toastSuccess('Reacciones próximamente')}
-                                >
-                                  <Laugh className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                  aria-label="Agregar al editor"
-                                  onClick={() => handleAddToComposer(message.content)}
-                                >
-                                  <Bookmark className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-4 px-6 py-10 text-center">
-                    <p className="max-w-sm text-sm text-muted-foreground">No hay canales aún. Creá uno para comenzar a conversar con tu equipo.</p>
-                    <Button onClick={handlePromptNewChannel}>Crear canal</Button>
-                  </div>
-                )}
-              </div>
-
-              {hasAssistantMessage && (
-                <div className="flex justify-center border-t border-border/60 px-6 py-4">
-                  <Button variant="outline" className="gap-2" onClick={handleRegenerateClick}>
-                    <Sparkles className="h-4 w-4" /> Regenerar respuesta
-                  </Button>
-                </div>
-              )}
-
-              <form
-                onSubmit={handleComposerSubmit}
-                className="border-t border-border/60 bg-card/95 px-5 py-4"
-                role="form"
-                aria-label="Editor de mensajes"
-              >
-                <div className="flex flex-col gap-3">
-                  <Textarea
-                    ref={composerRef}
-                    value={composerValue}
-                    onChange={handleComposerInput}
-                    placeholder={hasChannels ? 'Escribe tu mensaje. Usa / para comandos rápidos…' : 'Crea un canal para comenzar a chatear.'}
-                    className="min-h-[52px] resize-none rounded-2xl border-border/60 bg-card/80 px-4 py-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    rows={2}
-                    disabled={!hasChannels || isSendingMessage}
-                    aria-invalid={composerError ? 'true' : 'false'}
-                  />
-                  <div className="sr-only" aria-live="polite">
-                    {composerError ? `Error: ${composerError}` : 'Compositor listo para enviar.'}
-                  </div>
-                  {composerError && (
-                    <p className="text-sm text-destructive">{composerError}</p>
-                  )}
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button type="button" variant="ghost" size="sm" className="gap-1 px-3 py-1.5" onClick={() => toastSuccess('Explorar prompts próximamente')}>
-                        <Sparkles className="h-3 w-3" /> Browse prompts
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" className="gap-1 px-3 py-1.5" onClick={() => toastSuccess('Modo sin marca activado')}>
-                        <Star className="h-3 w-3" /> Sin marca
-                      </Button>
-                    </div>
-                    <Button type="submit" disabled={!hasChannels || isSendingMessage || !composerValue.trim()} className="gap-2" aria-label="Enviar mensaje">
-                      {isSendingMessage ? 'Enviando…' : 'Enviar'}
-                    </Button>
-                  </div>
-                </div>
-              </form>
-            </main>
-
-            <aside className="hidden lg:flex" role="complementary" aria-label="Resumen de organización">
-              {renderSidebarPanels(organization)}
-            </aside>
+    <PageContainer className="space-y-8 pb-16">
+      <Card>
+        <CardHeader className="gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-3">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Organización
+            </span>
+            <CardTitle className="text-3xl font-semibold text-foreground md:text-4xl">
+              {organization.name}
+            </CardTitle>
+            <CardDescription className="max-w-2xl text-sm md:text-base">
+              Coordiná la comunicación interna, asigná responsabilidades y mantené a tu equipo sincronizado desde una sola vista.
+            </CardDescription>
           </div>
-        </div>
-      </PageContainer>
+          <div className="flex flex-col items-start gap-3 text-sm text-muted-foreground sm:items-end sm:text-right">
+            <div className="flex flex-col gap-1 sm:items-end">
+              <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Propietario</span>
+              <span className="font-medium text-foreground">{ownerLabel}</span>
+            </div>
+            <div className="flex flex-col gap-1 sm:items-end">
+              <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Creada</span>
+              <span>{formattedCreatedAt}</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {heroStats.map((stat) => (
+              <div
+                key={stat.label}
+                className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/20 p-4"
+              >
+                <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{stat.label}</span>
+                <span className="text-2xl font-semibold text-foreground">{stat.value}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 font-medium text-foreground">
+              Activa
+            </span>
+            <span className="hidden md:inline">•</span>
+            <span>{organization.tax_id ? `CUIT ${organization.tax_id}` : 'Sin identificación fiscal'}</span>
+            <span className="hidden md:inline">•</span>
+            <span>{totalMembers} miembros registrados</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canInviteMembers && (
+              <Button onClick={() => setInviteDialogOpen(true)} className="gap-2">
+                <UserPlus className="h-4 w-4" />
+                Invitar miembro
+              </Button>
+            )}
+            {canManageTeam && (
+              <Button variant="secondary" onClick={handleCreateEmployeeClick} className="gap-2">
+                <Users className="h-4 w-4" />
+                Nuevo empleado
+              </Button>
+            )}
+            {(canManageTeam || canEditCommissions) && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => toastInfo('Reportes de organización disponibles próximamente.')}
+              >
+                <LineChart className="h-4 w-4" />
+                Ver reportes
+              </Button>
+            )}
+          </div>
+        </CardFooter>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+        <OrganizationSummarySidebar
+          organization={organization}
+          ownerMembership={ownerMembership}
+          memberships={memberships}
+          membersPreview={membersPreview}
+          loadingMembers={loadingMembers}
+          onInvite={canInviteMembers ? () => setInviteDialogOpen(true) : undefined}
+          onEdit={canEdit ? () => setEditingOrg(true) : undefined}
+          onDelete={canDelete ? () => setDeleteDialogOpen(true) : undefined}
+          canDelete={canDelete}
+          getInitials={getInitials}
+          onMemberOptions={canRemoveMembers ? handleMemberOptions : undefined}
+          onManageTeam={canManageTeam ? handleCreateEmployeeClick : undefined}
+        />
+        <OrganizationPeoplePanel
+          memberships={memberships}
+          memberDirectory={memberDirectory}
+          employees={employees}
+          loadingEmployees={loadingEmployees}
+          onInviteMember={canInviteMembers ? () => setInviteDialogOpen(true) : () => {}}
+          onRemoveMember={canRemoveMembers ? handleMemberOptions : () => {}}
+          onEditEmployee={canManageTeam ? handleEditEmployeeFromList : () => {}}
+          onCreateEmployee={canManageTeam ? handleCreateEmployeeClick : () => {}}
+          onDeleteEmployee={canManageTeam ? handleDeleteEmployee : () => {}}
+          permissions={{
+            canInviteMembers,
+            canRemoveMembers,
+            canManageEmployees: canManageTeam,
+            canEditCommissions: canEditCommissions,
+          }}
+        />
+      </div>
 
       {/* Dialog de confirmación para eliminar organización */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1916,7 +1360,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           detailFields={employeeActionBarData.detailFields}
         />
       )}
-  </TooltipProvider>
+    </PageContainer>
   );
 };
 
