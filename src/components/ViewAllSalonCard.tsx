@@ -1,5 +1,7 @@
-import { Globe2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Globe2, Layers, Map, Sparkles } from "lucide-react";
+import NextImage from "next/image";
+import { motion, AnimatePresence } from "motion/react";
 
 interface ViewAllSalonCardProps {
   onClick: () => void;
@@ -9,9 +11,7 @@ interface ViewAllSalonCardProps {
 
 export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: ViewAllSalonCardProps) {
   const [isDark, setIsDark] = useState(false);
-  const [hasVideo, setHasVideo] = useState(true);
-  const [isVideoReady, setIsVideoReady] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [slideIndex, setSlideIndex] = useState(0);
 
   useEffect(() => {
     const checkTheme = () => {
@@ -33,6 +33,16 @@ export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: View
     return () => window.removeEventListener('theme:changed', handler as EventListener);
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSlideIndex((prev) => (prev + 1) % SLIDES.length);
+    }, 8000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const activeSlide = SLIDES[slideIndex];
+
   const bgColor = isDark ? 'bg-black/85' : 'bg-white';
   const textColor = isDark ? 'text-white' : 'text-black';
   const iconColor = isDark ? 'text-white' : 'text-black';
@@ -41,26 +51,8 @@ export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: View
     : (isDark ? 'border border-white/30' : 'border border-black/20');
 
   const overlayGradient = isDark
-    ? "bg-gradient-to-b from-black/60 via-black/40 to-black/65"
-    : "bg-gradient-to-b from-white/65 via-white/45 to-white/70";
-
-  useEffect(() => {
-    if (!hasVideo) return;
-    const node = videoRef.current;
-    if (!node) return;
-
-    const attemptPlay = async () => {
-      try {
-        if (node.paused) {
-          await node.play();
-        }
-      } catch {
-        setHasVideo(false);
-      }
-    };
-
-    attemptPlay();
-  }, [hasVideo, isVideoReady]);
+    ? "bg-gradient-to-b from-black/60 via-black/40 to-black/70"
+    : "bg-gradient-to-b from-white/80 via-white/60 to-white/85";
 
   return (
     <div className="px-0.5 py-1 h-full lg:ml-3">
@@ -74,31 +66,31 @@ export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: View
             : "hover:shadow-lg hover:scale-[1.01]"
         }`}
       >
-        {hasVideo && (
-          <video
-            ref={videoRef}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-              isVideoReady ? "opacity-90" : "opacity-55"
-            }`}
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="auto"
-            poster="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=960&q=60"
-            onLoadedData={() => setIsVideoReady(true)}
-            onError={() => setHasVideo(false)}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeSlide.image}
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
           >
-            <source src="https://cdn.coverr.co/videos/coverr-stylist-at-work-1744/1080p.mp4" type="video/mp4" />
-          </video>
-        )}
+            <NextImage
+              src={activeSlide.image}
+              alt="Todos los locales"
+              fill
+              className="object-cover"
+              sizes="(min-width: 1024px) 18vw, 60vw"
+            />
+          </motion.div>
+        </AnimatePresence>
         <div className={`absolute inset-0 ${overlayGradient}`} />
 
         <div className="relative z-10 flex flex-col items-center justify-center">
           <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 transition-transform duration-300 ${
             isSelected ? "scale-110" : "group-hover:scale-110"
           } ${isDark ? 'bg-white/10 border border-white/30 backdrop-blur-sm' : 'bg-black/5 border border-black/20'}`}>
-            <Globe2 className={`w-8 h-8 ${iconColor} stroke-[2.5]`} />
+            {React.createElement(activeSlide.icon, { className: `w-8 h-8 ${iconColor} stroke-[2.5]`, 'aria-hidden': true })}
           </div>
           <span className={`text-sm font-medium ${textColor} transition-all duration-300 ${
             isSelected ? "text-base" : "text-sm group-hover:text-base"
@@ -110,4 +102,23 @@ export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: View
     </div>
   );
 }
+
+const SLIDES = [
+  {
+    image: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1200&q=70",
+    icon: Globe2,
+  },
+  {
+    image: "https://images.unsplash.com/photo-1522770179533-24471fcdba45?auto=format&fit=crop&w=1200&q=70",
+    icon: Map,
+  },
+  {
+    image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=70",
+    icon: Layers,
+  },
+  {
+    image: "https://images.unsplash.com/photo-1520880867055-1e30d1cb001c?auto=format&fit=crop&w=1200&q=70",
+    icon: Sparkles,
+  },
+] as const;
 
