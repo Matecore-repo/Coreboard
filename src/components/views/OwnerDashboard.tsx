@@ -267,7 +267,7 @@ export default function OwnerDashboard({
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8 md:gap-10">
       {/* Barra de acciones */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/80 p-4 sm:p-5 shadow-sm">
         <div className="space-y-1">
@@ -281,7 +281,7 @@ export default function OwnerDashboard({
       </div>
 
       {/* Resumen Principal - 4 tarjetas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 md:gap-6 lg:gap-7">
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Ingresos Totales</CardTitle>
@@ -335,7 +335,7 @@ export default function OwnerDashboard({
       </div>
 
       {/* Resultados Financieros Detallados */}
-      <Card>
+      <Card className="mt-2">
         <CardHeader>
           <CardTitle>Resultados Financieros</CardTitle>
           <CardDescription>Desglose de ingresos y gastos</CardDescription>
@@ -405,7 +405,7 @@ export default function OwnerDashboard({
       </Card>
 
       {/* Gastos por Categoría */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-7 lg:gap-8">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -483,7 +483,7 @@ export default function OwnerDashboard({
       </div>
 
       {/* Comisiones por Empleado */}
-      <Card>
+      <Card className="mt-2">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5" />
@@ -520,7 +520,7 @@ export default function OwnerDashboard({
       </Card>
 
       {/* Gastos por Categoría y Pagos por Método */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-7 lg:gap-8">
         <Card>
           <CardHeader>
             <CardTitle>Gastos por Categoría</CardTitle>
@@ -576,7 +576,7 @@ export default function OwnerDashboard({
       </div>
 
       {/* Gráficos Principales */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-7 lg:gap-8">
         <Card>
           <CardHeader>
             <CardTitle>Ingresos vs Gastos</CardTitle>

@@ -5,21 +5,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Input } from '../../ui/input';
 import { ScrollArea } from '../../ui/scroll-area';
 import { Avatar, AvatarFallback } from '../../ui/avatar';
-import { Badge } from '../../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { toastInfo } from '../../../lib/toast';
 import { Membership } from './types';
 
+interface EmployeeSummary {
+  id: string;
+  user_id: string;
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  commission_type?: 'percentage' | 'fixed' | null;
+  default_commission_pct?: number | null;
+  default_commission_amount?: number | null;
+  active?: boolean | null;
+  hasEmployeeRecord: boolean;
+  role: Membership['role'];
+}
+
 interface OrganizationPeoplePanelProps {
   memberships: Membership[];
   memberDirectory: Record<string, { label: string }>;
-  employees: any[];
+  employees: EmployeeSummary[];
   loadingEmployees: boolean;
   onInviteMember: () => void;
   onRemoveMember: (member: Membership) => void;
-  onEditEmployee: (employee: any) => void;
+  onEditEmployee: (employee: EmployeeSummary) => void;
   onCreateEmployee: () => void;
   onDeleteEmployee: (employeeId: string) => void;
+  onSelectEmployee?: (employee: EmployeeSummary) => void;
   permissions: {
     canInviteMembers: boolean;
     canRemoveMembers: boolean;
@@ -28,18 +42,18 @@ interface OrganizationPeoplePanelProps {
   };
 }
 
-const roleBadgeVariant: Record<Membership['role'], 'default' | 'secondary' | 'outline'> = {
-  owner: 'default',
-  admin: 'default',
-  employee: 'secondary',
-  viewer: 'outline',
-};
-
 const roleLabelMap: Record<Membership['role'], string> = {
   owner: 'Propietario',
   admin: 'Administrador',
   employee: 'Empleado',
   viewer: 'Visualizador',
+};
+
+const roleAccentStyles: Record<Membership['role'], string> = {
+  owner: 'border-primary/20 bg-primary/10 text-primary',
+  admin: 'border-primary/20 bg-primary/10 text-primary',
+  employee: 'border-emerald-300/40 bg-emerald-500/10 text-emerald-600 dark:border-emerald-400/40 dark:text-emerald-300',
+  viewer: 'border-border/60 bg-muted/40 text-muted-foreground',
 };
 
 const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
@@ -52,6 +66,7 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
   onEditEmployee,
   onCreateEmployee,
   onDeleteEmployee,
+  onSelectEmployee,
   permissions,
 }) => {
   const [memberFilter, setMemberFilter] = React.useState('');
@@ -150,6 +165,7 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
                 .toUpperCase();
               const roleLabel = roleLabelMap[member.role] || 'Miembro';
               const canRemove = member.role !== 'owner';
+              const roleStyle = roleAccentStyles[member.role] || roleAccentStyles.viewer;
 
               return (
                 <div
@@ -167,7 +183,9 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
                       <span>Rol: {roleLabel}</span>
                     </div>
                   </div>
-                  <Badge variant={roleBadgeVariant[member.role]}>{roleLabel}</Badge>
+                  <span className={`rounded-md border px-2 py-1 text-[11px] font-medium tracking-wide ${roleStyle}`}>
+                    {roleLabel}
+                  </span>
                   {canRemoveMembers && (
                     <Button
                       variant="ghost"
@@ -215,16 +233,52 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
               Todavía no registraste empleados. Sumá uno para comenzar a asignar comisiones.
             </div>
           ) : (
-            employees.map((employee: any) => {
+            employees.map((employee) => {
               const commission =
                 employee.commission_type === 'fixed'
-                  ? `$${employee.default_commission_amount ?? 0}`
-                  : `${employee.default_commission_pct ?? 0}%`;
+                  ? employee.default_commission_amount != null
+                    ? `$${employee.default_commission_amount}`
+                    : 'No configurada'
+                  : employee.commission_type === 'percentage'
+                  ? `${employee.default_commission_pct ?? 0}%`
+                  : 'No configurada';
+
+              const statusLabel = employee.hasEmployeeRecord ? 'Ficha completa' : 'Pendiente';
+              const statusStyle = employee.hasEmployeeRecord
+                ? 'border-primary/30 bg-primary/5 text-primary'
+                : 'border-amber-300/60 bg-amber-500/10 text-amber-700 dark:border-amber-400/50 dark:text-amber-300';
+              const clickable = Boolean(onSelectEmployee);
+              const roleLabel = roleLabelMap[employee.role] || 'Miembro';
+              const rowClassName = [
+                'flex items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3 shadow-sm transition-colors',
+                clickable ? 'cursor-pointer hover:border-primary/40 hover:bg-primary/5' : '',
+              ]
+                .join(' ')
+                .trim();
+              const identifier = employee.full_name || employee.email || 'ND';
+              const initials = identifier
+                .split(/\s+/)
+                .filter(Boolean)
+                .map((part) => part[0]?.toUpperCase() || '')
+                .join('')
+                .slice(0, 2) || 'ND';
 
               return (
-                <div key={employee.id} className="rounded-xl border border-border/50 bg-card px-4 py-3 shadow-sm">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-medium text-foreground">{employee.full_name}</p>
+                <div
+                  key={employee.id}
+                  className={rowClassName}
+                  onClick={clickable ? () => onSelectEmployee?.(employee) : undefined}
+                >
+                  <Avatar className="h-10 w-10 border border-border/40 bg-background">
+                    <AvatarFallback>{initials}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="truncate text-sm font-medium text-foreground">{employee.full_name}</p>
+                      <span className={`rounded-md border px-2 py-1 text-[11px] font-medium tracking-wide ${roleAccentStyles[employee.role] || roleAccentStyles.viewer}`}>
+                        {roleLabel}
+                      </span>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span>{employee.email || 'Sin email'}</span>
                       <span>•</span>
@@ -236,19 +290,40 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
                         </>
                       )}
                     </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className={`rounded-md border px-2 py-0.5 font-medium ${statusStyle}`}>{statusLabel}</span>
+                      {employee.active === false && (
+                        <span className="rounded-md border border-border/60 bg-muted/50 px-2 py-0.5 font-medium text-muted-foreground">
+                          Inactivo
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" className="gap-1" onClick={() => onEditEmployee(employee)}>
-                      <Edit3 className="h-4 w-4" /> Editar
-                    </Button>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => onDeleteEmployee(employee.id)}
+                      className="gap-1"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEditEmployee(employee);
+                      }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Edit3 className="h-4 w-4" /> {employee.hasEmployeeRecord ? 'Editar' : 'Completar ficha'}
                     </Button>
+                    {employee.hasEmployeeRecord && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDeleteEmployee(employee.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
@@ -339,18 +414,27 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
             <CardTitle className="text-lg font-semibold">Organización y permisos</CardTitle>
             <CardDescription>Gestioná miembros, personal y comisiones desde una sola vista.</CardDescription>
           </div>
-          <TabsList>
-            <TabsTrigger value="members" className="gap-2">
+          <TabsList className="flex w-full flex-col gap-2 rounded-none border-b border-border bg-transparent p-0 sm:flex-row">
+            <TabsTrigger
+              value="members"
+              className="relative flex-1 rounded-none border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:border-primary data-[state=active]:text-foreground"
+            >
               <Users className="h-4 w-4" />
               Miembros
             </TabsTrigger>
             {showEmployeesTab && (
-              <TabsTrigger value="employees" className="gap-2">
+              <TabsTrigger
+                value="employees"
+                className="relative flex-1 rounded-none border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:border-primary data-[state=active]:text-foreground"
+              >
                 Personal
               </TabsTrigger>
             )}
             {showCommissionsTab && (
-              <TabsTrigger value="commissions" className="gap-2">
+              <TabsTrigger
+                value="commissions"
+                className="relative flex-1 rounded-none border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:border-primary data-[state=active]:text-foreground"
+              >
                 Comisiones
               </TabsTrigger>
             )}

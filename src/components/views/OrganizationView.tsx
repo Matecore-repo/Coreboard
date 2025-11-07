@@ -1152,18 +1152,18 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           canDelete={canDelete}
           getInitials={getInitials}
           onMemberOptions={canRemoveMembers ? handleMemberOptions : undefined}
-          onManageTeam={canManageTeam ? handleCreateEmployeeClick : undefined}
         />
         <OrganizationPeoplePanel
           memberships={memberships}
           memberDirectory={memberDirectory}
-          employees={employees}
+          employees={syncedEmployees}
           loadingEmployees={loadingEmployees}
           onInviteMember={canInviteMembers ? () => setInviteDialogOpen(true) : () => {}}
           onRemoveMember={canRemoveMembers ? handleMemberOptions : () => {}}
           onEditEmployee={canManageTeam ? handleEditEmployeeFromList : () => {}}
           onCreateEmployee={canManageTeam ? handleCreateEmployeeClick : () => {}}
           onDeleteEmployee={canManageTeam ? handleDeleteEmployee : () => {}}
+          onSelectEmployee={canManageTeam ? handleSelectEmployeeFromList : undefined}
           permissions={{
             canInviteMembers,
             canRemoveMembers,

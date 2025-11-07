@@ -385,7 +385,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
               </Popover>
             }
           >
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4" role="tablist" aria-label="Paneles de finanzas">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 mt-6 mb-8" role="tablist" aria-label="Paneles de finanzas">
               <TabsList className="flex flex-wrap gap-2 rounded-xl bg-muted/60 p-1">
                 {tabItems.map((tab) => (
                   <TabsTrigger

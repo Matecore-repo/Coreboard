@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { Lock, Mail } from "lucide-react";
 import { Button } from "../ui/button";
 import LoginCTA from "../LoginCTA";
@@ -10,8 +10,29 @@ import { useAuth } from "../../contexts/AuthContext";
 import { motion, AnimatePresence } from "motion/react";
 import { useRouter } from "next/router";
 
-const salonImagePublic = "/imagenlogin.jpg";
-const salonImageAsset = "/imagenlogin.jpg";
+const heroSlides = [
+  {
+    id: "overview",
+    headline: "Organizá todos tus turnos en minutos",
+    body: "Unificá agendas de múltiples sedes, asigná recursos y mantené la disponibilidad sincronizada en tiempo real.",
+    videoSrc: "https://storage.googleapis.com/coverr-public/videos/cleaning-lady/video.mp4",
+    poster: "/imagenlogin.jpg",
+  },
+  {
+    id: "automation",
+    headline: "Automatizá recordatorios efectivos",
+    body: "Disminuí ausencias con mensajes inteligentes y recordatorios personalizados para cada cliente.",
+    videoSrc: "https://storage.googleapis.com/coverr-public/videos/barber-chair/video.mp4",
+    poster: "/imagenlogin.jpg",
+  },
+  {
+    id: "metrics",
+    headline: "Mirá indicadores accionables",
+    body: "Seguimiento diario de ocupación, ingresos y eficiencia para decidir con datos, sin adivinar.",
+    videoSrc: "https://storage.googleapis.com/coverr-public/videos/meeting/video.mp4",
+    poster: "/imagenlogin.jpg",
+  },
+] as const;
 
 function LoginView() {
   const { signInAsDemo, signIn, signUp, resetPassword, signInWithGoogle, user, loading } = useAuth();
@@ -19,9 +40,12 @@ function LoginView() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [currentImage, setCurrentImage] = useState<string>(salonImageAsset);
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [videoSupported, setVideoSupported] = useState(true);
+  const [videoReady, setVideoReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Si el usuario ya está autenticado, redirigir al dashboard
   useEffect(() => {
@@ -31,17 +55,27 @@ function LoginView() {
     }
   }, [user, router, isLoggingIn]);
 
-  React.useEffect(() => {
-    let mounted = true;
-    const img = new (globalThis as any).Image();
-    img.src = salonImagePublic;
-    img.onload = () => {
-      if (mounted) setCurrentImage(salonImagePublic);
-    };
-    return () => {
-      mounted = false;
-    };
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+      setVideoReady(false);
+    }, 9000);
+
+    return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!videoSupported) return;
+    const node = videoRef.current;
+    if (!node) return;
+
+    const playPromise = node.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        setVideoSupported(false);
+      });
+    }
+  }, [activeSlide, videoSupported]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,13 +163,71 @@ function LoginView() {
   const actionButtonClass = (forMode: "login" | "register" | "reset") =>
     `hover:underline transition-colors ${mode === forMode ? "text-foreground font-medium" : "text-muted-foreground"}`;
 
+  const currentSlide = heroSlides[activeSlide];
+
+  const renderMedia = (isDesktop: boolean) => (
+    <div className={`${isDesktop ? "hidden lg:block lg:w-1/2" : "lg:hidden w-full"} relative overflow-hidden bg-muted min-h-[45vh] lg:min-h-[60vh] lg:h-screen`}>
+      <AnimatePresence mode="wait">
+        {videoSupported ? (
+          <motion.video
+            key={currentSlide.id}
+            ref={videoRef}
+            className="absolute inset-0 h-full w-full object-cover"
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            poster={currentSlide.poster}
+            onLoadedData={() => setVideoReady(true)}
+            onError={() => setVideoSupported(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: videoReady ? 1 : 0.4 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
+            <source src={currentSlide.videoSrc} type="video/mp4" />
+          </motion.video>
+        ) : (
+          <motion.div
+            key={`${currentSlide.id}-fallback`}
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
+            <NextImage src={currentSlide.poster} alt="Vista del CRM" fill className="object-cover" sizes="50vw" priority={isDesktop} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <div className="absolute inset-0 bg-gradient-to-br from-black/50 via-black/20 to-transparent" />
+
+      <div className="absolute bottom-0 left-0 right-0 p-8 sm:p-10 lg:p-12 text-white">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`copy-${currentSlide.id}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
+            <h2 className="text-3xl sm:text-4xl font-semibold mb-4 drop-shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
+              {currentSlide.headline}
+            </h2>
+            <p className="text-base sm:text-lg text-white/90 max-w-lg">
+              {currentSlide.body}
+            </p>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen flex">
       <div className="w-full lg:w-1/2 flex flex-col">
-        <div className="lg:hidden w-full h-[45vh] relative overflow-hidden">
-          <NextImage src={currentImage} alt="Hair Salon" fill className="object-cover" sizes="100vw" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-background" />
-        </div>
+        {renderMedia(false)}
 
         <div className="flex-1 flex items-center justify-center px-6 sm:px-8 lg:px-12 py-8 lg:py-12 relative">
           <div className="w-full max-w-md space-y-6 relative pt-8">
@@ -331,17 +423,7 @@ function LoginView() {
         </div>
       </div>
 
-      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden bg-muted min-h-[60vh] lg:h-screen">
-        <NextImage src={currentImage} alt="Modern Hair Salon" fill className="object-cover" sizes="50vw" priority />
-        <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/20 to-transparent" />
-
-        <div className="absolute bottom-0 left-0 right-0 p-12 text-white">
-          <h2 className="text-4xl mb-4">Gestiona tu peluquería</h2>
-          <p className="text-lg text-white/90">
-            Sistema completo de gestión de turnos, clientes y finanzas para profesionales del sector
-          </p>
-        </div>
-      </div>
+      {renderMedia(true)}
     </div>
   );
 }
