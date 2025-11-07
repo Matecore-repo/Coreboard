@@ -144,7 +144,7 @@ function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
       <div
         className={cn(
           "flex",
-          orientation === "horizontal" ? "-ml-4" : "-mt-4 flex-col",
+          orientation === "horizontal" ? "gap-5" : "flex-col gap-5",
           className,
         )}
         {...props}
@@ -154,8 +154,6 @@ function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
-  const { orientation } = useCarousel();
-
   return (
     <div
       role="group"
@@ -163,7 +161,6 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="carousel-item"
       className={cn(
         "min-w-0 shrink-0 grow-0 basis-full",
-        orientation === "horizontal" ? "pl-4" : "pt-4",
         className,
       )}
       {...props}
@@ -173,7 +170,7 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
 
 function CarouselPrevious({
   className,
-  variant = "outline",
+  variant = "ghost",
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
@@ -185,16 +182,13 @@ function CarouselPrevious({
       variant={variant}
       size={size}
       className={cn(
-        "absolute size-8 rounded-full",
-        "backdrop-blur-md bg-background/80 dark:bg-background/90",
-        "border border-border/50 dark:border-border/40",
-        "shadow-lg dark:shadow-xl/50",
-        "transition-all duration-300",
-        "hover:scale-110 hover:bg-background/90 dark:hover:bg-background/95",
-        "hover:shadow-xl dark:hover:shadow-2xl/50",
-        "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100",
+        "absolute size-9 rounded-full border border-border/60 bg-background/90 text-foreground shadow-sm backdrop-blur",
+        "transition-all duration-200",
+        "hover:bg-primary hover:text-primary-foreground hover:shadow-md",
+        "focus-visible:ring-2 focus-visible:ring-primary/50",
+        "disabled:pointer-events-none disabled:opacity-35",
         orientation === "horizontal"
-          ? "top-1/2 left-0 -translate-x-12 -translate-y-1/2"
+          ? "top-1/2 left-2 -translate-y-1/2 md:left-3"
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
         className,
       )}
@@ -210,7 +204,7 @@ function CarouselPrevious({
 
 function CarouselNext({
   className,
-  variant = "outline",
+  variant = "ghost",
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
@@ -222,16 +216,13 @@ function CarouselNext({
       variant={variant}
       size={size}
       className={cn(
-        "absolute size-8 rounded-full",
-        "backdrop-blur-md bg-background/80 dark:bg-background/90",
-        "border border-border/50 dark:border-border/40",
-        "shadow-lg dark:shadow-xl/50",
-        "transition-all duration-300",
-        "hover:scale-110 hover:bg-background/90 dark:hover:bg-background/95",
-        "hover:shadow-xl dark:hover:shadow-2xl/50",
-        "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100",
+        "absolute size-9 rounded-full border border-border/60 bg-background/90 text-foreground shadow-sm backdrop-blur",
+        "transition-all duration-200",
+        "hover:bg-primary hover:text-primary-foreground hover:shadow-md",
+        "focus-visible:ring-2 focus-visible:ring-primary/50",
+        "disabled:pointer-events-none disabled:opacity-35",
         orientation === "horizontal"
-          ? "top-1/2 right-0 translate-x-12 -translate-y-1/2"
+          ? "top-1/2 right-2 -translate-y-1/2 md:right-3"
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
         className,
       )}

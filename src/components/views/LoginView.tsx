@@ -85,6 +85,16 @@ function LoginView() {
     ? "bg-gradient-to-t from-black/90 via-black/65 to-transparent lg:bg-gradient-to-br lg:from-black/70 lg:via-black/45 lg:to-transparent"
     : "bg-gradient-to-t from-white/90 via-white/65 to-transparent lg:bg-gradient-to-br lg:from-white/70 lg:via-white/45 lg:to-transparent";
 
+  const bottomFadeClass = isDarkTheme
+    ? "bg-gradient-to-t from-black/85 via-black/60 to-transparent"
+    : "bg-gradient-to-t from-white via-white/80 to-transparent";
+
+  const copyPanelClass = isDarkTheme
+    ? "bg-black/70 shadow-[0_18px_55px_rgba(0,0,0,0.55)] text-white"
+    : "bg-white/85 shadow-[0_18px_45px_rgba(0,0,0,0.15)] text-slate-900";
+
+  const copyBodyClass = isDarkTheme ? "text-white/85" : "text-slate-700";
+
 
   // Si el usuario ya está autenticado, redirigir al dashboard
   useEffect(() => {
@@ -207,6 +217,7 @@ function LoginView() {
           </motion.div>
         </AnimatePresence>
         <div className={`pointer-events-none absolute inset-0 ${gradientOverlayClass}`} />
+        <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-40 sm:h-48 ${bottomFadeClass}`} />
 
         {isDesktop && (
           <div className={`absolute inset-0 flex flex-col justify-end ${overlayPadding}`}>
@@ -219,11 +230,11 @@ function LoginView() {
                 transition={{ duration: 0.55, ease: "easeOut" }}
                 className="relative z-10 max-w-2xl"
               >
-                <div className="mt-auto rounded-3xl bg-black/70 px-10 py-9 sm:px-11 sm:py-10 shadow-[0_18px_55px_rgba(0,0,0,0.55)] text-white space-y-4">
-                  <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight leading-tight text-white">
+                <div className={`mt-auto rounded-3xl px-10 py-9 sm:px-11 sm:py-10 space-y-4 ${copyPanelClass}`}>
+                  <h2 className={`text-3xl sm:text-4xl font-semibold tracking-tight leading-tight ${isDarkTheme ? "text-white" : "text-slate-900"}`}>
                     {currentSlide.headline}
                   </h2>
-                  <p className="text-base sm:text-lg leading-relaxed text-white/85">
+                  <p className={`text-base sm:text-lg leading-relaxed ${copyBodyClass}`}>
                     {currentSlide.body}
                   </p>
                 </div>

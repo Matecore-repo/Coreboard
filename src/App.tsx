@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
-import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, MapPin, LogOut, Sun, Moon } from "lucide-react";
+import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, MapPin, LogOut, Sun, Moon, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
@@ -9,6 +9,7 @@ import { AppointmentDialog } from "./components/features/appointments/Appointmen
 import { AppointmentActionBar } from "./components/features/appointments/AppointmentActionBar";
 import { FloatingQuickActions } from "./components/FloatingQuickActions";
 import { FilterBar } from "./components/FilterBar";
+import { ShortcutBanner } from "./components/ShortcutBanner";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./components/ui/sheet";
 import { useIsMobile } from "./components/ui/use-mobile";
 import { toastSuccess, toastError, toastWarning, toastInfo } from "./lib/toast";
@@ -1085,122 +1086,126 @@ export default function App() {
         );
       default:
         return (
-          <PageContainer
-            title="Turnos"
-            breadcrumbs={[
-              { label: 'Inicio' },
-              { label: 'Turnos' },
-            ]}
-          >
-            <div className="p-4 sm:p-6">
-              <div className="mb-4">
-                <div>
-                  <SalonCarousel 
-                    salons={effectiveSalons}
-                    selectedSalon={selectedSalon}
-                    onSelectSalon={handleSelectSalon}
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <FilterBar
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  statusFilter={statusFilter}
-                  onStatusFilterChange={setStatusFilter}
-                  dateFilter={dateFilter}
-                  onDateFilterChange={setDateFilter}
-                  stylistFilter={stylistFilter}
-                  onStylistFilterChange={setStylistFilter}
-                />
-              </div>
-              <div className="mt-4">
-                {selectedSalon === null ? (
-                  <div className="text-center py-16 px-4">
-                    <div className="text-muted-foreground mb-2">
-                      Por favor selecciona una peluquería para ver los turnos
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Usa el carrusel superior para elegir una sucursal
-                    </p>
-                  </div>
-                ) : (
+          <PageContainer>
+            <div className="flex flex-col gap-4">
+              <ShortcutBanner
+                icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
+                message={(
                   <>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
-                      <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
-                    </div>
-                    <div className="space-y-6">
-                      {loadingTurnos ? (
-                        <SkeletonList count={5} />
-                      ) : filteredAppointments.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          {selectedSalon === 'all' ? (
-                            <>
-                              <p className="mb-2">No se encontraron turnos</p>
-                              <p className="text-sm">Intenta seleccionar un local específico o cambia los filtros</p>
-                            </>
-                          ) : (
-                            "No se encontraron turnos"
-                          )}
-                        </div>
-                      ) : (
-                        (() => {
-                          // Agrupar turnos por fecha
-                          const today = new Date().toISOString().split('T')[0];
-                          const tomorrow = new Date();
-                          tomorrow.setDate(tomorrow.getDate() + 1);
-                          const tomorrowStr = tomorrow.toISOString().split('T')[0];
-                          
-                          const todayAppointments = filteredAppointments.filter(apt => apt.date === today);
-                          const tomorrowAppointments = filteredAppointments.filter(apt => apt.date === tomorrowStr);
-                          const thisWeekAppointments = filteredAppointments.filter(apt => {
-                            const aptDate = new Date(apt.date);
-                            const todayDate = new Date(today);
-                            const weekFromToday = new Date(todayDate);
-                            weekFromToday.setDate(todayDate.getDate() + 7);
-                            return aptDate > tomorrow && aptDate < weekFromToday && apt.date !== today && apt.date !== tomorrowStr;
-                          });
-                          const laterAppointments = filteredAppointments.filter(apt => {
-                            const aptDate = new Date(apt.date);
-                            const weekFromToday = new Date();
-                            weekFromToday.setDate(weekFromToday.getDate() + 7);
-                            return aptDate >= weekFromToday;
-                          });
-                          
-                          const groups = [];
-                          if (todayAppointments.length > 0) {
-                            groups.push({ title: 'Hoy', appointments: todayAppointments });
-                          }
-                          if (tomorrowAppointments.length > 0) {
-                            groups.push({ title: 'Mañana', appointments: tomorrowAppointments });
-                          }
-                          if (thisWeekAppointments.length > 0) {
-                            groups.push({ title: 'Esta semana', appointments: thisWeekAppointments });
-                          }
-                          if (laterAppointments.length > 0) {
-                            groups.push({ title: 'Próximamente', appointments: laterAppointments });
-                          }
-                          
-                          return groups.length > 0 ? (
-                            groups.map((group, idx) => (
-                              <AppointmentGroup
-                                key={idx}
-                                title={group.title}
-                                appointments={group.appointments}
-                                onAppointmentClick={handleSelectAppointment}
-                                selectedAppointmentId={selectedAppointment?.id}
-                              />
-                            ))
-                          ) : (
-                            <div className="text-center py-8 text-muted-foreground">
-                              No se encontraron turnos
-                            </div>
-                          );
-                        })()
-                      )}
-                    </div>
+                    Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
                   </>
                 )}
+              />
+              <div className="p-4 sm:p-6">
+                <div className="mb-4">
+                  <div>
+                    <SalonCarousel 
+                      salons={effectiveSalons}
+                      selectedSalon={selectedSalon}
+                      onSelectSalon={handleSelectSalon}
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <FilterBar
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    statusFilter={statusFilter}
+                    onStatusFilterChange={setStatusFilter}
+                    dateFilter={dateFilter}
+                    onDateFilterChange={setDateFilter}
+                    stylistFilter={stylistFilter}
+                    onStylistFilterChange={setStylistFilter}
+                  />
+                </div>
+                <div className="mt-4">
+                  {selectedSalon === null ? (
+                    <div className="text-center py-16 px-4">
+                      <div className="text-muted-foreground mb-2">
+                        Por favor selecciona una peluquería para ver los turnos
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Usa el carrusel superior para elegir una sucursal
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
+                        <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
+                      </div>
+                      <div className="space-y-6">
+                        {loadingTurnos ? (
+                          <SkeletonList count={5} />
+                        ) : filteredAppointments.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            {selectedSalon === 'all' ? (
+                              <>
+                                <p className="mb-2">No se encontraron turnos</p>
+                                <p className="text-sm">Intenta seleccionar un local específico o cambia los filtros</p>
+                              </>
+                            ) : (
+                              "No se encontraron turnos"
+                            )}
+                          </div>
+                        ) : (
+                          (() => {
+                            // Agrupar turnos por fecha
+                            const today = new Date().toISOString().split('T')[0];
+                            const tomorrow = new Date();
+                            tomorrow.setDate(tomorrow.getDate() + 1);
+                            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                            
+                            const todayAppointments = filteredAppointments.filter(apt => apt.date === today);
+                            const tomorrowAppointments = filteredAppointments.filter(apt => apt.date === tomorrowStr);
+                            const thisWeekAppointments = filteredAppointments.filter(apt => {
+                              const aptDate = new Date(apt.date);
+                              const todayDate = new Date(today);
+                              const weekFromToday = new Date(todayDate);
+                              weekFromToday.setDate(todayDate.getDate() + 7);
+                              return aptDate > tomorrow && aptDate < weekFromToday && apt.date !== today && apt.date !== tomorrowStr;
+                            });
+                            const laterAppointments = filteredAppointments.filter(apt => {
+                              const aptDate = new Date(apt.date);
+                              const weekFromToday = new Date();
+                              weekFromToday.setDate(weekFromToday.getDate() + 7);
+                              return aptDate >= weekFromToday;
+                            });
+                            
+                            const groups = [];
+                            if (todayAppointments.length > 0) {
+                              groups.push({ title: 'Hoy', appointments: todayAppointments });
+                            }
+                            if (tomorrowAppointments.length > 0) {
+                              groups.push({ title: 'Mañana', appointments: tomorrowAppointments });
+                            }
+                            if (thisWeekAppointments.length > 0) {
+                              groups.push({ title: 'Esta semana', appointments: thisWeekAppointments });
+                            }
+                            if (laterAppointments.length > 0) {
+                              groups.push({ title: 'Próximamente', appointments: laterAppointments });
+                            }
+                            
+                            return groups.length > 0 ? (
+                              groups.map((group, idx) => (
+                                <AppointmentGroup
+                                  key={idx}
+                                  title={group.title}
+                                  appointments={group.appointments}
+                                  onAppointmentClick={handleSelectAppointment}
+                                  selectedAppointmentId={selectedAppointment?.id}
+                                />
+                              ))
+                            ) : (
+                              <div className="text-center py-8 text-muted-foreground">
+                                No se encontraron turnos
+                              </div>
+                            );
+                          })()
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </PageContainer>

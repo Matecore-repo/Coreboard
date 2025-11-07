@@ -1,5 +1,11 @@
 import * as React from "react";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "./ui/carousel";
 import useEmblaCarousel from "embla-carousel-react";
 
 interface GenericCarouselProps<T> {
@@ -48,36 +54,13 @@ export function GenericCarousel<T>({
   emptyState,
   loading = false,
   className,
-  gap = 16,
+  gap = 20,
   slidesToShow = { default: 1, 640: 2, 1024: 3 },
   itemClassName,
   specialItemClassName,
   showNavigation = true,
 }: GenericCarouselProps<T>) {
   const hasSelection = selectedItem !== null && selectedItem !== undefined;
-
-  const gapClassMap: Record<number, string> = {
-    0: "pl-0",
-    4: "pl-1",
-    8: "pl-2",
-    12: "pl-3",
-    16: "pl-4",
-    20: "pl-5",
-    24: "pl-6",
-  };
-
-  const negativeGapClassMap: Record<number, string> = {
-    0: "-ml-0",
-    4: "-ml-1",
-    8: "-ml-2",
-    12: "-ml-3",
-    16: "-ml-4",
-    20: "-ml-5",
-    24: "-ml-6",
-  };
-
-  const gapClass = gapClassMap[gap] ?? "pl-4";
-  const negativeGapClass = negativeGapClassMap[gap] ?? "-ml-4";
 
   const getBasisClass = (count?: number) => {
     switch (count) {
@@ -105,15 +88,14 @@ export function GenericCarousel<T>({
     .filter(Boolean)
     .join(" ");
 
-  const defaultItemClasses = `${gapClass} ${responsiveClasses || "basis-full sm:basis-1/2 lg:basis-1/3"} min-w-0`;
+  const defaultItemClasses = `${responsiveClasses || "basis-full sm:basis-1/2 lg:basis-1/3"} min-w-0 flex items-stretch`;
 
-  const sharedItemStyle = gapClassMap[gap]
-    ? undefined
-    : ({ paddingLeft: gap } as React.CSSProperties);
-
-  const contentStyle = negativeGapClassMap[gap]
-    ? undefined
-    : ({ marginLeft: -gap } as React.CSSProperties);
+  const trackStyle: React.CSSProperties = React.useMemo(
+    () => ({
+      gap: gap,
+    }),
+    [gap],
+  );
 
   if (loading) {
     return (
@@ -140,20 +122,18 @@ export function GenericCarousel<T>({
   }
 
   return (
-    <div className={className || "relative py-6"}>
-      <Carousel 
-        className="w-full" 
-        opts={carouselOpts}
-      >
-        <CarouselContent
-          className={`${negativeGapClass} py-3 sm:py-4`}
-          style={contentStyle}
-        >
+    <div
+      className={
+        className ||
+        "relative w-full rounded-2xl border border-border/40 bg-muted/30 px-4 py-5 shadow-sm dark:bg-muted/10"
+      }
+    >
+      <Carousel className="w-full" opts={carouselOpts}>
+        <CarouselContent className="py-1 sm:py-2" style={trackStyle}>
           {specialItem && (
             <CarouselItem 
               key={specialItem.id} 
               className={specialItemClassName || defaultItemClasses}
-              style={sharedItemStyle}
             >
               {specialItem.render(
                 selectedItem === specialItem.id || selectedItem === null,
@@ -168,7 +148,7 @@ export function GenericCarousel<T>({
               <CarouselItem 
                 key={itemId} 
                 className={itemClassName || defaultItemClasses}
-                style={sharedItemStyle}
+                aria-label={itemName}
               >
                 {renderItem(
                   item,

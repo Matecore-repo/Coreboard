@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Globe2, Layers, Map, Sparkles } from "lucide-react";
 import NextImage from "next/image";
 import { motion, AnimatePresence } from "motion/react";
+import { cn } from "./ui/utils";
 
 interface ViewAllSalonCardProps {
   onClick: () => void;
@@ -10,28 +11,7 @@ interface ViewAllSalonCardProps {
 }
 
 export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: ViewAllSalonCardProps) {
-  const [isDark, setIsDark] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
-
-  useEffect(() => {
-    const checkTheme = () => {
-      setIsDark(document.documentElement.classList.contains('dark'));
-    };
-    
-    checkTheme();
-    
-    const handler = (e: Event) => {
-      try {
-        const detail = (e as CustomEvent<'light' | 'dark'>).detail;
-        setIsDark(detail === 'dark');
-      } catch {
-        checkTheme();
-      }
-    };
-    
-    window.addEventListener('theme:changed', handler as EventListener);
-    return () => window.removeEventListener('theme:changed', handler as EventListener);
-  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -43,28 +23,23 @@ export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: View
 
   const activeSlide = SLIDES[slideIndex];
 
-  const bgColor = isDark ? 'bg-black/85' : 'bg-white';
-  const textColor = isDark ? 'text-white' : 'text-black';
-  const iconColor = isDark ? 'text-white' : 'text-black';
-  const borderColor = isSelected 
-    ? (isDark ? 'ring-2 ring-white/70' : 'ring-2 ring-black')
-    : (isDark ? 'border border-white/30' : 'border border-black/20');
-
-  const overlayGradient = isDark
-    ? "bg-gradient-to-b from-black/60 via-black/40 to-black/70"
-    : "bg-gradient-to-b from-white/80 via-white/60 to-white/85";
+  const cardClasses = cn(
+    "relative flex h-full w-full cursor-pointer min-h-[232px] flex-col overflow-hidden rounded-xl border bg-card/70 text-left shadow-sm transition-all duration-300 ease-out dark:bg-card/25",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+    {
+      "border-primary/60 shadow-md shadow-primary/10 ring-1 ring-primary/30 dark:border-primary/40 dark:shadow-primary/20": isSelected,
+      "opacity-65 saturate-[0.85]": isDimmed && !isSelected,
+      "hover:border-primary/40 hover:shadow-md hover:shadow-primary/10 dark:hover:border-primary/50": !isSelected && !isDimmed,
+    },
+  );
 
   return (
-    <div className="px-0.5 py-1 h-full lg:ml-3">
-      <div
+    <div className="px-0.5 py-1 h-full">
+      <button
+        type="button"
         onClick={onClick}
-        className={`group relative rounded-2xl overflow-hidden cursor-pointer h-44 flex flex-col items-center justify-center transition-all duration-300 ease-out ${bgColor} ${borderColor} ${
-          isSelected 
-            ? "shadow-xl scale-[1.02]" 
-            : isDimmed 
-            ? "opacity-50 scale-[0.98]" 
-            : "hover:shadow-lg hover:scale-[1.01]"
-        }`}
+        className={cn("group", cardClasses)}
+        aria-pressed={isSelected}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -74,31 +49,46 @@ export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: View
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6, ease: "easeOut" }}
+            aria-hidden
           >
             <NextImage
               src={activeSlide.image}
-              alt="Todos los locales"
+              alt=""
               fill
-              className="object-cover"
+              className="object-cover opacity-60"
               sizes="(min-width: 1024px) 18vw, 60vw"
             />
           </motion.div>
         </AnimatePresence>
-        <div className={`absolute inset-0 ${overlayGradient}`} />
 
-        <div className="relative z-10 flex flex-col items-center justify-center">
-          <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 transition-transform duration-300 ${
-            isSelected ? "scale-110" : "group-hover:scale-110"
-          } ${isDark ? 'bg-white/10 border border-white/30 backdrop-blur-sm' : 'bg-black/5 border border-black/20'}`}>
-            {React.createElement(activeSlide.icon, { className: `w-8 h-8 ${iconColor} stroke-[2.5]`, 'aria-hidden': true })}
+        <div className="absolute inset-0 bg-gradient-to-br from-background/10 via-background/65 to-background/20 dark:from-background/20 dark:via-background/80 dark:to-background/30" />
+
+        <div className="relative z-10 flex flex-1 flex-col justify-between p-6">
+          <div className="flex flex-col gap-4">
+            <span className="inline-flex size-14 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary shadow-sm backdrop-blur-md transition-transform duration-300 group-hover:scale-105">
+              {React.createElement(activeSlide.icon, {
+                className: "size-7",
+                "aria-hidden": true,
+              })}
+            </span>
+            <div className="flex flex-col gap-1">
+              <span className="text-base font-semibold text-foreground group-hover:text-primary">
+                Ver todo
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Mostrar todas las sedes y recursos disponibles
+              </span>
+            </div>
           </div>
-          <span className={`text-sm font-medium ${textColor} transition-all duration-300 ${
-            isSelected ? "text-base" : "text-sm group-hover:text-base"
-          }`}>
-            Ver todo
+
+          <span className="mt-6 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="h-px w-10 bg-current/40" aria-hidden />
+            Filtro global
           </span>
         </div>
-      </div>
+
+        <span className="absolute inset-x-4 bottom-4 h-[3px] rounded-full bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:via-primary/60" />
+      </button>
     </div>
   );
 }
