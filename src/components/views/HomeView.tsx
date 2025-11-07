@@ -1,4 +1,4 @@
-import { DollarSign, Users, Clock, MapPin, Plus } from "lucide-react";
+import { DollarSign, Users, Clock, MapPin, Plus, Sparkles } from "lucide-react";
 import { Appointment } from "../features/appointments/AppointmentCard";
 import { CalendarView } from "../CalendarView";
 import { SalonCarousel } from "../SalonCarousel";
@@ -9,6 +9,7 @@ import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
 import { useTurnos } from "../../hooks/useTurnos";
 import React, { lazy, Suspense, useState, useMemo } from "react";
+import { ShortcutBanner } from "../ShortcutBanner";
 
 const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
 const ClientsPanel = lazy(() => import("../ClientsPanel").then(m => ({ default: m.ClientsPanel })));
@@ -92,6 +93,14 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
   if (isNewUser && appointments.length === 0) {
     return (
       <PageContainer>
+        <ShortcutBanner
+          icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
+          message={(
+            <>
+              Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+            </>
+          )}
+        />
         <section className="text-center mb-8" role="region" aria-label="Bienvenida">
           <h1 className="text-2xl font-semibold mb-2">¡Bienvenido a {orgName || 'tu local'}!</h1>
           <p className="text-muted-foreground">Empezá a configurar tu negocio con estos pasos:</p>
@@ -115,6 +124,14 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
 
   return (
     <PageContainer>
+      <ShortcutBanner
+        icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
+        message={(
+          <>
+            Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+          </>
+        )}
+      />
       <Section 
         title="Mis Locales"
         action={onAddAppointment && (

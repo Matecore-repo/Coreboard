@@ -1,5 +1,5 @@
 ﻿import React, { useState, useCallback, lazy, useRef, useEffect } from "react";
-import { Plus, Users, MapPin, Upload, X, Phone, Mail, Clock, DollarSign, Edit3, FileText, Trash2 } from "lucide-react";
+import { Plus, Users, MapPin, Upload, X, Phone, Mail, Clock, DollarSign, Edit3, FileText, Trash2, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
@@ -19,6 +19,7 @@ import { useServices } from "../../hooks/useServices";
 import { useAuth } from "../../contexts/AuthContext";
 import { useEmployees } from "../../hooks/useEmployees";
 import { useSalonEmployees } from "../../hooks/useSalonEmployees";
+import { ShortcutBanner } from "../ShortcutBanner";
 
 interface Salon {
   id: string;
@@ -347,6 +348,14 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
 
   return (
     <PageContainer>
+      <ShortcutBanner
+        icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
+        message={(
+          <>
+            Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+          </>
+        )}
+      />
       <Section 
         title="Gestión de Locales"
         description="Administra tus sucursales y personal"

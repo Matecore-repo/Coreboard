@@ -1,5 +1,5 @@
 import React, { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Sparkles, Command as CommandIcon, ArrowRight, CalendarRange, Calendar, Wallet, Sun, Moon } from "lucide-react";
+import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Calendar, Wallet, Sun, Moon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { PageContainer } from "../layout/PageContainer";
@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "../ui/command";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, getStoredTheme } from "../../lib/theme";
+import { ShortcutBanner } from "../ShortcutBanner";
 
 interface FinancesViewProps {
   selectedSalon: string | null;
@@ -305,20 +306,15 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   return (
     <PageContainer>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border border-border/50 bg-card/80 p-4 shadow-sm backdrop-blur">
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" aria-hidden="true" />
-            <p className="text-sm text-muted-foreground">
+        <ShortcutBanner
+          icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
+          message={(
+            <>
               Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsCommandOpen(true)} className="gap-2">
-              <CommandIcon className="size-4" aria-hidden="true" />
-              Atajos
-            </Button>
-          </div>
-        </div>
+            </>
+          )}
+          onShortcutClick={() => setIsCommandOpen(true)}
+        />
 
         {salons.length > 0 && (
           <motion.section

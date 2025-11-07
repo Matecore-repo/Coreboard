@@ -20,8 +20,9 @@ import { PageContainer } from '../layout/PageContainer';
 import { GenericActionBar } from '../GenericActionBar';
 import { toastSuccess, toastError, toastInfo } from '../../lib/toast';
 import { supabase } from '../../lib/supabase';
-import { Users, UserPlus, LineChart } from 'lucide-react';
+import { Users, UserPlus, LineChart, Sparkles } from 'lucide-react';
 import { Membership, Organization } from './organization/types';
+import { ShortcutBanner } from '../ShortcutBanner';
 
 const OrganizationSummarySidebar = dynamic(() => import('./organization/OrganizationSummarySidebar'), { ssr: false });
 const OrganizationPeoplePanel = dynamic(() => import('./organization/OrganizationPeoplePanel'), { ssr: false });
@@ -1065,6 +1066,14 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   return (
     <PageContainer className="space-y-8 pb-16">
+      <ShortcutBanner
+        icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
+        message={(
+          <>
+            Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+          </>
+        )}
+      />
       <Card>
         <CardHeader className="gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-3">

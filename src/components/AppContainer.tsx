@@ -4,6 +4,7 @@ import { useSalons } from "../hooks/useSalons";
 import { OnboardingModal } from "./OnboardingModal";
 import DemoDataBubble from "./DemoDataBubble";
 import DemoWelcomeModal from "./DemoWelcomeModal";
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "./ui/command";
 import { Toaster } from "sonner";
 import {
   Sidebar,
@@ -33,6 +34,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { CommandPaletteProvider, CommandAction } from "../contexts/CommandPaletteContext";
 
 // Lazy load views
 const HomeView = lazy(() => import("./views/HomeView"));
@@ -195,6 +197,27 @@ export default function AppContainer() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDemoWelcome, setShowDemoWelcome] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [viewActions, setViewActions] = useState<CommandAction[]>([]);
+
+  const openCommandPalette = useCallback(() => setIsCommandPaletteOpen(true), []);
+  const closeCommandPalette = useCallback(() => setIsCommandPaletteOpen(false), []);
+  const handleSetActions = useCallback((actions: CommandAction[]) => {
+    setViewActions(actions);
+  }, []);
+  const handleClearActions = useCallback(() => {
+    setViewActions([]);
+  }, []);
+
+  const commandPaletteValue = useMemo(
+    () => ({
+      openPalette: openCommandPalette,
+      closePalette: closeCommandPalette,
+      setActions: handleSetActions,
+      clearActions: handleClearActions,
+    }),
+    [openCommandPalette, closeCommandPalette, handleSetActions, handleClearActions],
+  );
 
   // Sincronizar con URL (?view=...)
   useEffect(() => {
@@ -249,6 +272,18 @@ export default function AppContainer() {
     });
   }, []);
 
+  const moveView = useCallback(
+    (direction: "next" | "prev") => {
+      const currentIndex = NAV_ITEMS.findIndex((item) => item.id === currentNavigationView);
+      if (currentIndex === -1) return;
+      const newIndex = direction === "next"
+        ? (currentIndex + 1) % NAV_ITEMS.length
+        : (currentIndex - 1 + NAV_ITEMS.length) % NAV_ITEMS.length;
+      handleSelectView(NAV_ITEMS[newIndex].id);
+    },
+    [currentNavigationView, handleSelectView],
+  );
+
   const handleSelectSalon = useCallback((id: string, _name: string) => {
     setSelectedSalon((prev) => (prev === id ? null : id));
   }, []);
@@ -260,6 +295,97 @@ export default function AppContainer() {
       console.error("Error al cerrar sesion:", error);
     }
   }, [signOut]);
+
+  const navigationActions = useMemo<CommandAction[]>(
+    () =>
+      NAV_ITEMS.map((item) => ({
+        id: `nav-${item.id}`,
+        group: "Navegación",
+        label: item.label,
+        description: item.id === currentNavigationView ? "Vista actual" : `Ir a ${item.label}`,
+        icon: React.createElement(item.icon, { className: "size-3.5", "aria-hidden": true }),
+        onSelect: () => handleSelectView(item.id),
+      })),
+    [currentNavigationView, handleSelectView],
+  );
+
+  const systemActions = useMemo<CommandAction[]>(
+    () => [
+      {
+        id: "system-logout",
+        group: "Sistema",
+        label: "Cerrar sesión",
+        description: "Salir de tu cuenta",
+        shortcut: "Ctrl+Shift+Q",
+        icon: <LogOut className="size-3.5" aria-hidden="true" />,
+        onSelect: handleLogout,
+      },
+      {
+        id: "system-next-view",
+        group: "Navegación",
+        label: "Vista siguiente",
+        description: "Ir a la siguiente vista",
+        shortcut: "Ctrl+→",
+        onSelect: () => moveView("next"),
+      },
+      {
+        id: "system-prev-view",
+        group: "Navegación",
+        label: "Vista anterior",
+        description: "Ir a la vista anterior",
+        shortcut: "Ctrl+←",
+        onSelect: () => moveView("prev"),
+      },
+    ],
+    [handleLogout, moveView],
+  );
+
+  const commandActionGroups = useMemo(() => {
+    const map = new Map<string, CommandAction[]>();
+    [...navigationActions, ...systemActions, ...viewActions].forEach((action) => {
+      const group = action.group || "Acciones";
+      if (!map.has(group)) {
+        map.set(group, []);
+      }
+      map.get(group)!.push(action);
+    });
+    return Array.from(map.entries());
+  }, [navigationActions, systemActions, viewActions]);
+
+  useEffect(() => {
+    const isTypingElement = (target: EventTarget | null) => {
+      if (!target || !(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      return target.isContentEditable || tag === "input" || tag === "textarea" || tag === "select";
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTypingElement(event.target)) return;
+
+      const key = event.key.toLowerCase();
+      const isMod = event.metaKey || event.ctrlKey;
+
+      if (isMod && key === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      if (isMod && event.key === "ArrowRight") {
+        event.preventDefault();
+        moveView("next");
+        return;
+      }
+
+      if (isMod && event.key === "ArrowLeft") {
+        event.preventDefault();
+        moveView("prev");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [moveView]);
 
   React.useEffect(() => {
     if (user && !currentOrgId && !isDemo) {

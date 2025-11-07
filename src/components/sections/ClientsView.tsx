@@ -9,11 +9,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from '../ui/badge';
 import { EmptyStateClients } from '../empty-states/EmptyStateClients';
 import { toastSuccess, toastError, toastInfo } from '../../lib/toast';
-import { Trash2, Edit3, Plus, User, Phone, Mail, Search } from 'lucide-react';
+import { Trash2, Edit3, Plus, User, Phone, Mail, Search, Sparkles } from 'lucide-react';
 import { EmptyState } from '../ui/empty-state';
 import { Building2 } from 'lucide-react';
 import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
+import { ShortcutBanner } from '../ShortcutBanner';
 interface ClientsViewProps {}
 
 const ClientsView: React.FC<ClientsViewProps> = () => {
@@ -175,6 +176,14 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
 
   return (
     <PageContainer>
+      <ShortcutBanner
+        icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
+        message={(
+          <>
+            Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+          </>
+        )}
+      />
       <section className="mt-4" role="region" aria-label="Gestión de clientes">
         <Section
           title="Gestión de Clientes"
