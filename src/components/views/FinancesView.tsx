@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Calendar, Wallet, Sun, Moon } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Wallet, Sun, Moon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { PageContainer } from "../layout/PageContainer";
@@ -13,12 +13,11 @@ import SalesMarketingDashboard from "./SalesMarketingDashboard";
 import OperationsDashboard from "./OperationsDashboard";
 import AccountingDashboard from "./AccountingDashboard";
 import ClientDashboard from "./ClientDashboard";
-import { Button } from "../ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, getStoredTheme } from "../../lib/theme";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { useCommandPaletteActions, CommandAction } from "../../contexts/CommandPaletteContext";
+import { DateRangeFilter, buildDefaultPresets } from "../features/finances/DateRangeFilter";
 
 interface FinancesViewProps {
   selectedSalon: string | null;
@@ -32,18 +31,11 @@ type DateRange = {
   endDate: string;
 };
 
-type PresetRange = {
-  label: string;
-  days: number;
-};
-
 export default function FinancesView({ selectedSalon, salonName, salons = [], onSelectSalon }: FinancesViewProps) {
   const { isDemo } = useAuth();
   const { canViewFinances } = useFinancialPermissions();
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [activeTab, setActiveTab] = useState<string>("owner");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterLabel, setFilterLabel] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof document !== "undefined") {
       const stored = getStoredTheme();
@@ -53,51 +45,8 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     return "light";
   });
 
-  const presetRanges = useMemo<PresetRange[]>(
-    () => [
-      { label: "Hoy", days: 0 },
-      { label: "Últimos 7 días", days: 7 },
-      { label: "Últimos 30 días", days: 30 },
-      { label: "Últimos 90 días", days: 90 },
-      { label: "Este mes", days: -1 },
-      { label: "Mes pasado", days: -2 },
-    ],
-    [],
-  );
-
-  const handlePresetRange = useCallback(
-    (preset: PresetRange) => {
-      const today = new Date();
-      let start: Date;
-      let end: Date = new Date(today);
-
-      if (preset.days === -1) {
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-      } else if (preset.days === -2) {
-        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth(), 0);
-      } else {
-        start = new Date(today);
-        start.setDate(today.getDate() - preset.days);
-      }
-
-      const range = {
-        startDate: start.toISOString().split("T")[0],
-        endDate: end.toISOString().split("T")[0],
-      };
-
-      setDateRange(range);
-      setFilterLabel(preset.label);
-      setIsFilterOpen(false);
-    },
-    [],
-  );
-
-  const handleClearRange = useCallback(() => {
-    setDateRange(null);
-    setFilterLabel(null);
-    setIsFilterOpen(false);
-  }, []);
+  const datePresets = useMemo(() => buildDefaultPresets(), []);
+  const filterCardRef = useRef<HTMLDivElement | null>(null);
 
   const tabItems = useMemo(
     () => [
@@ -178,7 +127,8 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
 
       if (isMod && key === "j") {
         event.preventDefault();
-        setIsFilterOpen(true);
+        filterCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        filterCardRef.current?.focus?.();
       }
 
       if (isMod && !event.shiftKey) {
@@ -232,7 +182,9 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
         description: "Enfoca el control de fechas para aplicar filtros",
         shortcut: "Ctrl+J",
         icon: <CalendarRange className="size-3.5" aria-hidden="true" />,
-        onSelect: () => setIsFilterOpen(true),
+        onSelect: () => {
+          filterCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        },
       },
     ];
 
@@ -257,7 +209,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     ];
 
     return [...tabActions, ...miscActions, ...preferenceActions];
-  }, [handleThemeSwitch, setIsFilterOpen, tabItems, theme]);
+  }, [handleThemeSwitch, tabItems, theme]);
 
   useCommandPaletteActions(quickActions, [activeTab, theme]);
   
@@ -319,43 +271,19 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, ease: "easeOut", delay: 0.08 }}
         >
-          <Section 
+        <Section 
             title="Finanzas"
             description={salonName}
-            action={
-              <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Calendar className="h-4 w-4" />
-                    {filterLabel ?? "Filtrar por días"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-56 p-2">
-                  <div className="space-y-1">
-                    {presetRanges.map((preset) => (
-                      <Button
-                        key={preset.label}
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start"
-                        onClick={() => handlePresetRange(preset)}
-                      >
-                        {preset.label}
-                      </Button>
-                    ))}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start text-destructive"
-                      onClick={handleClearRange}
-                    >
-                      Limpiar filtro
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            }
           >
+            <div ref={filterCardRef} className="mb-6">
+              <DateRangeFilter
+                value={dateRange}
+                presets={datePresets}
+                onChange={(next) => {
+                  setDateRange(next);
+                }}
+              />
+            </div>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 mt-6 mb-8" role="tablist" aria-label="Paneles de finanzas">
               <TabsList className="flex flex-wrap gap-2 rounded-xl bg-muted/60 p-1">
                 {tabItems.map((tab) => (

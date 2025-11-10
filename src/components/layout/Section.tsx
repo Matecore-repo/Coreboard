@@ -8,34 +8,34 @@ interface SectionProps extends React.ComponentProps<"div"> {
   children: React.ReactNode;
 }
 
-export function Section({ 
-  title, 
-  description, 
-  action, 
-  className, 
-  children, 
-  ...props 
+export function Section({
+  title,
+  description,
+  action,
+  className,
+  children,
+  ...props
 }: SectionProps) {
   return (
-    <section className={cn("space-y-4 md:space-y-5 p-4 md:p-6", className)} {...props}>
+    <section
+      className={cn(
+        "flex flex-col gap-6 md:gap-8 rounded-3xl border border-border/50 bg-card/70 p-4 sm:p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60",
+        className,
+      )}
+      {...props}
+    >
       {(title || action) && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {title && (
-            <div>
-              <h2 className="text-xl md:text-2xl font-semibold leading-none">
-                {title}
-              </h2>
-              {description && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {description}
-                </p>
-              )}
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold sm:text-xl md:text-2xl">{title}</h2>
+              {description && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
           )}
-          {action && <div className="flex-shrink-0">{action}</div>}
+          {action && <div className="flex items-center gap-2">{action}</div>}
         </div>
       )}
-      <div>{children}</div>
+      <div className="flex flex-col gap-6 md:gap-8">{children}</div>
     </section>
   );
 }
