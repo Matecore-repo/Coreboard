@@ -45,7 +45,7 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      if (isMeta && key === 'k' && onSearch) {
+      if (isMeta && (key === 'k' || key === 'b') && onSearch) {
         event.preventDefault();
         onSearch();
         return;

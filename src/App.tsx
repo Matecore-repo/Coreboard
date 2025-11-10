@@ -957,7 +957,7 @@ export default function App() {
       const key = event.key.toLowerCase();
       const isMod = event.metaKey || event.ctrlKey;
 
-      if (isMod && key === "k") {
+      if (isMod && (key === "k" || key === "b")) {
         event.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
         return;
@@ -1097,7 +1097,7 @@ export default function App() {
                 icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
                 message={(
                   <>
-                    Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+                    Usa <span className="font-semibold">Ctrl + K</span> o <span className="font-semibold">Ctrl + B</span> para abrir la paleta de comandos.
                   </>
                 )}
               />

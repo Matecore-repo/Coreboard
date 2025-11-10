@@ -365,7 +365,7 @@ export default function AppContainer() {
       const key = event.key.toLowerCase();
       const isMod = event.metaKey || event.ctrlKey;
 
-      if (isMod && key === "k") {
+      if (isMod && (key === "k" || key === "b")) {
         event.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
         return;

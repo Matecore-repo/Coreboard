@@ -99,7 +99,7 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
           icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
           message={(
             <>
-              Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+              Usa <span className="font-semibold">Ctrl + K</span> o <span className="font-semibold">Ctrl + B</span> para abrir la paleta de comandos.
             </>
           )}
           onShortcutClick={palette?.openPalette}
@@ -131,7 +131,7 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
         icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
         message={(
           <>
-            Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
+            Usa <span className="font-semibold">Ctrl + K</span> o <span className="font-semibold">Ctrl + B</span> para abrir la paleta de comandos.
           </>
         )}
         onShortcutClick={palette?.openPalette}
