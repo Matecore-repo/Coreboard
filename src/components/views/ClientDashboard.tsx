@@ -23,7 +23,8 @@ interface ClientDashboardProps {
 
 export default function ClientDashboard({ selectedSalon, dateRange }: ClientDashboardProps) {
   const { exportToExcel } = useFinancialExports();
-  const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
+  const { turnos } = useTurnos({ salonId: effectiveSalonId || undefined, enabled: true });
   const { currentOrgId } = useAuth();
   const { clients } = useClients(currentOrgId ?? undefined);
   
@@ -56,8 +57,15 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
       });
     }
     
+    if (effectiveSalonId) {
+      appointments = appointments.filter(apt => {
+        const salonId = (apt as any).salonId || apt.salon_id;
+        return salonId === effectiveSalonId;
+      });
+    }
+
     return appointments;
-  }, [turnos, dateRange]);
+  }, [turnos, dateRange, effectiveSalonId]);
 
   const topClients = useMemo(() => {
     const map: Record<string, { name: string; count: number; revenue: number; clientId?: string }> = {};

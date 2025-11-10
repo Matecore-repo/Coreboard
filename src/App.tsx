@@ -980,6 +980,7 @@ export default function App() {
   }, [moveView]);
 
   const selectedSalonName = useMemo(() => {
+    if (selectedSalon === "all") return "Todos los salones";
     if (!selectedSalon) return "Ninguna peluquería seleccionada";
     const found = effectiveSalons.find(s => s.id === selectedSalon);
     return found?.name || "";
@@ -1007,7 +1008,10 @@ export default function App() {
             />
           </Suspense>
         );
-      case "finances":
+      case "finances": {
+        const normalizedSalonId = selectedSalon === "all" ? null : selectedSalon;
+        const financesSalonName = normalizedSalonId ? selectedSalonName : "Todos los salones";
+
         // Empleados no pueden acceder a finanzas
         if (currentRole === 'employee') {
           return (
@@ -1023,13 +1027,14 @@ export default function App() {
         return (
           <Suspense fallback={<LoadingView />}>
             <FinancesView 
-              selectedSalon={selectedSalon} 
-              salonName={selectedSalonName}
+              selectedSalon={normalizedSalonId} 
+              salonName={financesSalonName}
               salons={effectiveSalons}
               onSelectSalon={handleSelectSalon}
             />
           </Suspense>
         );
+      }
       case "clients":
         return (
           <Suspense fallback={<LoadingView />}>

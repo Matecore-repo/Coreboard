@@ -35,9 +35,10 @@ interface AccountingDashboardProps {
 
 export default function AccountingDashboard({ selectedSalon, dateRange }: AccountingDashboardProps) {
   const { currentOrgId } = useAuth();
+  const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
   const { payments, deletePayment } = usePayments({ enabled: true });
-  const { expenses, deleteExpense } = useExpenses({ enabled: true, filters: selectedSalon ? { salonId: selectedSalon } : undefined });
+  const { expenses, deleteExpense } = useExpenses({ enabled: true, filters: effectiveSalonId ? { salonId: effectiveSalonId } : undefined });
   const { commissions, deleteCommission } = useCommissions({ enabled: true });
   const { invoices, deleteInvoice } = useInvoices({ enabled: true });
 

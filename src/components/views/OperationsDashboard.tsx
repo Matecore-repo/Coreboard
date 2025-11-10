@@ -15,7 +15,8 @@ interface OperationsDashboardProps {
 
 export default function OperationsDashboard({ selectedSalon, dateRange }: OperationsDashboardProps) {
   const { exportToExcel } = useFinancialExports();
-  const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
+  const { turnos } = useTurnos({ salonId: effectiveSalonId || undefined, enabled: true });
   
   // Convertir turnos a appointments para compatibilidad
   const appointments = useMemo(() => {
@@ -43,9 +44,9 @@ export default function OperationsDashboard({ selectedSalon, dateRange }: Operat
     let filtered = appointments;
     
     // Filtrar por salon
-    if (selectedSalon) {
+    if (effectiveSalonId) {
       filtered = filtered.filter(apt => {
-        return (apt as any).salonId === selectedSalon || apt.salon_id === selectedSalon;
+        return (apt as any).salonId === effectiveSalonId || apt.salon_id === effectiveSalonId;
       });
     }
     
@@ -58,7 +59,7 @@ export default function OperationsDashboard({ selectedSalon, dateRange }: Operat
     }
     
     return filtered;
-  }, [appointments, selectedSalon, dateRange]);
+  }, [appointments, dateRange, effectiveSalonId]);
 
   const productivityData = useMemo(() => {
     const map: Record<string, { revenue: number; count: number }> = {};

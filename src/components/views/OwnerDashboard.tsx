@@ -42,11 +42,12 @@ export default function OwnerDashboard({
   salonName,
   dateRange 
 }: OwnerDashboardProps) {
+  const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
   const { currentOrgId } = useAuth();
   const { payments: allPayments } = usePayments({ enabled: true });
   const { expenses: allExpenses } = useExpenses({ enabled: true });
-  const metrics = useFinancialMetrics(selectedSalon, dateRange);
-  const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  const metrics = useFinancialMetrics(effectiveSalonId, dateRange);
+  const { turnos } = useTurnos({ salonId: effectiveSalonId || undefined, enabled: true });
   
   // Filtrar payments y expenses por dateRange si está definido
   const payments = useMemo(() => {

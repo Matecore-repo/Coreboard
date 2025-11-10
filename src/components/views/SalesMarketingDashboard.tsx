@@ -17,7 +17,8 @@ interface SalesMarketingDashboardProps {
 
 export default function SalesMarketingDashboard({ selectedSalon, dateRange }: SalesMarketingDashboardProps) {
   const { exportToExcel } = useFinancialExports();
-  const { turnos } = useTurnos({ salonId: selectedSalon || undefined, enabled: true });
+  const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
+  const { turnos } = useTurnos({ salonId: effectiveSalonId || undefined, enabled: true });
   const { currentOrgId } = useAuth();
   const { clients } = useClients(currentOrgId ?? undefined);
   
@@ -47,8 +48,8 @@ export default function SalesMarketingDashboard({ selectedSalon, dateRange }: Sa
     let filtered = appointments;
     
     // Filtrar por salon
-    if (selectedSalon) {
-      filtered = filtered.filter(apt => apt.salon_id === selectedSalon || (apt as any).salonId === selectedSalon);
+    if (effectiveSalonId) {
+      filtered = filtered.filter(apt => apt.salon_id === effectiveSalonId || (apt as any).salonId === effectiveSalonId);
     }
     
     // Filtrar por rango de fechas
@@ -60,7 +61,7 @@ export default function SalesMarketingDashboard({ selectedSalon, dateRange }: Sa
     }
     
     return filtered;
-  }, [appointments, selectedSalon, dateRange]);
+  }, [appointments, dateRange, effectiveSalonId]);
 
   const newVsRecurrentData = useMemo(() => {
     // Calcular nuevos clientes basándose en clientes creados en el período de fechas

@@ -7,7 +7,6 @@ import {
   CarouselPrevious,
 } from "./ui/carousel";
 import useEmblaCarousel from "embla-carousel-react";
-import { cn } from "./ui/utils";
 
 interface GenericCarouselProps<T> {
   items: T[];
@@ -86,34 +85,21 @@ export function GenericCarousel<T>({
       slidesToShow?.[768] ? `md:${getBasisClass(slidesToShow[768])}` : null,
       slidesToShow?.[1024] ? `lg:${getBasisClass(slidesToShow[1024])}` : null,
       slidesToShow?.[1280] ? `xl:${getBasisClass(slidesToShow[1280])}` : null,
-    ].filter(Boolean) as string[];
-
-    if (!classes.length) {
-      return ["sm:basis-1/2", "lg:basis-1/3"];
-    }
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     return classes;
   }, [slidesToShow]);
 
-  const defaultItemClasses = React.useMemo(
-    () => cn(responsiveClasses.join(" "), "min-w-0 flex items-stretch"),
-    [responsiveClasses],
+  const defaultItemClasses = `${responsiveClasses || "basis-full sm:basis-1/2 lg:basis-1/3"} min-w-0 flex items-stretch`;
+
+  const trackStyle: React.CSSProperties = React.useMemo(
+    () => ({
+      gap: gap,
+    }),
+    [gap],
   );
-
-  const spacingClasses = React.useMemo(() => {
-    const spacingMap: Record<number, { content: string; item: string }> = {
-      8: { content: "-ml-2", item: "pl-2" },
-      12: { content: "-ml-3", item: "pl-3" },
-      16: { content: "-ml-4", item: "pl-4" },
-      20: { content: "-ml-5", item: "pl-5" },
-      24: { content: "-ml-6", item: "pl-6" },
-    };
-
-    const fallback = spacingMap[16];
-    const selected = spacingMap[gap];
-
-    return selected ?? fallback;
-  }, [gap]);
 
   if (loading) {
     return (
@@ -147,13 +133,11 @@ export function GenericCarousel<T>({
       }
     >
       <Carousel className="w-full" opts={carouselOpts}>
-        <CarouselContent
-          className={cn("py-1 sm:py-2", spacingClasses.content)}
-        >
+        <CarouselContent className="py-1 sm:py-2" style={trackStyle}>
           {specialItem && (
             <CarouselItem
               key={specialItem.id}
-              className={cn(defaultItemClasses, spacingClasses.item, specialItemClassName)}
+              className={specialItemClassName || defaultItemClasses}
             >
               {specialItem.render(
                 selectedItem === specialItem.id || selectedItem === null,
@@ -167,7 +151,7 @@ export function GenericCarousel<T>({
             return (
               <CarouselItem
                 key={itemId}
-                className={cn(defaultItemClasses, spacingClasses.item, itemClassName)}
+                className={itemClassName || defaultItemClasses}
                 aria-label={itemName}
               >
                 {renderItem(
