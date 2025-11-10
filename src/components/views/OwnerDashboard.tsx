@@ -297,6 +297,36 @@ export default function OwnerDashboard({
     }).format(amount);
   };
 
+  const topSummaryItems = useMemo(
+    () => [
+      {
+        label: "Ingresos totales",
+        value: metrics.kpis.grossRevenue,
+        description: "Total de ventas",
+        tone: "text-primary",
+      },
+      {
+        label: "Gastos totales",
+        value: expenses.reduce((sum, e) => sum + e.amount, 0),
+        description: "Todos los gastos",
+        tone: "text-rose-500",
+      },
+      {
+        label: "Comisiones pagadas",
+        value: totalCommissionsAmount,
+        description: "Total a empleados",
+        tone: "text-purple-500",
+      },
+      {
+        label: "Resultado neto",
+        value: netResult,
+        description: netResult >= 0 ? "Ganancia" : "Pérdida",
+        tone: netResult >= 0 ? "text-emerald-600" : "text-orange-500",
+      },
+    ],
+    [expenses, metrics.kpis.grossRevenue, netResult, totalCommissionsAmount],
+  );
+
   return (
     <div className="flex flex-col gap-8 md:gap-10">
       {/* Barra de acciones */}
@@ -311,124 +341,156 @@ export default function OwnerDashboard({
         </Button>
       </div>
 
-      {/* Resumen Principal - 4 tarjetas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 md:gap-6 lg:gap-7">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Ingresos Totales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(metrics.kpis.grossRevenue)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Total de ventas</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Gastos Totales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}</div>
-            <p className="text-xs text-muted-foreground mt-1">Todos los gastos</p>
-          </CardContent>
-        </Card>
-
-        <Card className={`border-l-4 ${netResult >= 0 ? 'border-l-green-500' : 'border-l-orange-500'}`}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Resultado Neto</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${netResult >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
-              {formatCurrency(netResult)}
-            </div>
-            <div className="flex items-center gap-1 mt-1">
-              {netResult >= 0 ? (
-                <ArrowUpRight className="h-3 w-3 text-green-600" />
-              ) : (
-                <ArrowDownRight className="h-3 w-3 text-orange-600" />
-              )}
-              <p className="text-xs text-muted-foreground">
-                {netResult >= 0 ? 'Ganancia' : 'Pérdida'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Comisiones Pagadas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(commissions.reduce((sum, c) => sum + c.amount, 0))}</div>
-            <p className="text-xs text-muted-foreground mt-1">Total a empleados</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Resultados Financieros Detallados */}
-      <Card className="mt-2">
-        <CardHeader>
-          <CardTitle>Resultados Financieros</CardTitle>
-          <CardDescription>Desglose de ingresos y gastos</CardDescription>
+      {/* Resumen principal en formato tabla */}
+      <Card className="border-dashed">
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-base font-semibold">Resumen financiero</CardTitle>
+            <CardDescription>Indicadores clave del período seleccionado</CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Ingresos Brutos</span>
-                <span className="font-semibold">{formatCurrency(metrics.kpis.grossRevenue)}</span>
+        <CardContent className="px-0 pb-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Concepto</TableHead>
+                <TableHead className="text-right">Monto</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Detalle</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topSummaryItems.map((item) => (
+                <TableRow key={item.label}>
+                  <TableCell className="text-sm font-semibold">{item.label}</TableCell>
+                  <TableCell className={cn("text-right text-lg font-bold", item.tone)}>
+                    {formatCurrency(item.value)}
+                  </TableCell>
+                  <TableCell className="hidden text-right text-sm text-muted-foreground md:table-cell">
+                    {item.description}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Resultados financieros */}
+      <Card className="mt-2 border-dashed">
+        <CardHeader>
+          <CardTitle>Resultados financieros</CardTitle>
+          <CardDescription>Visión consolidada de ingresos, egresos y margen</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 border-b border-border/60 text-xs uppercase tracking-wide text-muted-foreground md:grid-cols-4">
+            <div className="border-border/60 bg-muted/30 p-4 font-semibold md:border-r">
+              Ingresos totales
+            </div>
+            <div className="border-border/60 bg-muted/30 p-4 font-semibold md:border-r">
+              Gastos totales
+            </div>
+            <div className="border-border/60 bg-muted/30 p-4 font-semibold md:border-r">
+              Resultado neto
+            </div>
+            <div className="border-border/60 bg-muted/30 p-4 font-semibold">
+              Comisiones pagadas
+            </div>
+          </div>
+          <div className="grid grid-cols-1 divide-y divide-border/60 md:grid-cols-4 md:divide-x md:divide-y-0">
+            <div className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Ingresos brutos</span>
+                <span className="font-semibold text-foreground">{formatCurrency(metrics.kpis.grossRevenue)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Descuentos</span>
-                <span className="font-semibold">{formatCurrency(0)}</span>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Impuestos</span>
+                <span className="font-semibold text-foreground">{formatCurrency(0)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Impuestos</span>
-                <span className="font-semibold">{formatCurrency(0)}</span>
-              </div>
-              <div className="border-t pt-2 flex items-center justify-between">
-                <span className="text-sm font-medium">Ingresos Netos</span>
-                <span className="font-bold text-lg">{formatCurrency(metrics.kpis.netRevenue)}</span>
+              <div className="border-t border-dashed pt-3">
+                <p className="text-xs text-muted-foreground">Ingresos netos</p>
+                <p className="text-2xl font-semibold text-foreground">{formatCurrency(metrics.kpis.netRevenue)}</p>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Gastos Fijos</span>
-                <span className="font-semibold">{formatCurrency(rentExpenses + salaryExpenses)}</span>
+            <div className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Alquileres + salarios</span>
+                <span className="font-semibold text-foreground">
+                  {formatCurrency(rentExpenses + salaryExpenses)}
+                </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Comisiones</span>
-                <span className="font-semibold">{formatCurrency(commissions.reduce((sum, c) => sum + c.amount, 0))}</span>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Otros gastos</span>
+                <span className="font-semibold text-foreground">
+                  {formatCurrency(
+                    expenses.reduce((sum, e) => sum + e.amount, 0) -
+                      rentExpenses -
+                      salaryExpenses -
+                      commissions.reduce((sum, c) => sum + c.amount, 0),
+                  )}
+                </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Otros Gastos</span>
-                <span className="font-semibold">{formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0) - rentExpenses - salaryExpenses - commissions.reduce((sum, c) => sum + c.amount, 0))}</span>
-              </div>
-              <div className="border-t pt-2 flex items-center justify-between">
-                <span className="text-sm font-medium">Gastos Totales</span>
-                <span className="font-bold text-lg">{formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0) + commissions.reduce((sum, c) => sum + c.amount, 0))}</span>
+              <div className="border-t border-dashed pt-3">
+                <p className="text-xs text-muted-foreground">Total gastos</p>
+                <p className="text-2xl font-semibold text-foreground">
+                  {formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}
+                </p>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Margen Bruto</span>
-                <span className={`font-semibold ${metrics.kpis.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Margen bruto</span>
+                <span
+                  className={cn(
+                    "font-semibold",
+                    metrics.kpis.grossMargin >= 0 ? "text-emerald-600" : "text-rose-500",
+                  )}
+                >
                   {formatCurrency(metrics.kpis.grossMargin)}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Margen Neto</span>
-                <span className={`font-semibold ${metrics.kpis.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Margen neto</span>
+                <span
+                  className={cn(
+                    "font-semibold",
+                    metrics.kpis.netMargin >= 0 ? "text-emerald-600" : "text-rose-500",
+                  )}
+                >
                   {formatCurrency(metrics.kpis.netMargin)}
                 </span>
               </div>
-              <div className="border-t-2 pt-2 flex items-center justify-between">
-                <span className="text-base font-semibold">Resultado Final</span>
-                <span className={`font-bold text-xl ${netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className="border-t border-dashed pt-3">
+                <p className="text-xs text-muted-foreground">Resultado final</p>
+                <p
+                  className={cn(
+                    "text-2xl font-semibold",
+                    netResult >= 0 ? "text-emerald-600" : "text-orange-500",
+                  )}
+                >
                   {formatCurrency(netResult)}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Comisiones pagadas</span>
+                <span className="font-semibold text-foreground">
+                  {formatCurrency(commissions.reduce((sum, c) => sum + c.amount, 0))}
                 </span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Participación</span>
+                <span className="font-semibold text-primary">
+                  {totalCommissionsAmount > 0 && metrics.kpis.grossRevenue > 0
+                    ? `${((totalCommissionsAmount / metrics.kpis.grossRevenue) * 100).toFixed(1)}%`
+                    : "—"}
+                </span>
+              </div>
+              <div className="border-t border-dashed pt-3">
+                <p className="text-xs text-muted-foreground">Detalle</p>
+                <p className="text-sm text-muted-foreground">
+                  Revisión por empleado en la tabla inferior.
+                </p>
               </div>
             </div>
           </div>
