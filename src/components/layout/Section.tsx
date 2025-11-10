@@ -25,14 +25,18 @@ export function Section({
       {...props}
     >
       {(title || action) && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center sm:gap-4">
           {title && (
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0 flex-1">
               <h2 className="text-lg font-semibold sm:text-xl md:text-2xl">{title}</h2>
               {description && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
           )}
-          {action && <div className="flex items-center gap-2">{action}</div>}
+          {action && (
+            <div className="flex flex-none items-center justify-end gap-2 sm:ml-auto">
+              {action}
+            </div>
+          )}
         </div>
       )}
       <div className="flex flex-col gap-6 md:gap-8">{children}</div>

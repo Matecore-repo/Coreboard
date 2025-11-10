@@ -13,7 +13,7 @@ import { ShortcutBanner } from "./components/ShortcutBanner";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./components/ui/sheet";
 import { useIsMobile } from "./components/ui/use-mobile";
 import { toastSuccess, toastError, toastWarning, toastInfo } from "./lib/toast";
-import { Toaster as Sonner } from "sonner";
+import { Toaster } from "./components/ui/sonner";
 import { useAuth } from "./contexts/AuthContext";
 import type { User } from "./contexts/AuthContext";
 import DemoDataBubble from "./components/DemoDataBubble";
@@ -1225,7 +1225,7 @@ export default function App() {
   // =========================================================================
   return (
     <CommandPaletteProvider value={commandPaletteValue}>
-      <Sonner theme={theme} position="top-right" />
+      <Toaster position="top-right" />
       <div className={`flex h-screen bg-background overflow-hidden`}>
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64">

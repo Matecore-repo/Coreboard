@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Wallet, Sun, Moon } from "lucide-react";
+import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Wallet, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Tabs, TabsContent } from "../ui/tabs";
 import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
 import { SalonCarousel } from "../SalonCarousel";
@@ -9,8 +9,6 @@ import type { Salon } from "../../types/salon";
 import { useAuth } from "../../contexts/AuthContext";
 import { useFinancialPermissions } from "../../hooks/useFinancialPermissions";
 import OwnerDashboard from "./OwnerDashboard";
-import SalesMarketingDashboard from "./SalesMarketingDashboard";
-import OperationsDashboard from "./OperationsDashboard";
 import AccountingDashboard from "./AccountingDashboard";
 import ClientDashboard from "./ClientDashboard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +16,7 @@ import { applyTheme, getStoredTheme } from "../../lib/theme";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { useCommandPaletteActions, CommandAction } from "../../contexts/CommandPaletteContext";
 import { DateRangeFilter, buildDefaultPresets } from "../features/finances/DateRangeFilter";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "../ui/pagination";
 
 interface FinancesViewProps {
   selectedSalon: string | null;
@@ -46,13 +45,11 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   });
 
   const datePresets = useMemo(() => buildDefaultPresets(), []);
-  const filterCardRef = useRef<HTMLDivElement | null>(null);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const tabItems = useMemo(
     () => [
       { id: "owner", label: "Propietario", description: "Resumen ejecutivo de ingresos, gastos y resultados" },
-      { id: "sales", label: "Ventas y Marketing", description: "Embudo comercial, KPIs de adquisición y retención" },
-      { id: "operations", label: "Operaciones", description: "Capacidad, productividad y cumplimiento diario" },
       { id: "accounting", label: "Finanzas/Contabilidad", description: "Estado de resultados, pagos, gastos y comisiones" },
       { id: "clients", label: "CRM/Clientes", description: "Fidelización, recurrencia y segmentación de clientela" },
     ],
@@ -127,8 +124,8 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
 
       if (isMod && key === "j") {
         event.preventDefault();
-        filterCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        filterCardRef.current?.focus?.();
+        filterButtonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        filterButtonRef.current?.focus?.();
       }
 
       if (isMod && !event.shiftKey) {
@@ -183,7 +180,8 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
         shortcut: "Ctrl+J",
         icon: <CalendarRange className="size-3.5" aria-hidden="true" />,
         onSelect: () => {
-          filterCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          filterButtonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+          filterButtonRef.current?.focus?.();
         },
       },
     ];
@@ -274,29 +272,69 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
         <Section 
             title="Finanzas"
             description={salonName}
-          >
-            <div ref={filterCardRef} className="mb-6">
+            action={(
               <DateRangeFilter
+                ref={filterButtonRef}
                 value={dateRange}
                 presets={datePresets}
                 onChange={(next) => {
                   setDateRange(next);
                 }}
               />
-            </div>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 mt-6 mb-8" role="tablist" aria-label="Paneles de finanzas">
-              <TabsList className="flex flex-wrap gap-2 rounded-xl bg-muted/60 p-1">
-                {tabItems.map((tab) => (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    aria-label={`Vista ${tab.label}`}
-                    className="rounded-lg px-3 py-1.5 text-sm transition-all duration-150 data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                  >
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+            )}
+          >
+            <Tabs value={activeTab} className="mt-6 mb-8 space-y-6" aria-label="Paneles de finanzas">
+              <Pagination aria-label="Seleccionar panel de finanzas" className="justify-start">
+                <PaginationContent className="flex-wrap gap-2">
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      size="default"
+                      aria-label="Ver panel anterior"
+                      className="gap-2 pr-3 pl-2.5"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        moveTab("prev");
+                      }}
+                    >
+                      <ChevronLeft className="size-4" aria-hidden="true" />
+                    </PaginationLink>
+                  </PaginationItem>
+
+                  {tabItems.map((tab) => (
+                    <PaginationItem key={tab.id}>
+                      <PaginationLink
+                        href="#"
+                        size="default"
+                        isActive={activeTab === tab.id}
+                        aria-label={`Vista ${tab.label}`}
+                        className="px-3 py-2 text-sm"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setActiveTab(tab.id);
+                        }}
+                      >
+                        {tab.label}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      size="default"
+                      aria-label="Ver panel siguiente"
+                      className="gap-2 pl-3 pr-2.5"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        moveTab("next");
+                      }}
+                    >
+                      <ChevronRight className="size-4" aria-hidden="true" />
+                    </PaginationLink>
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
 
               <AnimatePresence mode="wait">
                 {activeTab === "owner" && (
@@ -311,40 +349,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
                       <OwnerDashboard 
                         selectedSalon={selectedSalon}
                         salonName={salonName}
-                        dateRange={dateRange || undefined}
-                      />
-                    </motion.div>
-                  </TabsContent>
-                )}
-
-                {activeTab === "sales" && (
-                  <TabsContent value="sales" role="tabpanel" aria-label="Dashboard de ventas y marketing" forceMount>
-                    <motion.div
-                      key="sales"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.18, ease: "easeOut" }}
-                    >
-                      <SalesMarketingDashboard 
-                        selectedSalon={selectedSalon}
-                        dateRange={dateRange || undefined}
-                      />
-                    </motion.div>
-                  </TabsContent>
-                )}
-
-                {activeTab === "operations" && (
-                  <TabsContent value="operations" role="tabpanel" aria-label="Dashboard de operaciones" forceMount>
-                    <motion.div
-                      key="operations"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.18, ease: "easeOut" }}
-                    >
-                      <OperationsDashboard 
-                        selectedSalon={selectedSalon}
                         dateRange={dateRange || undefined}
                       />
                     </motion.div>

@@ -191,8 +191,8 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
         <Section
           title="Gestión de Clientes"
           description={`${filteredClients.length} ${filteredClients.length === 1 ? 'cliente' : 'clientes'}${searchQuery ? ' encontrado' + (filteredClients.length === 1 ? '' : 's') : ' registrado' + (clients.length === 1 ? '' : 's')}${clients.length !== filteredClients.length ? ` (de ${clients.length} total)` : ''}`}
-          action={
-            <div className="flex items-center gap-2">
+          action={( 
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="relative flex-1 min-w-[200px] max-w-[300px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 <Input
@@ -215,57 +215,57 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
                     Nuevo Cliente
                   </Button>
                 </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
-                  <DialogDescription>
-                    {editingClient ? 'Actualiza los datos del cliente' : 'Crea un nuevo cliente'}
-                  </DialogDescription>
-                </DialogHeader>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+                    <DialogDescription>
+                      {editingClient ? 'Actualiza los datos del cliente' : 'Crea un nuevo cliente'}
+                    </DialogDescription>
+                  </DialogHeader>
 
-                <div className="space-y-4">
-                  <div>
-                    <Label>Nombre</Label>
-                    <Input
-                      placeholder="Nombre completo"
-                      value={formData.full_name}
-                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                    />
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Nombre</Label>
+                      <Input
+                        placeholder="Nombre completo"
+                        value={formData.full_name}
+                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Teléfono</Label>
+                      <Input
+                        placeholder="+54 9 11 1234-5678"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        placeholder="cliente@mail.com"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <Label>Teléfono</Label>
-                    <Input
-                      placeholder="+54 9 11 1234-5678"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleSave}>
+                      {editingClient ? 'Actualizar' : 'Crear'}
+                    </Button>
                   </div>
-
-                  <div>
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      placeholder="cliente@mail.com"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleSave}>
-                    {editingClient ? 'Actualizar' : 'Crear'}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
             </div>
-        }
-      >
+          )}
+        >
       {clients.length === 0 ? (
         <EmptyStateClients
           onAddClient={handleNew}

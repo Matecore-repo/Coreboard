@@ -5,7 +5,7 @@ import { OnboardingModal } from "./OnboardingModal";
 import DemoDataBubble from "./DemoDataBubble";
 import DemoWelcomeModal from "./DemoWelcomeModal";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "./ui/command";
-import { Toaster } from "sonner";
+import { Toaster } from "./ui/sonner";
 import {
   Sidebar,
   SidebarContent,
