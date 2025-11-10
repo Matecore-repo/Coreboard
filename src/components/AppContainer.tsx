@@ -360,8 +360,6 @@ export default function AppContainer() {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTypingElement(event.target)) return;
-
       const key = event.key.toLowerCase();
       const isMod = event.metaKey || event.ctrlKey;
 
@@ -370,6 +368,8 @@ export default function AppContainer() {
         setIsCommandPaletteOpen((prev) => !prev);
         return;
       }
+
+      if (isTypingElement(event.target)) return;
 
       if (isMod && event.key === "ArrowRight") {
         event.preventDefault();
