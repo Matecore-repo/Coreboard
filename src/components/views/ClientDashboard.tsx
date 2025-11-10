@@ -1,6 +1,13 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '../ui/carousel';
 import { Download } from 'lucide-react';
 import { useTurnos } from '../../hooks/useTurnos';
 import { useClients } from '../../hooks/useClients';
@@ -125,6 +132,126 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
       .slice(0, 10);
   }, [allAppointments, clients]);
 
+  const clientHighlights = useMemo(() => {
+    const totalClients = clients.length;
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const parseAppointmentDate = (apt: Appointment) => {
+      const startsAt = (apt as any).starts_at;
+      if (startsAt) {
+        const parsed = new Date(startsAt);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed;
+        }
+      }
+      const date = (apt as any).date;
+      if (date) {
+        const time = (apt as any).time || "00:00";
+        const combined = new Date(`${date}T${time}:00`);
+        if (!Number.isNaN(combined.getTime())) {
+          return combined;
+        }
+      }
+      return null;
+    };
+
+    const getClientName = (apt: Appointment) => {
+      const raw =
+        (apt as any).clientName ||
+        (apt as any).client_name ||
+        "Sin nombre";
+      if (typeof raw === "string" && raw.trim().length > 0) {
+        return raw.trim();
+      }
+      return "Sin nombre";
+    };
+
+    const formatNumber = (value: number) =>
+      value.toLocaleString("es-AR");
+
+    const formatCurrency = (value: number) => {
+      if (!Number.isFinite(value)) {
+        return "$0";
+      }
+      return `$${Math.round(value).toLocaleString("es-AR")}`;
+    };
+
+    const completedAppointments = allAppointments.filter(
+      (apt) => apt.status === "completed",
+    );
+
+    let totalRevenue = 0;
+    const activeClientKeys = new Set<string>();
+    const completedCounts = new Map<string, number>();
+
+    allAppointments.forEach((apt) => {
+      const name = getClientName(apt);
+      const key = name.toLowerCase();
+      const aptDate = parseAppointmentDate(apt);
+      if (aptDate && aptDate >= thirtyDaysAgo) {
+        activeClientKeys.add(key);
+      }
+    });
+
+    completedAppointments.forEach((apt) => {
+      const name = getClientName(apt);
+      const key = name.toLowerCase();
+      const aptDate = parseAppointmentDate(apt);
+
+      if (aptDate && aptDate >= thirtyDaysAgo) {
+        activeClientKeys.add(key);
+      }
+
+      const currentCount = completedCounts.get(key) ?? 0;
+      completedCounts.set(key, currentCount + 1);
+      totalRevenue += (apt as any).total_amount || 0;
+    });
+
+    const returningClientsCount = Array.from(completedCounts.values()).filter(
+      (count) => count > 1,
+    ).length;
+
+    const averageTicket =
+      completedAppointments.length > 0
+        ? totalRevenue / completedAppointments.length
+        : 0;
+
+    return [
+      {
+        id: "total-clients",
+        title: "Clientes totales",
+        value: formatNumber(totalClients),
+        description: `${formatNumber(activeClientKeys.size)} activos últimos 30 días`,
+      },
+      {
+        id: "active-clients",
+        title: "Clientes activos",
+        value: formatNumber(activeClientKeys.size),
+        description: "Visitaron el salón en los últimos 30 días",
+      },
+      {
+        id: "at-risk-clients",
+        title: "Clientes en riesgo",
+        value: formatNumber(abandonmentRisk.length),
+        description: "Sin visita hace más de 30 días",
+      },
+      {
+        id: "revenue",
+        title: "Ingresos por turnos",
+        value: formatCurrency(totalRevenue),
+        description: `Ticket promedio ${formatCurrency(averageTicket)}`,
+      },
+      {
+        id: "returning-clients",
+        title: "Clientes recurrentes",
+        value: formatNumber(returningClientsCount),
+        description: "Realizaron 2 o más turnos completados",
+      },
+    ];
+  }, [clients, allAppointments, abandonmentRisk]);
+
   const handleExport = async () => {
     try {
       const exportData = {
@@ -150,6 +277,41 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Resumen de clientes</CardTitle>
+          <CardDescription>Indicadores clave del CRM en tiempo real.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Carousel opts={{ align: "start" }} className="w-full">
+            <CarouselContent>
+              {clientHighlights.map((item) => (
+                <CarouselItem
+                  key={item.id}
+                  className="basis-full md:basis-1/2 lg:basis-1/3"
+                >
+                  <div className="h-full p-2">
+                    <div className="flex h-full flex-col justify-between rounded-xl border border-border/60 bg-card/80 p-6 shadow-sm">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {item.title}
+                      </span>
+                      <span className="text-3xl font-semibold text-foreground">
+                        {item.value}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {item.description}
+                      </span>
+                    </div>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious />
+            <CarouselNext />
+          </Carousel>
+        </CardContent>
+      </Card>
+
       {/* Botón de exportación */}
       <div className="flex justify-end my-4">
         <Button onClick={handleExport} variant="outline" className="gap-2">
