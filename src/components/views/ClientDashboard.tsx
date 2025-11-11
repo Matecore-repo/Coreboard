@@ -1,6 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
 import {
   Carousel,
   CarouselContent,
@@ -8,7 +7,6 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '../ui/carousel';
-import { Download } from 'lucide-react';
 import { useTurnos } from '../../hooks/useTurnos';
 import { useClients } from '../../hooks/useClients';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,9 +17,10 @@ import type { Appointment } from '../../types';
 interface ClientDashboardProps {
   selectedSalon: string | null;
   dateRange?: { startDate: string; endDate: string };
+  onExportReady?: (exporter: (() => Promise<void>) | null) => void;
 }
 
-export default function ClientDashboard({ selectedSalon, dateRange }: ClientDashboardProps) {
+export default function ClientDashboard({ selectedSalon, dateRange, onExportReady }: ClientDashboardProps) {
   const { exportToExcel } = useFinancialExports();
   const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
   const { turnos } = useTurnos({ salonId: effectiveSalonId || undefined, enabled: true });
@@ -260,7 +259,7 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
     ];
   }, [clients, allAppointments, abandonmentRisk]);
 
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     try {
       const exportData = {
         'Top Clientes': topClients.map((client, index) => ({
@@ -281,7 +280,13 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
       console.error('Error al exportar:', error);
       toastError('Error al exportar los datos');
     }
-  };
+  }, [abandonmentRisk, exportToExcel, topClients]);
+
+  useEffect(() => {
+    if (!onExportReady) return;
+    onExportReady(handleExport);
+    return () => onExportReady(null);
+  }, [handleExport, onExportReady]);
 
   return (
     <div className="space-y-6">
@@ -320,13 +325,6 @@ export default function ClientDashboard({ selectedSalon, dateRange }: ClientDash
         </CardContent>
       </Card>
 
-      {/* Botón de exportación */}
-      <div className="flex justify-end my-4">
-        <Button onClick={handleExport} variant="outline" className="gap-2">
-          <Download className="h-4 w-4" />
-          Exportar a Excel
-        </Button>
-      </div>
       <Card>
         <CardHeader>
           <CardTitle>Top Clientes</CardTitle>

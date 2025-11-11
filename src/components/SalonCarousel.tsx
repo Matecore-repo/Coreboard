@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "./ui/card";
 import {
   Carousel,
@@ -6,6 +6,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
+  type CarouselApi,
 } from "./ui/carousel";
 
 interface Salon {
@@ -14,7 +15,7 @@ interface Salon {
   address?: string;
 }
 
-type CarouselItem =
+type CarouselEntry =
   | (Salon & { order: number })
   | {
       id: "all";
@@ -28,40 +29,115 @@ interface SalonCarouselProps {
   onSelectSalon?: (salonId: string, salonName: string) => void;
 }
 
-const FALLBACK_ITEMS: Salon[] = Array.from({ length: 6 }).map((_, index) => ({
-  id: `placeholder-${index}`,
-  name: `Local ${index + 1}`,
-  address: "Dirección pendiente",
-}));
+const MAX_VISIBLE_ITEMS = 6;
 
 export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCarouselProps) {
-  const MAX_VISIBLE_ITEMS = 6;
+  const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
+  const programmaticScrollRef = useRef(false);
+  const isInitialMountRef = useRef(true);
 
-  const baseItems = salons?.length
-    ? salons.slice(0, MAX_VISIBLE_ITEMS - 1)
-    : FALLBACK_ITEMS.slice(0, MAX_VISIBLE_ITEMS - 1);
+  const trimmedSalons = useMemo(
+    () => (salons ?? []).slice(0, MAX_VISIBLE_ITEMS - 1),
+    [salons],
+  );
 
-  const filledItems =
-    baseItems.length >= MAX_VISIBLE_ITEMS - 1
-      ? baseItems
-      : [...baseItems, ...FALLBACK_ITEMS].slice(0, MAX_VISIBLE_ITEMS - 1);
+  const carouselItems: CarouselEntry[] = useMemo(
+    () => [
+      {
+        id: "all",
+        name: "Seleccionar todos los locales",
+        isAllOption: true as const,
+      },
+      ...trimmedSalons.map((item, index) => ({
+        ...item,
+        order: index + 1,
+      })),
+    ],
+    [trimmedSalons],
+  );
 
-  const carouselItems: CarouselItem[] = [
-    {
-      id: "all",
-      name: "Seleccionar todos los locales",
-      isAllOption: true as const,
+  const selectedSalonRef = useRef<string | null | undefined>(selectedSalon);
+  useEffect(() => {
+    selectedSalonRef.current = selectedSalon;
+  }, [selectedSalon]);
+
+  const findIndexById = useCallback(
+    (id?: string | null) => {
+      if (!id || id === "all") {
+        return 0;
+      }
+
+      const matchIndex = carouselItems.findIndex(
+        (item): item is Salon & { order: number } =>
+          !("isAllOption" in item) && item.id === id,
+      );
+
+      return matchIndex === -1 ? 0 : matchIndex;
     },
-    ...filledItems.map((item, index) => ({
-      ...item,
-      order: index + 1,
-    })),
-  ];
+    [carouselItems],
+  );
+
+  useEffect(() => {
+    if (!carouselApi) {
+      return;
+    }
+
+    const targetIndex = findIndexById(selectedSalon);
+    if (carouselApi.selectedScrollSnap() !== targetIndex) {
+      programmaticScrollRef.current = true;
+      carouselApi.scrollTo(targetIndex, true);
+    }
+  }, [carouselApi, findIndexById, selectedSalon]);
+
+  useEffect(() => {
+    if (!carouselApi) {
+      return;
+    }
+
+    const handleEmblaSelect = () => {
+      const activeIndex = carouselApi.selectedScrollSnap();
+
+      if (programmaticScrollRef.current) {
+        programmaticScrollRef.current = false;
+        return;
+      }
+
+      if (isInitialMountRef.current) {
+        isInitialMountRef.current = false;
+        return;
+      }
+
+      const activeItem = carouselItems[activeIndex];
+      if (!activeItem) {
+        return;
+      }
+
+      const isAllOption = "isAllOption" in activeItem;
+      const targetId = isAllOption ? "all" : activeItem.id;
+      const targetName = isAllOption ? "Todos los locales" : activeItem.name;
+
+      if (targetId !== selectedSalonRef.current) {
+        onSelectSalon?.(targetId, targetName);
+      }
+    };
+
+    carouselApi.on("select", handleEmblaSelect);
+    carouselApi.on("reInit", handleEmblaSelect);
+
+    // No disparar selección en el montaje inicial
+    handleEmblaSelect();
+
+    return () => {
+      carouselApi.off("select", handleEmblaSelect);
+      carouselApi.off("reInit", handleEmblaSelect);
+    };
+  }, [carouselApi, carouselItems, onSelectSalon]);
 
   return (
     <Carousel
       className="w-full max-w-4xl mx-auto"
       opts={{ align: "start", loop: true }}
+      setApi={setCarouselApi}
     >
       <CarouselContent className="-ml-2 sm:-ml-4">
         {carouselItems.map((item, index) => {
@@ -83,6 +159,10 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
           const handleSelect = () => {
             const targetId = isAllOption ? "all" : item.id;
             const targetName = isAllOption ? "Todos los locales" : item.name;
+            if (carouselApi) {
+              carouselApi.scrollTo(index);
+              return;
+            }
             onSelectSalon?.(targetId, targetName);
           };
 

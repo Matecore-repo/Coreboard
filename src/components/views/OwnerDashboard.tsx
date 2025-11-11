@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { 
   DollarSign, 
   TrendingUp,
@@ -6,7 +6,6 @@ import {
   Building2,
   Users,
   Receipt,
-  Download,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
@@ -14,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
 import { useFinancialMetrics } from '../../hooks/useFinancialMetrics';
 import { usePayments } from '../../hooks/usePayments';
 import { useExpenses } from '../../hooks/useExpenses';
@@ -43,12 +41,14 @@ interface OwnerDashboardProps {
   selectedSalon: string | null;
   salonName?: string;
   dateRange?: { startDate: string; endDate: string };
+  onExportReady?: (exporter: (() => Promise<void>) | null) => void;
 }
 
 export default function OwnerDashboard({ 
   selectedSalon, 
   salonName,
-  dateRange 
+  dateRange,
+  onExportReady,
 }: OwnerDashboardProps) {
   const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
   const { currentOrgId } = useAuth();
@@ -257,7 +257,7 @@ export default function OwnerDashboard({
     return combined.slice(0, 8);
   }, [payments, expenses]);
 
-  const handleExportAll = async () => {
+  const handleExportAll = useCallback(async () => {
     try {
       const exportData = {
         'Resumen Financiero': [
@@ -267,7 +267,7 @@ export default function OwnerDashboard({
         ],
         'Alquileres': salons.map(s => ({
           'Local': s.name,
-          'Alquiler Mensual': rentExpenses / salons.length,
+          'Alquiler Mensual': salons.length > 0 ? (rentExpenses / salons.length) : 0,
         })),
         'Comisiones por Empleado': commissionsByEmployee.map(c => ({
           'Empleado': c.employeeName,
@@ -286,7 +286,23 @@ export default function OwnerDashboard({
       console.error('Error al exportar:', error);
       toastError('Error al exportar los datos');
     }
-  };
+  }, [
+    commissionsByEmployee,
+    expenses,
+    expensesByCategory,
+    exportToExcel,
+    metrics.kpis.grossRevenue,
+    netResult,
+    rentExpenses,
+    salonName,
+    salons,
+  ]);
+
+  useEffect(() => {
+    if (!onExportReady) return;
+    onExportReady(handleExportAll);
+    return () => onExportReady(null);
+  }, [handleExportAll, onExportReady]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -328,20 +344,9 @@ export default function OwnerDashboard({
   );
 
   return (
-    <div className="flex flex-col gap-8 md:gap-10">
-      {/* Barra de acciones */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/80 p-4 sm:p-5 shadow-sm">
-        <div className="space-y-1">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acciones</span>
-          <p className="text-sm text-muted-foreground">Descargá tus datos financieros cuando lo necesites.</p>
-        </div>
-        <Button onClick={handleExportAll} variant="outline" className="gap-2 shrink-0">
-          <Download className="h-4 w-4" />
-          Exportar a Excel
-        </Button>
-      </div>
-
-      {/* Resumen principal en formato tabla */}
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-6 md:gap-8 rounded-2xl bg-card/80 p-5 sm:p-6 md:p-8 shadow-sm">
+        {/* Resumen principal en formato tabla */}
       <Card className="border-dashed">
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
@@ -870,5 +875,6 @@ export default function OwnerDashboard({
         </CardContent>
       </Card>
     </div>
+  </div>
   );
 }

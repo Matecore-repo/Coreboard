@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Wallet, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Wallet, Sun, Moon, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent } from "../ui/tabs";
 import { PageContainer } from "../layout/PageContainer";
@@ -17,6 +17,8 @@ import { ShortcutBanner } from "../ShortcutBanner";
 import { useCommandPaletteActions, CommandAction } from "../../contexts/CommandPaletteContext";
 import { DateRangeFilter, buildDefaultPresets } from "../features/finances/DateRangeFilter";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "../ui/pagination";
+import { Button } from "../ui/button";
+import { toastError } from "../../lib/toast";
 
 interface FinancesViewProps {
   selectedSalon: string | null;
@@ -35,6 +37,9 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   const { canViewFinances } = useFinancialPermissions();
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [activeTab, setActiveTab] = useState<string>("owner");
+  const [ownerExport, setOwnerExport] = useState<(() => Promise<void>) | null>(null);
+  const [accountingExport, setAccountingExport] = useState<(() => Promise<void>) | null>(null);
+  const [clientExport, setClientExport] = useState<(() => Promise<void>) | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof document !== "undefined") {
       const stored = getStoredTheme();
@@ -50,8 +55,8 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
   const tabItems = useMemo(
     () => [
       { id: "owner", label: "Propietario", description: "Resumen ejecutivo de ingresos, gastos y resultados" },
-      { id: "accounting", label: "Finanzas/Contabilidad", description: "Estado de resultados, pagos, gastos y comisiones" },
-      { id: "clients", label: "CRM/Clientes", description: "Fidelización, recurrencia y segmentación de clientela" },
+      { id: "accounting", label: "Contabilidad", description: "Estado de resultados, pagos, gastos y comisiones" },
+      { id: "clients", label: "Clientes", description: "Fidelización, recurrencia y segmentación de clientela" },
     ],
     [],
   );
@@ -150,6 +155,27 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
       } catch {}
     }
   }, []);
+
+  const currentExporter = useMemo(() => {
+    if (activeTab === "owner") return ownerExport;
+    if (activeTab === "accounting") return accountingExport;
+    if (activeTab === "clients") return clientExport;
+    return null;
+  }, [activeTab, accountingExport, clientExport, ownerExport]);
+
+  const handleExport = useCallback(async () => {
+    if (!currentExporter) {
+      toastError("No hay datos disponibles para exportar en esta vista.");
+      return;
+    }
+
+    try {
+      await currentExporter();
+    } catch (error) {
+      console.error("Error al exportar la vista actual:", error);
+      toastError("No se pudo exportar esta vista.");
+    }
+  }, [currentExporter]);
 
   const quickActions = useMemo<CommandAction[]>(() => {
     const tabActions: CommandAction[] = tabItems.map((item) => ({
@@ -273,14 +299,26 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
             title="Finanzas"
             description={salonName}
             action={(
-              <DateRangeFilter
-                ref={filterButtonRef}
-                value={dateRange}
-                presets={datePresets}
-                onChange={(next) => {
-                  setDateRange(next);
-                }}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <DateRangeFilter
+                  ref={filterButtonRef}
+                  value={dateRange}
+                  presets={datePresets}
+                  onChange={(next) => {
+                    setDateRange(next);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={handleExport}
+                  disabled={!currentExporter}
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  Exportar a Excel
+                </Button>
+              </div>
             )}
           >
             <Tabs value={activeTab} className="mt-6 mb-8 space-y-6" aria-label="Paneles de finanzas">
@@ -350,6 +388,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
                         selectedSalon={selectedSalon}
                         salonName={salonName}
                         dateRange={dateRange || undefined}
+                        onExportReady={(fn) => setOwnerExport(() => fn)}
                       />
                     </motion.div>
                   </TabsContent>
@@ -367,6 +406,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
                       <AccountingDashboard 
                         selectedSalon={selectedSalon}
                         dateRange={dateRange || undefined}
+                        onExportReady={(fn) => setAccountingExport(() => fn)}
                       />
                     </motion.div>
                   </TabsContent>
@@ -384,6 +424,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
                       <ClientDashboard 
                         selectedSalon={selectedSalon}
                         dateRange={dateRange || undefined}
+                        onExportReady={(fn) => setClientExport(() => fn)}
                       />
                     </motion.div>
                   </TabsContent>

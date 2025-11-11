@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -17,6 +17,7 @@ import { InvoiceFormModal } from '../InvoiceFormModal';
 import { ExportButton } from '../ui/ExportButton';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../lib/toast';
+import { useFinancialExports } from '../../hooks/useFinancialExports';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +32,10 @@ import {
 interface AccountingDashboardProps {
   selectedSalon?: string | null;
   dateRange?: { startDate: string; endDate: string };
+  onExportReady?: (exporter: (() => Promise<void>) | null) => void;
 }
 
-export default function AccountingDashboard({ selectedSalon, dateRange }: AccountingDashboardProps) {
+export default function AccountingDashboard({ selectedSalon, dateRange, onExportReady }: AccountingDashboardProps) {
   const { currentOrgId } = useAuth();
   const effectiveSalonId = selectedSalon && selectedSalon !== 'all' ? selectedSalon : null;
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
@@ -41,6 +43,7 @@ export default function AccountingDashboard({ selectedSalon, dateRange }: Accoun
   const { expenses, deleteExpense } = useExpenses({ enabled: true, filters: effectiveSalonId ? { salonId: effectiveSalonId } : undefined });
   const { commissions, deleteCommission } = useCommissions({ enabled: true });
   const { invoices, deleteInvoice } = useInvoices({ enabled: true });
+  const { exportToExcel } = useFinancialExports();
 
   // Filtrar por rango de fechas si está definido
   const filteredPayments = useMemo(() => {
@@ -85,6 +88,48 @@ export default function AccountingDashboard({ selectedSalon, dateRange }: Accoun
       netIncome,
     };
   }, [filteredPayments, filteredExpenses, filteredCommissions]);
+
+  const formatCurrency = useCallback(
+    (value: number) =>
+      new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS',
+      }).format(value),
+    [],
+  );
+
+  const handleExportAll = useCallback(async () => {
+    try {
+      const incomeStatementSheet = [
+        { Concepto: 'Ingresos Totales', Valor: formatCurrency(incomeStatement.revenue) },
+        { Concepto: 'Costos Directos', Valor: formatCurrency(incomeStatement.directCosts) },
+        { Concepto: 'Margen Bruto', Valor: formatCurrency(incomeStatement.grossMargin) },
+        { Concepto: 'Gastos Totales', Valor: formatCurrency(incomeStatement.expenses) },
+        { Concepto: 'Resultado Neto', Valor: formatCurrency(incomeStatement.netIncome) },
+      ];
+
+      const exportData = {
+        'Estado de Resultados': incomeStatementSheet,
+        'Gastos': expensesExportData,
+        'Pagos': paymentsExportData,
+        'Comisiones': commissionsExportData,
+        'Facturas': invoicesExportData,
+      };
+
+      const filename = `contabilidad_${effectiveSalonId || 'todas'}_${new Date().toISOString().split('T')[0]}`;
+      await exportToExcel(exportData, filename);
+      toastSuccess('Datos exportados exitosamente');
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      toastError('Error al exportar los datos');
+    }
+  }, [commissionsExportData, effectiveSalonId, expensesExportData, exportToExcel, formatCurrency, incomeStatement, invoicesExportData, paymentsExportData]);
+
+  useEffect(() => {
+    if (!onExportReady) return;
+    onExportReady(handleExportAll);
+    return () => onExportReady(null);
+  }, [handleExportAll, onExportReady]);
 
   const handleEditExpense = (expense: Expense) => {
     setSelectedExpense(expense);

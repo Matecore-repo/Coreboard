@@ -82,14 +82,25 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
   
   const nextAppointment = upcomingAppointments[0];
 
-  // Nombre de la peluquería
-  const salonNames: { [key: string]: string } = {
-    "all": "Todos los locales",
-    "1": "Studio Elegance",
-    "2": "Barber Shop Premium",
-    "3": "Beauty Salon Luxe",
-    "4": "Hair Studio Pro",
-  };
+  const salonNames = useMemo(() => {
+    const map: Record<string, string> = {
+      all: "Todos los locales",
+    };
+    salons.forEach((salon) => {
+      map[salon.id] = salon.name;
+    });
+    return map;
+  }, [salons]);
+
+  const currentSalonName = useMemo(() => {
+    if (selectedSalon === "all") {
+      return salonNames.all;
+    }
+    if (!selectedSalon) {
+      return "Selecciona un local";
+    }
+    return salonNames[selectedSalon] ?? "Local sin nombre";
+  }, [selectedSalon, salonNames]);
 
   // Si es usuario nuevo y no tiene datos, mostrar estado vacío
   if (isNewUser && appointments.length === 0) {
@@ -169,8 +180,8 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
             </div>
             <div className="min-w-0">
               <p className="text-sm text-muted-foreground truncate">Local</p>
-              <p className="text-sm truncate" aria-label={`Local: ${salonNames[selectedSalon ?? 'all']}`}>
-                {salonNames[selectedSalon ?? 'all']}
+              <p className="text-sm truncate" aria-label={`Local: ${currentSalonName}`}>
+                {currentSalonName}
               </p>
             </div>
           </div>
