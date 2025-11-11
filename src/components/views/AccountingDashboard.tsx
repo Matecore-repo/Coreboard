@@ -98,39 +98,6 @@ export default function AccountingDashboard({ selectedSalon, dateRange, onExport
     [],
   );
 
-  const handleExportAll = useCallback(async () => {
-    try {
-      const incomeStatementSheet = [
-        { Concepto: 'Ingresos Totales', Valor: formatCurrency(incomeStatement.revenue) },
-        { Concepto: 'Costos Directos', Valor: formatCurrency(incomeStatement.directCosts) },
-        { Concepto: 'Margen Bruto', Valor: formatCurrency(incomeStatement.grossMargin) },
-        { Concepto: 'Gastos Totales', Valor: formatCurrency(incomeStatement.expenses) },
-        { Concepto: 'Resultado Neto', Valor: formatCurrency(incomeStatement.netIncome) },
-      ];
-
-      const exportData = {
-        'Estado de Resultados': incomeStatementSheet,
-        'Gastos': expensesExportData,
-        'Pagos': paymentsExportData,
-        'Comisiones': commissionsExportData,
-        'Facturas': invoicesExportData,
-      };
-
-      const filename = `contabilidad_${effectiveSalonId || 'todas'}_${new Date().toISOString().split('T')[0]}`;
-      await exportToExcel(exportData, filename);
-      toastSuccess('Datos exportados exitosamente');
-    } catch (error) {
-      console.error('Error al exportar:', error);
-      toastError('Error al exportar los datos');
-    }
-  }, [commissionsExportData, effectiveSalonId, expensesExportData, exportToExcel, formatCurrency, incomeStatement, invoicesExportData, paymentsExportData]);
-
-  useEffect(() => {
-    if (!onExportReady) return;
-    onExportReady(handleExportAll);
-    return () => onExportReady(null);
-  }, [handleExportAll, onExportReady]);
-
   const handleEditExpense = (expense: Expense) => {
     setSelectedExpense(expense);
     setExpenseModalOpen(true);
@@ -269,6 +236,39 @@ export default function AccountingDashboard({ selectedSalon, dateRange, onExport
       { 'Concepto': 'Resultado Neto', 'Monto': incomeStatement.netIncome },
     ];
   }, [incomeStatement]);
+
+  const handleExportAll = useCallback(async () => {
+    try {
+      const incomeStatementSheet = [
+        { Concepto: 'Ingresos Totales', Valor: formatCurrency(incomeStatement.revenue) },
+        { Concepto: 'Costos Directos', Valor: formatCurrency(incomeStatement.directCosts) },
+        { Concepto: 'Margen Bruto', Valor: formatCurrency(incomeStatement.grossMargin) },
+        { Concepto: 'Gastos Totales', Valor: formatCurrency(incomeStatement.expenses) },
+        { Concepto: 'Resultado Neto', Valor: formatCurrency(incomeStatement.netIncome) },
+      ];
+
+      const exportData = {
+        'Estado de Resultados': incomeStatementSheet,
+        'Gastos': expensesExportData,
+        'Pagos': paymentsExportData,
+        'Comisiones': commissionsExportData,
+        'Facturas': invoicesExportData,
+      };
+
+      const filename = `contabilidad_${effectiveSalonId || 'todas'}_${new Date().toISOString().split('T')[0]}`;
+      await exportToExcel(exportData, filename);
+      toastSuccess('Datos exportados exitosamente');
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      toastError('Error al exportar los datos');
+    }
+  }, [commissionsExportData, effectiveSalonId, expensesExportData, exportToExcel, formatCurrency, incomeStatement, invoicesExportData, paymentsExportData]);
+
+  useEffect(() => {
+    if (!onExportReady) return;
+    onExportReady(handleExportAll);
+    return () => onExportReady(null);
+  }, [handleExportAll, onExportReady]);
 
   return (
     <div className="space-y-6">

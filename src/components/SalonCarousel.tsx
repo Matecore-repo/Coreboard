@@ -35,6 +35,7 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
   const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
   const programmaticScrollRef = useRef(false);
   const isInitialMountRef = useRef(true);
+  const hasSyncedInitialSelectionRef = useRef(false);
 
   const trimmedSalons = useMemo(
     () => (salons ?? []).slice(0, MAX_VISIBLE_ITEMS - 1),
@@ -85,7 +86,11 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
     const targetIndex = findIndexById(selectedSalon);
     if (carouselApi.selectedScrollSnap() !== targetIndex) {
       programmaticScrollRef.current = true;
-      carouselApi.scrollTo(targetIndex, true);
+      const shouldJump = !hasSyncedInitialSelectionRef.current;
+      carouselApi.scrollTo(targetIndex, shouldJump);
+    }
+    if (!hasSyncedInitialSelectionRef.current) {
+      hasSyncedInitialSelectionRef.current = true;
     }
   }, [carouselApi, findIndexById, selectedSalon]);
 
@@ -159,10 +164,18 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
           const handleSelect = () => {
             const targetId = isAllOption ? "all" : item.id;
             const targetName = isAllOption ? "Todos los locales" : item.name;
-            if (carouselApi) {
-              carouselApi.scrollTo(index);
+            if (targetId === selectedSalonRef.current) {
+              if (carouselApi) {
+                carouselApi.scrollTo(index);
+              }
               return;
             }
+
+            if (carouselApi) {
+              programmaticScrollRef.current = true;
+              carouselApi.scrollTo(index);
+            }
+
             onSelectSalon?.(targetId, targetName);
           };
 

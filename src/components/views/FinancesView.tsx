@@ -192,7 +192,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
       {
         id: "finances-go-accounting",
         group: "Finanzas",
-        label: "Ir a Finanzas/Contabilidad",
+        label: "Ir a Contabilidad",
         description: "Pagos, gastos, comisiones y exportaciones",
         shortcut: "Ctrl+Shift+F",
         icon: <Wallet className="size-3.5" aria-hidden="true" />,

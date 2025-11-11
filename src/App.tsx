@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef, useLayoutEffect } from "react";
 import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, MapPin, LogOut, Sun, Moon, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
@@ -120,6 +120,9 @@ export default function App() {
       return 'all';
     }
   });
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollPositionRef = useRef(0);
+  const shouldRestoreScrollRef = useRef(false);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   // unsyncedAppointments ya no es necesario - todo se sincroniza con turnosStore
@@ -442,6 +445,10 @@ export default function App() {
   }, []);
 
   const handleSelectSalon = useCallback((salonId: string, salonName: string) => {
+    if (scrollContainerRef.current) {
+      lastScrollPositionRef.current = scrollContainerRef.current.scrollTop;
+      shouldRestoreScrollRef.current = true;
+    }
     setSelectedSalon(salonId);
     if (typeof window !== 'undefined') {
       try {
@@ -450,6 +457,21 @@ export default function App() {
     }
     toastSuccess(`${salonName} seleccionado`);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!shouldRestoreScrollRef.current) {
+      return;
+    }
+
+    const node = scrollContainerRef.current;
+    if (!node) {
+      shouldRestoreScrollRef.current = false;
+      return;
+    }
+
+    node.scrollTop = lastScrollPositionRef.current;
+    shouldRestoreScrollRef.current = false;
+  }, [selectedSalon]);
 
   const handleLogout = async () => {
     // Mostrar toast de despedida antes de cerrar sesión
@@ -1289,7 +1311,7 @@ export default function App() {
         )}
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto h-screen relative">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto h-screen relative">
           <div className="md:hidden h-20" />
           
           {/* Content wrapper with fade animation */}
