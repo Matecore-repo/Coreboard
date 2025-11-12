@@ -1,15 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition, useRef, useLayoutEffect } from "react";
-import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, MapPin, LogOut, Sun, Moon, Sparkles } from "lucide-react";
+import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, MapPin, LogOut, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { SalonCarousel } from "./components/SalonCarousel";
-import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
+import type { Appointment } from "./components/features/appointments/AppointmentCard";
 import { turnosStore } from './stores/turnosStore';
 import { AppointmentDialog } from "./components/features/appointments/AppointmentDialog";
 import { AppointmentActionBar } from "./components/features/appointments/AppointmentActionBar";
-import { TurnosTable } from "./components/features/appointments/TurnosTable";
 import { FloatingQuickActions } from "./components/FloatingQuickActions";
-import { FilterBar } from "./components/FilterBar";
-import { ShortcutBanner } from "./components/ShortcutBanner";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./components/ui/sheet";
 import { useIsMobile } from "./components/ui/use-mobile";
 import { toastSuccess, toastError, toastWarning, toastInfo } from "./lib/toast";
@@ -25,8 +21,8 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { PaymentLinkModal } from "./components/PaymentLinkModal";
 import { LoadingView } from "./components/layout/LoadingView";
+import { TurnosView } from "./components/views/TurnosView";
 import { SidebarContent } from "./components/layout/SidebarContent";
-import { PageContainer } from "./components/layout/PageContainer";
 import { Card, CardContent } from "./components/ui/card";
 import type { Salon, SalonService } from "./types/salon";
 import { sampleSalons } from "./constants/salons";
@@ -132,10 +128,6 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // UI State
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("all");
-  const [stylistFilter, setStylistFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -185,7 +177,7 @@ export default function App() {
   // =========================================================================
   // DATOS REMOTOS (Supabase) - Usando useTurnos como fuente única de verdad
   // =========================================================================
-  const { turnos: remoteTurnos, loading: loadingTurnos, createTurno, updateTurno, deleteTurno, setSelectedSalon: setTurnosSelectedSalon, turnosByDate, turnosByStatus } = useTurnos({
+  const { turnos: remoteTurnos, loading: loadingTurnos, createTurno, updateTurno, deleteTurno, setFilters: setTurnosFilters, setSelectedSalon: setTurnosSelectedSalon, turnosByDate, turnosByStatus } = useTurnos({
     salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
     enabled: !!session
   });
@@ -692,84 +684,6 @@ useEffect(() => {
     setShowQuickActions(false);
   }, [appointments, selectedSalon, isDemo]);
 
-  // Usar filtros del store cuando no es demo, usar filtrado local para demo
-  const filteredAppointments = useMemo(() => {
-    if (isDemo) {
-      return appointments.filter((apt) => {
-        if (selectedSalon && selectedSalon !== 'all' && apt.salonId !== selectedSalon) return false;
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          const matchesSearch =
-            apt.clientName.toLowerCase().includes(query) ||
-            apt.service.toLowerCase().includes(query);
-          if (!matchesSearch) return false;
-        }
-        if (statusFilter !== "all" && apt.status !== statusFilter) return false;
-        if (stylistFilter !== "all" && apt.stylist !== stylistFilter) return false;
-        if (dateFilter !== "all") {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const aptDate = new Date(apt.date);
-          aptDate.setHours(0, 0, 0, 0);
-          if (dateFilter === "today") {
-            if (aptDate.getTime() !== today.getTime()) return false;
-          } else if (dateFilter === "tomorrow") {
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            if (aptDate.getTime() !== tomorrow.getTime()) return false;
-          } else if (dateFilter === "week") {
-            const weekFromNow = new Date(today);
-            weekFromNow.setDate(weekFromNow.getDate() + 7);
-            if (aptDate < today || aptDate > weekFromNow) return false;
-          } else if (dateFilter === "month") {
-            const monthFromNow = new Date(today);
-            monthFromNow.setMonth(monthFromNow.getMonth() + 1);
-            if (aptDate < today || aptDate > monthFromNow) return false;
-          }
-        }
-        return true;
-      });
-    }
-    
-    // Para modo real, usar los filtros del store
-    turnosStore.setFilters({
-      salonId: selectedSalon === 'all' ? 'all' : selectedSalon || 'all',
-      status: statusFilter as any,
-      employeeId: stylistFilter === 'all' ? 'all' : stylistFilter,
-      text: searchQuery || '',
-      date: dateFilter === 'all' ? undefined : dateFilter,
-    });
-    
-    return turnosStore.getFiltered() as any as Appointment[];
-  }, [isDemo, appointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
-
-  const appointmentSummary = useMemo(() => {
-    const summary = {
-      total: filteredAppointments.length,
-      today: 0,
-      upcoming: 0,
-      pending: 0,
-      confirmed: 0,
-      completed: 0,
-      cancelled: 0,
-    };
-    const todayStr = new Date().toISOString().split("T")[0];
-
-    filteredAppointments.forEach((apt) => {
-      if (apt.status in summary) {
-        // @ts-expect-error narrow to known keys
-        summary[apt.status] += 1;
-      }
-      if (apt.date === todayStr) {
-        summary.today += 1;
-      } else if (apt.date > todayStr) {
-        summary.upcoming += 1;
-      }
-    });
-
-    return summary;
-  }, [filteredAppointments]);
-
   const handleAddSalon = useCallback(async (salonData: Omit<Salon, 'id'>) => {
     if (isDemo) {
       if (salons.length >= 1) {
@@ -1143,107 +1057,22 @@ useEffect(() => {
         );
       default:
         return (
-          <PageContainer>
-            <div className="flex flex-col gap-4">
-              <ShortcutBanner
-                icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
-                message={(
-                  <>
-                    Usa <span className="font-semibold">Ctrl + K</span> o <span className="font-semibold">Ctrl + B</span> para abrir la paleta de comandos.
-                  </>
-                )}
-              />
-              <div className="p-4 sm:p-6">
-                <div className="mb-4">
-                  <div>
-                    <SalonCarousel 
-                      salons={effectiveSalons}
-                      selectedSalon={selectedSalon}
-                      onSelectSalon={handleSelectSalon}
-                    />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <FilterBar
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    statusFilter={statusFilter}
-                    onStatusFilterChange={setStatusFilter}
-                    dateFilter={dateFilter}
-                    onDateFilterChange={setDateFilter}
-                    stylistFilter={stylistFilter}
-                    onStylistFilterChange={setStylistFilter}
-                  />
-                </div>
-                <div className="mt-4">
-                  {effectiveSalons.length === 0 ? (
-                    <div className="text-center py-16 px-4">
-                      <div className="text-muted-foreground mb-2">
-                        Aún no hay locales cargados
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Crea tu primer local para comenzar a agendar turnos.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
-                        <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                            Total:{" "}
-                            <span className="font-medium text-foreground">
-                              {appointmentSummary.total}
-                            </span>
-                          </span>
-                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                            Hoy:{" "}
-                            <span className="font-medium text-foreground">
-                              {appointmentSummary.today}
-                            </span>
-                          </span>
-                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                            Confirmados:{" "}
-                            <span className="font-medium text-foreground">
-                              {appointmentSummary.confirmed}
-                            </span>
-                          </span>
-                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                            Pendientes:{" "}
-                            <span className="font-medium text-foreground">
-                              {appointmentSummary.pending}
-                            </span>
-                          </span>
-                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                            Finalizados:{" "}
-                            <span className="font-medium text-foreground">
-                              {appointmentSummary.completed}
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-6">
-                        <TurnosTable
-                          appointments={filteredAppointments}
-                          isLoading={isDemo ? false : loadingTurnos}
-                          onRowClick={handleSelectAppointment}
-                          selectedAppointmentId={selectedAppointment?.id}
-                          emptyLabel={
-                            selectedSalon === "all" || !selectedSalon
-                              ? "No se encontraron turnos. Ajusta los filtros o verifica que tus locales tengan disponibilidad."
-                              : "No se encontraron turnos para esta sucursal."
-                          }
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </PageContainer>
+          <TurnosView
+            isDemo={isDemo}
+            salons={effectiveSalons}
+            selectedSalon={selectedSalon}
+            onSelectSalon={handleSelectSalon}
+            onSelectAppointment={handleSelectAppointment}
+            selectedAppointmentId={selectedAppointment?.id}
+            demoAppointments={appointments}
+            remoteTurnos={remoteTurnos}
+            isLoading={isDemo ? false : loadingTurnos}
+            onSyncRemoteFilters={setTurnosFilters}
+            onSyncSelectedSalon={setTurnosSelectedSalon}
+          />
         );
     }
-  }, [activeNavItem, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, appointmentSummary, selectedAppointment, currentRole, loadingTurnos]);
+  }, [activeNavItem, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, appointments, remoteTurnos, selectedAppointment, currentRole, loadingTurnos, setTurnosFilters, setTurnosSelectedSalon]);
 
 
   // =========================================================================

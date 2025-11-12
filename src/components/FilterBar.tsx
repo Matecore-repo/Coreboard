@@ -8,6 +8,13 @@ import {
   SelectValue,
 } from "./ui/select";
 
+const DEFAULT_STYLIST_OPTIONS = [
+  "María García",
+  "Carlos López",
+  "Ana Martínez",
+  "Roberto Silva",
+] as const;
+
 interface FilterBarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -17,6 +24,7 @@ interface FilterBarProps {
   onDateFilterChange: (value: string) => void;
   stylistFilter: string;
   onStylistFilterChange: (value: string) => void;
+  stylistOptions?: string[];
 }
 
 export function FilterBar({
@@ -28,7 +36,13 @@ export function FilterBar({
   onDateFilterChange,
   stylistFilter,
   onStylistFilterChange,
+  stylistOptions,
 }: FilterBarProps) {
+  const effectiveStylistOptions =
+    stylistOptions && stylistOptions.length > 0
+      ? stylistOptions
+      : DEFAULT_STYLIST_OPTIONS;
+
   return (
     <div className="pb-4 border-b border-border" role="search" aria-label="Filtros de búsqueda de turnos">
       <div className="flex gap-2 md:gap-3 flex-wrap" role="group" aria-label="Controles de filtrado">
@@ -88,10 +102,15 @@ export function FilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all" aria-label="Estilista: Todos">Todos los estilistas</SelectItem>
-            <SelectItem value="María García" aria-label="Estilista: María García">María García</SelectItem>
-            <SelectItem value="Carlos López" aria-label="Estilista: Carlos López">Carlos López</SelectItem>
-            <SelectItem value="Ana Martínez" aria-label="Estilista: Ana Martínez">Ana Martínez</SelectItem>
-            <SelectItem value="Roberto Silva" aria-label="Estilista: Roberto Silva">Roberto Silva</SelectItem>
+            {effectiveStylistOptions.map((name) => (
+              <SelectItem
+                key={name}
+                value={name}
+                aria-label={`Estilista: ${name}`}
+              >
+                {name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

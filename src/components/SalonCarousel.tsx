@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import NextImage from "next/image";
+import { AnimatePresence, motion } from "motion/react";
+import { Compass } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import {
   Carousel,
@@ -30,10 +33,34 @@ interface SalonCarouselProps {
 }
 
 const MAX_VISIBLE_ITEMS = 6;
+const ALL_OPTION_SLIDES = [
+  {
+    image: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1600&q=75",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=1600&q=75",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1600&q=75",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1520880867055-1e30d1cb001c?auto=format&fit=crop&w=1600&q=75",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1600&q=75",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1600&q=75",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=75",
+  },
+] as const;
 
 export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCarouselProps) {
   const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
   const ignoreNextSelectRef = useRef(false);
+  const [allSlidesIndex, setAllSlidesIndex] = useState(0);
 
   const trimmedSalons = useMemo(
     () => (salons ?? []).slice(0, MAX_VISIBLE_ITEMS - 1),
@@ -59,6 +86,18 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
   useEffect(() => {
     selectedSalonRef.current = selectedSalon;
   }, [selectedSalon]);
+
+  useEffect(() => {
+    if (ALL_OPTION_SLIDES.length <= 1) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setAllSlidesIndex((prev) => (prev + 1) % ALL_OPTION_SLIDES.length);
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const findIndexById = useCallback(
     (id?: string | null) => {
@@ -146,9 +185,11 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
             : selectedSalon === item.id;
 
           const cardClasses = [
-            "relative h-full transition-all duration-200 hover:border-primary hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-            isSelected ? "border-primary shadow-lg" : "",
-            isAllOption ? "!bg-black !text-white dark:!bg-white dark:!text-black" : "",
+            "group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+            isSelected ? "border-primary shadow-md" : "",
+            isAllOption
+              ? "!border-none !bg-transparent !shadow-none !gap-0"
+              : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -199,15 +240,48 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                   }`}
                 >
                   {isAllOption ? (
-                    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-[22px] bg-transparent text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] dark:shadow-[inset_0_1px_0_rgba(15,23,42,0.12)]">
-                      <div className="pointer-events-none absolute inset-0 opacity-90">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.12),_transparent_60%)] dark:bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_60%)]" />
-                        <div className="absolute inset-0 bg-[linear-gradient(120deg,_rgba(255,255,255,0.16)_0%,_transparent_50%,_rgba(255,255,255,0.16)_100%)] dark:bg-[linear-gradient(120deg,_rgba(15,23,42,0.1)_0%,_transparent_50%,_rgba(15,23,42,0.1)_100%)]" />
-                        <div className="absolute inset-0 bg-[linear-gradient(0deg,_transparent_0%,_rgba(255,255,255,0.12)_50%,_transparent_100%)] dark:bg-[linear-gradient(0deg,_transparent_0%,_rgba(15,23,42,0.1)_50%,_transparent_100%)] mix-blend-soft-light" />
+                    <div className="relative flex h-full w-full items-center justify-center">
+                      <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-neutral-950 text-white shadow-[0_18px_42px_-24px_rgba(15,23,42,0.75)] transition-colors duration-300 dark:border-slate-200/40 dark:bg-white dark:text-slate-900 dark:shadow-[0_18px_36px_-24px_rgba(15,23,42,0.18)]">
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={ALL_OPTION_SLIDES[allSlidesIndex]?.image ?? "fallback"}
+                            className="absolute inset-0"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.6, ease: "easeOut" }}
+                            aria-hidden
+                          >
+                            {ALL_OPTION_SLIDES[allSlidesIndex] ? (
+                              <NextImage
+                                src={ALL_OPTION_SLIDES[allSlidesIndex].image}
+                                alt=""
+                                fill
+                                className="scale-110 object-cover opacity-90 blur-[36px] md:blur-[48px]"
+                                sizes="(min-width: 1024px) 20vw, 60vw"
+                                priority
+                              />
+                            ) : null}
+                          </motion.div>
+                        </AnimatePresence>
+
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(15,23,42,0.88)_0%,_rgba(15,23,42,0.75)_45%,_rgba(15,23,42,0.6)_100%)] transition-colors duration-300 dark:bg-[radial-gradient(circle_at_center,_rgba(226,232,240,0.92)_0%,_rgba(241,245,249,0.82)_45%,_rgba(248,250,252,0.7)_100%)]" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-black/75 via-black/65 to-black/55 transition-colors duration-300 dark:from-white/90 dark:via-white/82 dark:to-white/65" />
+
+                        <div className="pointer-events-none absolute inset-0">
+                          <div className="absolute left-1/2 top-1/2 h-[240px] w-[240px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,_rgba(56,189,248,0.6)_0%,_transparent_60%)] blur-[120px]" />
+                          <div className="absolute inset-y-10 left-[18%] right-[18%] rounded-full border border-white/10 dark:border-slate-300/30" />
+                        </div>
+
+                        <div className="relative z-10 flex flex-col items-center justify-center gap-3 text-center">
+                          <span className="inline-flex size-14 items-center justify-center rounded-full bg-white/20 text-white transition-transform duration-300 group-hover:scale-[1.04] dark:bg-slate-950/10 dark:text-slate-900">
+                            <Compass className="h-6 w-6" aria-hidden />
+                          </span>
+                          <span className="text-sm font-semibold uppercase tracking-[0.32em] text-white dark:text-slate-900">
+                            Ver todos los locales
+                          </span>
+                        </div>
                       </div>
-                      <span className="relative z-10 text-sm font-semibold uppercase tracking-[0.3em]">
-                        Ver todos los locales
-                      </span>
                     </div>
                   ) : (
                     <>

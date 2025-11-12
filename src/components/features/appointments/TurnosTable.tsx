@@ -109,7 +109,18 @@ export function TurnosTable({
               ? "bg-primary/5"
               : "hover:bg-muted/50 dark:hover:bg-muted/25",
           )}
-          onClick={() => onRowClick?.(row)}
+          onClick={() => {
+            if (
+              !row?.id ||
+              !row?.clientName?.trim() ||
+              !row?.salonId ||
+              !row?.date ||
+              !row?.time
+            ) {
+              return;
+            }
+            onRowClick?.(row);
+          }}
         >
           <TableCell className="font-medium">{row.clientName}</TableCell>
           <TableCell>{row.service || "—"}</TableCell>
