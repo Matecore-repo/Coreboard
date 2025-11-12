@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -22,7 +21,6 @@ export type TurnosTableProps = {
   onRowClick?: (appointment: Appointment) => void;
   selectedAppointmentId?: string | null;
   emptyLabel?: string;
-  caption?: string;
 };
 
 const statusLabelMap: Record<Appointment["status"], string> = {
@@ -49,7 +47,6 @@ export function TurnosTable({
   onRowClick,
   selectedAppointmentId,
   emptyLabel = "No hay turnos disponibles",
-  caption,
 }: TurnosTableProps) {
   const rows = useMemo(() => {
     return appointments.map((appointment) => ({
@@ -142,7 +139,6 @@ export function TurnosTable({
         className="max-h-[420px] min-h-[320px] rounded-2xl"
       >
         <Table>
-          {caption && <TableCaption>{caption}</TableCaption>}
           <TableHeader>
             <TableRow className="border-b border-border/60 hover:bg-transparent">
               <TableHead className="font-semibold">Cliente</TableHead>

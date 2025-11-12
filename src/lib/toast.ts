@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast, type ExternalToast } from "sonner";
 
 /**
  * Muestra un toast de éxito con color verde suave
@@ -59,7 +59,7 @@ export function toastPromise<T>(
     success: string | ((data: T) => string);
     error: string | ((error: unknown) => string);
   },
-  options?: Parameters<typeof toast.promise>[2]
+  options?: ExternalToast,
 ) {
   return toast.promise(promise, messages, options);
 }

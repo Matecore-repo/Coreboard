@@ -117,6 +117,8 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
   const { canManageMembers, canDelete, canManageTeam, canEditCommissions } = permissions;
 
+  const selectedActionEmployee = selectedEmployee?.employee ?? null;
+
   const handleEmployeeFormChange = useCallback(
     (updates: Partial<EmployeeFormData>) => {
       setEmployeeFormData((prev) => ({ ...prev, ...updates }));
@@ -423,19 +425,19 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
 
       {employeeActionBarData && selectedEmployee && !employeeDialogOpen && (
         <GenericActionBar
-          title={employeeActionBarData.title}
-          subtitle={employeeActionBarData.subtitle}
+          title={employeeActionBarData.title || "Empleado sin nombre"}
+          subtitle={employeeActionBarData.subtitle || undefined}
           badge={employeeActionBarData.badge}
           isOpen={Boolean(selectedEmployee) && !employeeDialogOpen}
           onClose={() => setSelectedEmployee(null)}
           onEdit={
-            selectedEmployee.employee
-              ? () => handleEditEmployeeFromList(selectedEmployee.employee)
+            selectedActionEmployee
+              ? () => handleEditEmployeeFromList(selectedActionEmployee)
               : undefined
           }
           onDelete={
-            selectedEmployee.employee
-              ? () => requestEmployeeDeletion(selectedEmployee.employee)
+            selectedActionEmployee
+              ? () => requestEmployeeDeletion(selectedActionEmployee)
               : undefined
           }
           detailFields={employeeActionBarData.detailFields}

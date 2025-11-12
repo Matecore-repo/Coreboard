@@ -3,6 +3,7 @@ import React, {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -15,6 +16,8 @@ import { PageContainer } from "../layout/PageContainer";
 import type { Appointment } from "../features/appointments/AppointmentCard";
 import type { Salon } from "../../types/salon";
 import type { Turno, TurnosFilters } from "../../stores/turnosStore";
+import { toastDismiss, toastPromise } from "../../lib/toast";
+import { Spinner } from "../ui/spinner";
 
 export interface TurnosViewProps {
   isDemo: boolean;
@@ -223,6 +226,7 @@ export function TurnosView({
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [stylistFilter, setStylistFilter] = useState<string>("all");
   const [isPendingTransition, startTransition] = useTransition();
+  const [delayComplete, setDelayComplete] = useState(false);
 
   const deferredSearch = useDeferredValue(searchQuery);
   const normalizedSalonId = selectedSalon ?? "all";
@@ -266,6 +270,85 @@ export function TurnosView({
       deferredSearchLower,
     ],
   );
+
+  const delayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDelayRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const initialDelayShownRef = useRef(false);
+  const delayToastIdRef = useRef<string>("turnos-loading-toast");
+
+  const triggerDelay = useCallback(
+    (message: string) => {
+      if (pendingDelayRef.current) {
+        return;
+      }
+
+      pendingDelayRef.current = true;
+      setDelayComplete(false);
+
+      if (delayTimeoutRef.current) {
+        clearTimeout(delayTimeoutRef.current);
+      }
+
+      const delayPromise = new Promise<void>((resolve) => {
+        delayTimeoutRef.current = setTimeout(() => {
+          resolve();
+        }, 2000);
+      });
+
+      toastDismiss(delayToastIdRef.current);
+      toastPromise(
+        delayPromise,
+        {
+          loading: message,
+          success: "Turnos listos",
+          error: "No se pudieron preparar los turnos",
+        },
+        {
+          id: delayToastIdRef.current,
+        },
+      );
+
+      delayPromise
+        .then(() => {
+          if (isMountedRef.current) {
+            setDelayComplete(true);
+          }
+        })
+        .finally(() => {
+          pendingDelayRef.current = false;
+          if (delayTimeoutRef.current) {
+            clearTimeout(delayTimeoutRef.current);
+            delayTimeoutRef.current = null;
+          }
+        });
+    },
+    [setDelayComplete],
+  );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    if (!initialDelayShownRef.current) {
+      initialDelayShownRef.current = true;
+      triggerDelay("Preparando turnos...");
+    }
+
+    return () => {
+      isMountedRef.current = false;
+      if (delayTimeoutRef.current) {
+        clearTimeout(delayTimeoutRef.current);
+      }
+      pendingDelayRef.current = false;
+      delayTimeoutRef.current = null;
+      toastDismiss(delayToastIdRef.current);
+    };
+  }, [triggerDelay]);
+
+  useEffect(() => {
+    if (isLoading) {
+      triggerDelay("Actualizando turnos...");
+    }
+  }, [isLoading, triggerDelay]);
 
   const sanitizedAppointments = useMemo(
     () =>
@@ -370,7 +453,7 @@ export function TurnosView({
       ? "No se encontraron turnos. Ajusta los filtros o verifica que tus locales tengan disponibilidad."
       : "No se encontraron turnos para esta sucursal.";
 
-  const effectiveLoading = isLoading || isPendingTransition;
+  const effectiveLoading = isLoading || isPendingTransition || !delayComplete;
 
   return (
     <PageContainer>
@@ -453,6 +536,12 @@ export function TurnosView({
                     </span>
                   </div>
                 </div>
+              {effectiveLoading && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Spinner className="text-primary" />
+                  <span>Cargando turnos…</span>
+                </div>
+              )}
                 <div className="space-y-6">
                   <TurnosTable
                     appointments={sanitizedAppointments}
@@ -460,7 +549,6 @@ export function TurnosView({
                     onRowClick={onSelectAppointment}
                     selectedAppointmentId={selectedAppointmentId}
                     emptyLabel={emptyLabel}
-                    caption={selectedSalonName}
                   />
                 </div>
               </>
