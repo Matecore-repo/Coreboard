@@ -37,6 +37,39 @@ import {
 } from '../ui/table';
 import { cn } from '../ui/utils';
 
+const getValueToneClass = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "";
+  }
+  if (value > 0) {
+    return "text-emerald-500";
+  }
+  if (value < 0) {
+    return "text-rose-500";
+  }
+  return "";
+};
+
+const isResultLabel = (label: string) => {
+  const normalized = label?.toLowerCase() ?? "";
+  return (
+    normalized.includes("resultado")
+  );
+};
+
+type FinancialSectionItem = {
+  label: string;
+  value: number | null;
+  detail: string;
+  emphasis?: boolean;
+  isPercentage?: boolean;
+};
+
+type FinancialSection = {
+  title: string;
+  items: FinancialSectionItem[];
+};
+
 interface OwnerDashboardProps {
   selectedSalon: string | null;
   salonName?: string;
@@ -170,6 +203,24 @@ export default function OwnerDashboard({
     () => commissions.reduce((sum, commission) => sum + commission.amount, 0),
     [commissions],
   );
+  const totalExpensesAmount = useMemo(
+    () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
+    [expenses],
+  );
+  const otherExpensesAmount = useMemo(
+    () =>
+      totalExpensesAmount -
+      rentExpenses -
+      salaryExpenses -
+      totalCommissionsAmount,
+    [totalExpensesAmount, rentExpenses, salaryExpenses, totalCommissionsAmount],
+  );
+  const commissionsShare = useMemo(() => {
+    if (totalCommissionsAmount > 0 && metrics.kpis.grossRevenue > 0) {
+      return (totalCommissionsAmount / metrics.kpis.grossRevenue) * 100;
+    }
+    return null;
+  }, [totalCommissionsAmount, metrics.kpis.grossRevenue]);
 
   // Pagos por método
   const paymentsByMethod = useMemo(() => {
@@ -313,34 +364,169 @@ export default function OwnerDashboard({
     }).format(amount);
   };
 
-  const topSummaryItems = useMemo(
+const formatPercentage = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  return `${value.toFixed(1)}%`;
+};
+
+const financialSummaryRows = useMemo<FinancialSectionItem[]>(
+  () => [
+    {
+      label: "Ingresos totales",
+      value: metrics.kpis.grossRevenue,
+      detail: "Total de ventas registradas",
+    },
+    {
+      label: "Ingresos netos",
+      value: metrics.kpis.netRevenue,
+      detail: "Ingresos luego de impuestos y descuentos",
+    },
+    {
+      label: "Gastos totales",
+      value: totalExpensesAmount,
+      detail: "Egresos operativos y administrativos",
+    },
+    {
+      label: "Comisiones pagadas",
+      value: totalCommissionsAmount,
+      detail: "Pagos a colaboradores",
+    },
+    {
+      label: "Resultado neto",
+      value: netResult,
+      detail: netResult >= 0 ? "Ganancia acumulada" : "Pérdida acumulada",
+    },
+    {
+      label: "Ticket promedio",
+      value: metrics.kpis.averageTicket,
+      detail: "Venta promedio por turno completado",
+    },
+    {
+      label: "Caja del día",
+      value: metrics.kpis.dailyCash,
+      detail: "Ingresos percibidos hoy",
+    },
+    {
+      label: "Ocupación agenda",
+      value: metrics.kpis.occupancyRate,
+      detail: "Turnos completados vs. agendados",
+      isPercentage: true,
+    },
+    {
+      label: "Pendiente de liquidar",
+      value: metrics.kpis.pendingSettlement,
+      detail: "Pagos aún no liquidados",
+    },
+  ],
+  [
+    metrics.kpis.averageTicket,
+    metrics.kpis.dailyCash,
+    metrics.kpis.grossRevenue,
+    metrics.kpis.netRevenue,
+    metrics.kpis.occupancyRate,
+    metrics.kpis.pendingSettlement,
+    netResult,
+    totalCommissionsAmount,
+    totalExpensesAmount,
+  ],
+);
+  const financialSections = useMemo<FinancialSection[]>(
     () => [
       {
-        label: "Ingresos totales",
-        value: metrics.kpis.grossRevenue,
-        description: "Total de ventas",
-        tone: "text-primary",
+        title: "Ingresos totales",
+        items: [
+          {
+            label: "Ingresos brutos",
+            value: metrics.kpis.grossRevenue,
+            detail: "Facturación bruta acumulada",
+          },
+          {
+            label: "Impuestos",
+            value: 0,
+            detail: "Retenciones e impuestos estimados",
+          },
+          {
+            label: "Ingresos netos",
+            value: metrics.kpis.netRevenue,
+            detail: "Ingresos brutos menos impuestos",
+            emphasis: true,
+          },
+        ],
       },
       {
-        label: "Gastos totales",
-        value: expenses.reduce((sum, e) => sum + e.amount, 0),
-        description: "Todos los gastos",
-        tone: "text-rose-500",
+        title: "Gastos totales",
+        items: [
+          {
+            label: "Alquileres + salarios",
+            value: rentExpenses + salaryExpenses,
+            detail: "Costos fijos principales",
+          },
+          {
+            label: "Otros gastos",
+            value: otherExpensesAmount,
+            detail: "Costos variables y operativos",
+          },
+          {
+            label: "Total gastos",
+            value: totalExpensesAmount,
+            detail: "Suma de todos los egresos",
+            emphasis: true,
+          },
+        ],
       },
       {
-        label: "Comisiones pagadas",
-        value: totalCommissionsAmount,
-        description: "Total a empleados",
-        tone: "text-purple-500",
+        title: "Resultado neto",
+        items: [
+          {
+            label: "Margen bruto",
+            value: metrics.kpis.grossMargin,
+            detail: "Ingresos menos costos directos",
+          },
+          {
+            label: "Margen neto",
+            value: metrics.kpis.netMargin,
+            detail: "Resultado después de gastos",
+          },
+          {
+            label: "Resultado final",
+            value: netResult,
+            detail: "Beneficio o pérdida total",
+            emphasis: true,
+          },
+        ],
       },
       {
-        label: "Resultado neto",
-        value: netResult,
-        description: netResult >= 0 ? "Ganancia" : "Pérdida",
-        tone: netResult >= 0 ? "text-emerald-600" : "text-orange-500",
+        title: "Comisiones pagadas",
+        items: [
+          {
+            label: "Comisiones pagadas",
+            value: totalCommissionsAmount,
+            detail: "Pagos a colaboradores",
+          },
+          {
+            label: "Participación sobre ingresos",
+            value: commissionsShare,
+            detail: "Porcentaje sobre ingresos brutos",
+            isPercentage: true,
+          },
+        ],
       },
     ],
-    [expenses, metrics.kpis.grossRevenue, netResult, totalCommissionsAmount],
+    [
+      commissionsShare,
+      metrics.kpis.grossMargin,
+      metrics.kpis.grossRevenue,
+      metrics.kpis.netMargin,
+      metrics.kpis.netRevenue,
+      netResult,
+      otherExpensesAmount,
+      rentExpenses,
+      salaryExpenses,
+      totalCommissionsAmount,
+      totalExpensesAmount,
+    ],
   );
 
   return (
@@ -354,29 +540,51 @@ export default function OwnerDashboard({
             <CardDescription>Indicadores clave del período seleccionado</CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="px-0 pb-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Concepto</TableHead>
-                <TableHead className="text-right">Monto</TableHead>
-                <TableHead className="hidden text-right md:table-cell">Detalle</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topSummaryItems.map((item) => (
-                <TableRow key={item.label}>
-                  <TableCell className="text-sm font-semibold">{item.label}</TableCell>
-                  <TableCell className={cn("text-right text-lg font-bold", item.tone)}>
-                    {formatCurrency(item.value)}
-                  </TableCell>
-                  <TableCell className="hidden text-right text-sm text-muted-foreground md:table-cell">
-                    {item.description}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="pt-0">
+          <div className="px-5 pb-5">
+            <div className="overflow-hidden rounded-xl bg-card/70 shadow-sm">
+              <Table className="[&_tr]:border-0">
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                    <TableHead>Concepto</TableHead>
+                    <TableHead className="hidden sm:table-cell">Detalle</TableHead>
+                    <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                      Valor
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {financialSummaryRows.map((row) => (
+                    <TableRow
+                      key={row.label}
+                      className={cn(
+                        isResultLabel(row.label) && "bg-muted/50 dark:bg-muted/40",
+                      )}
+                    >
+                      <TableCell>
+                        <span className="block text-sm font-semibold text-foreground">{row.label}</span>
+                      </TableCell>
+                      <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                        {row.detail}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right text-base font-semibold text-foreground tabular-nums w-[140px] sm:w-[160px]",
+                          getValueToneClass(row.value),
+                        )}
+                      >
+                    {row.value === null
+                      ? "—"
+                      : row.isPercentage
+                        ? formatPercentage(row.value)
+                        : formatCurrency(row.value)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -386,118 +594,64 @@ export default function OwnerDashboard({
           <CardTitle>Resultados financieros</CardTitle>
           <CardDescription>Visión consolidada de ingresos, egresos y margen</CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="grid grid-cols-1 border-b border-border/60 text-xs uppercase tracking-wide text-muted-foreground md:grid-cols-4">
-            <div className="border-border/60 bg-muted/30 p-4 font-semibold md:border-r">
-              Ingresos totales
-            </div>
-            <div className="border-border/60 bg-muted/30 p-4 font-semibold md:border-r">
-              Gastos totales
-            </div>
-            <div className="border-border/60 bg-muted/30 p-4 font-semibold md:border-r">
-              Resultado neto
-            </div>
-            <div className="border-border/60 bg-muted/30 p-4 font-semibold">
-              Comisiones pagadas
-            </div>
-          </div>
-          <div className="grid grid-cols-1 divide-y divide-border/60 md:grid-cols-4 md:divide-x md:divide-y-0">
-            <div className="flex flex-col gap-3 p-5">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Ingresos brutos</span>
-                <span className="font-semibold text-foreground">{formatCurrency(metrics.kpis.grossRevenue)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Impuestos</span>
-                <span className="font-semibold text-foreground">{formatCurrency(0)}</span>
-              </div>
-              <div className="border-t border-dashed pt-3">
-                <p className="text-xs text-muted-foreground">Ingresos netos</p>
-                <p className="text-2xl font-semibold text-foreground">{formatCurrency(metrics.kpis.netRevenue)}</p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 p-5">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Alquileres + salarios</span>
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(rentExpenses + salaryExpenses)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Otros gastos</span>
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(
-                    expenses.reduce((sum, e) => sum + e.amount, 0) -
-                      rentExpenses -
-                      salaryExpenses -
-                      commissions.reduce((sum, c) => sum + c.amount, 0),
-                  )}
-                </span>
-              </div>
-              <div className="border-t border-dashed pt-3">
-                <p className="text-xs text-muted-foreground">Total gastos</p>
-                <p className="text-2xl font-semibold text-foreground">
-                  {formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 p-5">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Margen bruto</span>
-                <span
-                  className={cn(
-                    "font-semibold",
-                    metrics.kpis.grossMargin >= 0 ? "text-emerald-600" : "text-rose-500",
-                  )}
-                >
-                  {formatCurrency(metrics.kpis.grossMargin)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Margen neto</span>
-                <span
-                  className={cn(
-                    "font-semibold",
-                    metrics.kpis.netMargin >= 0 ? "text-emerald-600" : "text-rose-500",
-                  )}
-                >
-                  {formatCurrency(metrics.kpis.netMargin)}
-                </span>
-              </div>
-              <div className="border-t border-dashed pt-3">
-                <p className="text-xs text-muted-foreground">Resultado final</p>
-                <p
-                  className={cn(
-                    "text-2xl font-semibold",
-                    netResult >= 0 ? "text-emerald-600" : "text-orange-500",
-                  )}
-                >
-                  {formatCurrency(netResult)}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 p-5">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Comisiones pagadas</span>
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(commissions.reduce((sum, c) => sum + c.amount, 0))}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Participación</span>
-                <span className="font-semibold text-primary">
-                  {totalCommissionsAmount > 0 && metrics.kpis.grossRevenue > 0
-                    ? `${((totalCommissionsAmount / metrics.kpis.grossRevenue) * 100).toFixed(1)}%`
-                    : "—"}
-                </span>
-              </div>
-              <div className="border-t border-dashed pt-3">
-                <p className="text-xs text-muted-foreground">Detalle</p>
-                <p className="text-sm text-muted-foreground">
-                  Revisión por empleado en la tabla inferior.
-                </p>
-              </div>
-            </div>
+        <CardContent className="pt-0">
+          <div className="px-5 pb-5">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Concepto</TableHead>
+                  <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                    Monto
+                  </TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Detalle</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {financialSections.map((section) => (
+                  <React.Fragment key={section.title}>
+                    <TableRow
+                      className={cn(
+                        section.title !== "Comisiones pagadas" &&
+                          "bg-muted/50 dark:bg-muted/40",
+                      )}
+                    >
+                      <TableCell
+                        colSpan={3}
+                        className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        {section.title}
+                      </TableCell>
+                    </TableRow>
+                    {section.items.map((item) => (
+                      <TableRow
+                        key={item.label}
+                        className={cn(
+                          isResultLabel(item.label) && "bg-muted/50 dark:bg-muted/40",
+                        )}
+                      >
+                        <TableCell className="text-sm font-medium">{item.label}</TableCell>
+                        <TableCell
+                          className={cn(
+                            "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                            item.emphasis && "text-lg",
+                            getValueToneClass(item.value),
+                          )}
+                        >
+                          {item.value === null
+                            ? "—"
+                            : item.isPercentage
+                              ? formatPercentage(item.value)
+                              : formatCurrency(item.value)}
+                        </TableCell>
+                        <TableCell className="hidden text-right text-sm text-muted-foreground md:table-cell">
+                          {item.detail}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
@@ -519,7 +673,9 @@ export default function OwnerDashboard({
                   <TableRow>
                     <TableHead>Salón</TableHead>
                     <TableHead className="hidden lg:table-cell">Dirección</TableHead>
-                    <TableHead className="text-right">Costo mensual</TableHead>
+                    <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                      Costo mensual
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -538,7 +694,12 @@ export default function OwnerDashboard({
                         <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
                           {salon.address || "Sin dirección"}
                         </TableCell>
-                        <TableCell className="text-right font-semibold">
+                        <TableCell
+                          className={cn(
+                            "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                            getValueToneClass(salonRent),
+                          )}
+                        >
                           {formatCurrency(salonRent)}
                         </TableCell>
                       </TableRow>
@@ -550,7 +711,12 @@ export default function OwnerDashboard({
                     <TableCell className="font-semibold" colSpan={2}>
                       Total alquileres
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg">
+                    <TableCell
+                      className={cn(
+                        "text-right font-bold text-lg tabular-nums w-[140px] sm:w-[160px]",
+                        getValueToneClass(rentExpenses),
+                      )}
+                    >
                       {formatCurrency(rentExpenses)}
                     </TableCell>
                   </TableRow>
@@ -577,7 +743,14 @@ export default function OwnerDashboard({
                   <div className="p-3 rounded-lg bg-muted/50">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">Salarios Totales</span>
-                      <span className="font-semibold">{formatCurrency(salaryExpenses)}</span>
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          getValueToneClass(salaryExpenses),
+                        )}
+                      >
+                        {formatCurrency(salaryExpenses)}
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {employees.length} empleado{employees.length !== 1 ? 's' : ''} activo{employees.length !== 1 ? 's' : ''}
@@ -618,7 +791,9 @@ export default function OwnerDashboard({
             <TableRow>
               <TableHead>Empleado</TableHead>
               <TableHead className="text-center">Comisiones</TableHead>
-              <TableHead className="text-right">Importe total</TableHead>
+                  <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                    Importe total
+                  </TableHead>
               <TableHead className="hidden text-right md:table-cell">Participación</TableHead>
             </TableRow>
           </TableHeader>
@@ -640,7 +815,12 @@ export default function OwnerDashboard({
                       {comm.count}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-semibold">
+                  <TableCell
+                    className={cn(
+                      "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                      getValueToneClass(comm.total),
+                    )}
+                  >
                     {formatCurrency(comm.total)}
                   </TableCell>
                   <TableCell className="hidden text-right md:table-cell">
@@ -657,7 +837,12 @@ export default function OwnerDashboard({
               <TableCell className="font-semibold" colSpan={2}>
                 Total comisiones
               </TableCell>
-              <TableCell className="text-right font-bold text-lg">
+              <TableCell
+                className={cn(
+                  "text-right font-bold text-lg tabular-nums w-[140px] sm:w-[160px]",
+                  getValueToneClass(totalCommissionsAmount),
+                )}
+              >
                 {formatCurrency(totalCommissionsAmount)}
               </TableCell>
               <TableCell className="hidden text-right md:table-cell">
@@ -684,11 +869,13 @@ export default function OwnerDashboard({
               <>
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead className="text-right">Monto</TableHead>
-                      <TableHead className="hidden text-right sm:table-cell">Participación</TableHead>
-                    </TableRow>
+                  <TableRow>
+                    <TableHead>Categoría</TableHead>
+                    <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                      Monto
+                    </TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">Participación</TableHead>
+                  </TableRow>
                   </TableHeader>
                   <TableBody>
                     {expensesByCategory.slice(0, 5).map((exp, idx) => {
@@ -697,7 +884,12 @@ export default function OwnerDashboard({
                       return (
                         <TableRow key={`${exp.category}-${idx}`}>
                           <TableCell className="font-medium">{exp.category}</TableCell>
-                          <TableCell className="text-right font-semibold">
+                          <TableCell
+                            className={cn(
+                              "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                              getValueToneClass(exp.amount),
+                            )}
+                          >
                             {formatCurrency(exp.amount)}
                           </TableCell>
                           <TableCell className="hidden text-right sm:table-cell">
@@ -712,7 +904,12 @@ export default function OwnerDashboard({
                   <TableFooter>
                     <TableRow>
                       <TableCell className="font-semibold">Total gastos</TableCell>
-                      <TableCell className="text-right font-bold text-lg">
+                      <TableCell
+                        className={cn(
+                          "text-right font-bold text-lg tabular-nums w-[140px] sm:w-[160px]",
+                          getValueToneClass(totalExpensesByCategory),
+                        )}
+                      >
                         {formatCurrency(totalExpensesByCategory)}
                       </TableCell>
                       <TableCell className="hidden text-right sm:table-cell">
@@ -745,7 +942,9 @@ export default function OwnerDashboard({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Método</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                      Monto
+                    </TableHead>
                     <TableHead className="hidden text-right sm:table-cell">Participación</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -761,7 +960,12 @@ export default function OwnerDashboard({
                             {payment.method}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right font-semibold">
+                        <TableCell
+                          className={cn(
+                            "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                            getValueToneClass(payment.amount),
+                          )}
+                        >
                           {formatCurrency(payment.amount)}
                         </TableCell>
                         <TableCell className="hidden text-right sm:table-cell">
@@ -776,7 +980,12 @@ export default function OwnerDashboard({
                 <TableFooter>
                   <TableRow>
                     <TableCell className="font-semibold">Total ingresos</TableCell>
-                    <TableCell className="text-right font-bold text-lg">
+                    <TableCell
+                      className={cn(
+                        "text-right font-bold text-lg tabular-nums w-[140px] sm:w-[160px]",
+                        getValueToneClass(totalPaymentsAmount),
+                      )}
+                    >
                       {formatCurrency(totalPaymentsAmount)}
                     </TableCell>
                     <TableCell className="hidden text-right sm:table-cell text-xs font-semibold text-muted-foreground">
@@ -828,7 +1037,9 @@ export default function OwnerDashboard({
                     <TableHead>Tipo</TableHead>
                     <TableHead>Concepto</TableHead>
                     <TableHead>Categoria</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
+                  <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                    Monto
+                  </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -859,10 +1070,12 @@ export default function OwnerDashboard({
                       <TableCell className="text-sm text-muted-foreground">
                         {movement.category}
                       </TableCell>
-                      <TableCell className={cn(
-                        "text-right font-semibold",
-                        movement.type === "Ingreso" ? "text-emerald-600" : "text-rose-500",
-                      )}>
+                      <TableCell
+                        className={cn(
+                          "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                          movement.type === "Ingreso" ? "text-emerald-600" : "text-rose-500",
+                        )}
+                      >
                         {movement.type === "Gasto" ? "-" : ""}
                         {formatCurrency(movement.amount)}
                       </TableCell>

@@ -1,30 +1,20 @@
 "use client";
 
 import React, { forwardRef, useEffect, useMemo, useState } from "react";
-import { endOfMonth, endOfToday, startOfMonth, subDays, subMonths } from "date-fns";
 import { CalendarIcon, RefreshCw } from "lucide-react";
 import { DateRange as DayPickerRange } from "react-day-picker";
 
 import { Button } from "../../ui/button";
 import { Calendar } from "../../ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "../../ui/popover";
-import { cn } from "../../ui/utils";
+import { Dialog, DialogContent, DialogTrigger } from "../../ui/dialog";
 
 export type DateRangeValue = {
   startDate: string;
   endDate: string;
 };
 
-export interface DatePreset {
-  id: string;
-  label: string;
-  description?: string;
-  calculate: () => DateRangeValue;
-}
-
 export interface DateRangeFilterProps {
   value: DateRangeValue | null;
-  presets: DatePreset[];
   onChange: (next: DateRangeValue | null, meta?: { presetId?: string | null }) => void;
 }
 
@@ -44,124 +34,46 @@ const toValue = (range: DayPickerRange | undefined): DateRangeValue | null => {
   };
 };
 
-export function buildDefaultPresets(): DatePreset[] {
-  return [
-    {
-      id: "today",
-      label: "Hoy",
-      description: "Movimientos del día",
-      calculate: () => {
-        const today = endOfToday();
-        return {
-          startDate: today.toISOString().split("T")[0],
-          endDate: today.toISOString().split("T")[0],
-        };
-      },
-    },
-    {
-      id: "last-7",
-      label: "Últimos 7 días",
-      description: "Tendencia semanal",
-      calculate: () => {
-        const end = endOfToday();
-        const start = subDays(end, 6);
-        return {
-          startDate: start.toISOString().split("T")[0],
-          endDate: end.toISOString().split("T")[0],
-        };
-      },
-    },
-    {
-      id: "last-30",
-      label: "Últimos 30 días",
-      description: "Performance mensual",
-      calculate: () => {
-        const end = endOfToday();
-        const start = subDays(end, 29);
-        return {
-          startDate: start.toISOString().split("T")[0],
-          endDate: end.toISOString().split("T")[0],
-        };
-      },
-    },
-    {
-      id: "this-month",
-      label: "Mes en curso",
-      description: "Detalle del mes actual",
-      calculate: () => {
-        const now = new Date();
-        return {
-          startDate: startOfMonth(now).toISOString().split("T")[0],
-          endDate: endOfMonth(now).toISOString().split("T")[0],
-        };
-      },
-    },
-    {
-      id: "previous-month",
-      label: "Mes anterior",
-      description: "Comparativo inmediato",
-      calculate: () => {
-        const now = new Date();
-        const previous = subMonths(now, 1);
-        return {
-          startDate: startOfMonth(previous).toISOString().split("T")[0],
-          endDate: endOfMonth(previous).toISOString().split("T")[0],
-        };
-      },
-    },
-  ];
-}
-
 export const DateRangeFilter = forwardRef<HTMLButtonElement, DateRangeFilterProps>(function DateRangeFilter(
-  { value, presets, onChange },
+  { value, onChange },
   ref,
 ) {
   const [internalRange, setInternalRange] = useState<DayPickerRange | undefined>(toDateRange(value));
-  const [activePreset, setActivePreset] = useState<string | null>(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   useEffect(() => {
     setInternalRange(toDateRange(value));
   }, [value]);
 
-  useEffect(() => {
-    if (!value) {
-      setActivePreset(null);
-      return;
-    }
-    const matchingPreset = presets.find((preset) => {
-      const candidate = preset.calculate();
-      return candidate.startDate === value.startDate && candidate.endDate === value.endDate;
-    });
-    setActivePreset(matchingPreset?.id ?? null);
-  }, [value, presets]);
-
   const summary = useMemo(() => {
-    if (!value) return "Sin filtro aplicado";
+    if (!value) return "Seleccionar fechas";
     const start = new Date(`${value.startDate}T00:00:00`);
     const end = new Date(`${value.endDate}T00:00:00`);
     const rangeDays = Math.abs((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     return `${start.toLocaleDateString("es-AR")} – ${end.toLocaleDateString("es-AR")} · ${rangeDays} día${rangeDays !== 1 ? "s" : ""}`;
   }, [value]);
 
-  const handlePreset = (preset: DatePreset) => {
-    const next = preset.calculate();
-    setInternalRange(toDateRange(next));
-    setActivePreset(preset.id);
-    onChange(next, { presetId: preset.id });
-    setIsCalendarOpen(false);
-  };
-
   const handleClear = () => {
     setIsCalendarOpen(false);
-    setActivePreset(null);
     setInternalRange(undefined);
     onChange(null);
   };
 
+  const handleConfirm = () => {
+    const normalized = toValue(internalRange);
+    if (!normalized) return;
+    onChange(normalized);
+    setIsCalendarOpen(false);
+  };
+
+  const handleCancel = () => {
+    setInternalRange(toDateRange(value));
+    setIsCalendarOpen(false);
+  };
+
   return (
-    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-      <PopoverTrigger asChild>
+    <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+      <DialogTrigger asChild>
         <Button
           ref={ref}
           variant="outline"
@@ -170,50 +82,21 @@ export const DateRangeFilter = forwardRef<HTMLButtonElement, DateRangeFilterProp
           <CalendarIcon className="h-4 w-4" />
           <span className="truncate text-sm font-medium">{summary}</span>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] sm:w-[420px] border-border/40 p-0" align="end">
-        <div className="flex flex-col gap-4 p-4">
-          <div className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Rangos sugeridos
-            </span>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {presets.map((preset) => {
-                const isActive = activePreset === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => handlePreset(preset)}
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-left transition-colors",
-                      "border-border/50 bg-background/60 hover:border-border/30 hover:bg-background/80",
-                      isActive && "border-primary/50 bg-primary/10 text-primary shadow-sm",
-                    )}
-                  >
-                    <span className="block text-sm font-semibold">{preset.label}</span>
-                    {preset.description && (
-                      <span className="mt-1 block text-xs text-muted-foreground">{preset.description}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="rounded-xl border border-border/40 bg-card/80 p-2 shadow-sm">
+      </DialogTrigger>
+      <DialogContent
+        showClose={false}
+        className="w-auto max-w-max border-none bg-transparent p-0 shadow-none"
+      >
+        <div className="mx-auto w-fit max-w-[560px] rounded-2xl border border-border/40 bg-background p-4 shadow-xl">
+          <div className="flex flex-col items-center justify-center">
             <Calendar
               mode="range"
               numberOfMonths={2}
+              pagedNavigation
               selected={internalRange}
               defaultMonth={internalRange?.from ?? new Date()}
               onSelect={(range) => {
-                setActivePreset(null);
                 setInternalRange(range);
-                const normalized = toValue(range);
-                if (normalized) {
-                  onChange(normalized);
-                  setIsCalendarOpen(false);
-                }
               }}
               modifiersClassNames={{
                 range_start: "bg-primary text-primary-foreground",
@@ -222,29 +105,49 @@ export const DateRangeFilter = forwardRef<HTMLButtonElement, DateRangeFilterProp
               }}
             />
           </div>
-          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span className="truncate">
+          <div className="mt-6 flex min-h-16 flex-col gap-4 rounded-xl bg-muted/15 p-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs font-medium text-foreground sm:text-sm">
               {internalRange?.from && internalRange?.to
                 ? `${internalRange.from.toLocaleDateString("es-AR")} – ${internalRange.to.toLocaleDateString("es-AR")}`
                 : "Seleccioná un rango de fechas"}
             </span>
-            {(internalRange?.from || value) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={handleClear}
-              >
-                <RefreshCw className="size-3.5" />
-                Limpiar
-              </Button>
-            )}
+            <div className="flex items-center sm:ml-auto sm:justify-end">
+              <div className="flex items-center gap-3">
+                {(internalRange?.from || value) && (
+                  <Button
+                    variant="ghost"
+                    size="default"
+                    className="h-10 px-4 text-sm text-blue-700 hover:bg-blue-100"
+                    onClick={handleClear}
+                  >
+                    <RefreshCw className="size-4" />
+                    Limpiar
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="default"
+                  className="h-10 px-4 text-sm text-red-700 hover:bg-red-100"
+                  onClick={handleCancel}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="default"
+                  className="h-10 px-4 text-sm text-black hover:bg-black/10 dark:text-white dark:hover:bg-white/10"
+                  onClick={handleConfirm}
+                  disabled={!internalRange?.from || !internalRange?.to}
+                >
+                  Confirmar
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 });
 
 DateRangeFilter.displayName = "DateRangeFilter";
-

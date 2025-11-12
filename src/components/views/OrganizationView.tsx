@@ -1077,7 +1077,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         )}
         onShortcutClick={palette?.openPalette}
       />
-      <Card>
+      <Card className="border-0 shadow-none">
         <CardHeader className="gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-3">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">

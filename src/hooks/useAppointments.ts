@@ -126,13 +126,17 @@ function mapAppointmentToRow(payload: Partial<Appointment>) {
 
 export function useAppointments(salonId?: string, options?: { enabled?: boolean }) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const enabled = options?.enabled ?? true;
   const subscribed = useRef(false);
   const { isDemo, user, currentOrgId } = useAuth() as any;
 
   const fetchAppointments = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabled) {
+      setLoading(false);
+      turnosStore.setLoading(false);
+      return;
+    }
     setLoading(true);
     turnosStore.setLoading(true);
     try {
@@ -146,6 +150,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
 
       if (salonId && !isValidUUID(salonId)) {
         setAppointments([]);
+        setLoading(false);
+        turnosStore.setLoading(false);
         return;
       }
 

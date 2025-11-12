@@ -11,6 +11,7 @@ import { useTurnos } from "../../hooks/useTurnos";
 import React, { lazy, Suspense, useState, useMemo } from "react";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { useCommandPalette } from "../../contexts/CommandPaletteContext";
+import type { TurnosSharedProps } from "../../types/turnos-shared";
 
 const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
 const ClientsPanel = lazy(() => import("../ClientsPanel").then(m => ({ default: m.ClientsPanel })));
@@ -38,15 +39,12 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
   const [showInviteModal, setShowInviteModal] = useState(false);
   const palette = useCommandPalette(true);
   
-  // Usar useTurnos internamente como fuente única de verdad
-  const { turnos } = useTurnos({
-    salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
-    enabled: true
+  const { turnos, loading: loadingTurnos } = useTurnos({
+    enabled: true,
   });
-  
-  // Convertir turnos a appointments para compatibilidad con componentes internos
-  const appointments = useMemo(() => {
-    return turnos.map(t => ({
+
+  const appointments = useMemo<Appointment[]>(() => {
+    return turnos.map((t) => ({
       id: t.id,
       clientName: t.clientName,
       service: t.service,
@@ -57,11 +55,25 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
       salonId: t.salonId,
       notes: t.notes,
       created_by: t.created_by,
-    } as Appointment));
+    }));
   }, [turnos]);
-  
-  // HomeView muestra información del peluquero, no filtra por salón
-  const salonAppointments = appointments;
+
+  const salonAppointments = useMemo<Appointment[]>(() => {
+    if (!selectedSalon || selectedSalon === "all") {
+      return appointments;
+    }
+    return appointments.filter((appointment) => appointment.salonId === selectedSalon);
+  }, [appointments, selectedSalon]);
+
+  const sharedAppointments: TurnosSharedProps = useMemo(
+    () => ({
+      appointments,
+      salonAppointments,
+      isLoading: loadingTurnos,
+      error: undefined,
+    }),
+    [appointments, loadingTurnos, salonAppointments],
+  );
 
   // Datos del día de hoy
   const today = new Date().toISOString().split("T")[0];
@@ -71,16 +83,6 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
 
   // Calcular comisiones (ejemplo: $500 por cliente atendido)
   const totalCommissions = todayAppointments.length * 500;
-
-  // Próximo turno
-  const upcomingAppointments = salonAppointments
-    .filter((apt) => apt.date >= today && apt.status !== "cancelled" && apt.status !== "completed")
-    .sort((a, b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date);
-      return a.time.localeCompare(b.time);
-    });
-  
-  const nextAppointment = upcomingAppointments[0];
 
   const salonNames = useMemo(() => {
     const map: Record<string, string> = {
@@ -189,15 +191,15 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
 
         <Suspense fallback={<div className="col-span-1 md:col-span-2">Cargando...</div>}>
           <div className="col-span-1 md:col-span-1">
-            <TurnosPanel selectedSalon={selectedSalon} variant="commissions" />
+            <TurnosPanel data={sharedAppointments} variant="commissions" />
           </div>
 
           <div className="col-span-1 md:col-span-1">
-            <ClientsPanel selectedSalon={selectedSalon} />
+            <ClientsPanel data={sharedAppointments} />
           </div>
 
           <div className="col-span-1 md:col-span-2">
-            <TurnosPanel selectedSalon={selectedSalon} variant="next" />
+            <TurnosPanel data={sharedAppointments} variant="next" />
           </div>
 
           {/* Servicios: movidos al módulo de Peluquerías */}
@@ -206,7 +208,8 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
 
         {/* Calendario */}
         <section className="mt-4" role="region" aria-label="Calendario de turnos" data-section="calendar">
-          <CalendarView 
+          <CalendarView
+            data={sharedAppointments}
             selectedSalon={selectedSalon}
             focusDate={null}
             onAppointmentClick={onAppointmentClick}

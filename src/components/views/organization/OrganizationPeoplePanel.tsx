@@ -394,7 +394,7 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
 
   if (!showEmployeesTab && !showCommissionsTab) {
     return (
-      <Card>
+      <Card className="border-0 shadow-none">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Equipo y accesos</CardTitle>
           <CardDescription>
@@ -408,7 +408,7 @@ const OrganizationPeoplePanel: React.FC<OrganizationPeoplePanelProps> = ({
 
   return (
     <Tabs defaultValue="members" className="w-full">
-      <Card>
+      <Card className="border-0 shadow-none">
         <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="text-lg font-semibold">Organización y permisos</CardTitle>

@@ -1,41 +1,17 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { DollarSign, Clock } from "lucide-react";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Appointment } from "./features/appointments/AppointmentCard";
 import { useCommissions } from "../hooks/useCommissions";
 import { useAuth } from "../contexts/AuthContext";
 import { useEmployees } from "../hooks/useEmployees";
-import { useTurnos } from "../hooks/useTurnos";
+import type { TurnosSharedProps } from "../types/turnos-shared";
 
 interface TurnosPanelProps {
-  selectedSalon: string | null;
+  data: Pick<TurnosSharedProps, "salonAppointments" | "isLoading">;
   variant?: "all" | "commissions" | "next";
 }
 
-export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps) {
-  // Usar useTurnos internamente como fuente única de verdad
-  const { turnos } = useTurnos({
-    salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
-    enabled: true
-  });
-  
-  // Convertir turnos a appointments para compatibilidad
-  const appointments = useMemo(() => {
-    return turnos.map(t => ({
-      id: t.id,
-      clientName: t.clientName,
-      service: t.service,
-      date: t.date,
-      time: t.time,
-      status: t.status,
-      stylist: t.stylist,
-      salonId: t.salonId,
-      notes: t.notes,
-      created_by: t.created_by,
-    } as Appointment));
-  }, [turnos]);
-  const [nextAppointmentTime, setNextAppointmentTime] = useState<string | null>(null);
+export function TurnosPanel({ data, variant = "all" }: TurnosPanelProps) {
+  const { salonAppointments, isLoading } = data;
   const { user, currentOrgId, currentRole } = useAuth();
   const { commissions, loading: loadingCommissions } = useCommissions({ enabled: true });
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
@@ -71,21 +47,23 @@ export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps
     return todayComms.reduce((sum, comm) => sum + comm.amount, 0);
   }, [commissions, currentRole, currentEmployee]);
 
-  useEffect(() => {
+  const nextAppointmentTime = useMemo(() => {
+    if (isLoading) {
+      return null;
+    }
     const today = new Date().toISOString().split("T")[0];
-    // Si selectedSalon es 'all' o null, mostrar todos los turnos
-    const salonAppointments = (!selectedSalon || selectedSalon === 'all') 
-      ? appointments 
-      : appointments.filter(a => a.salonId === selectedSalon);
-
     const upcoming = salonAppointments
-      .filter(apt => apt.date >= today && apt.status !== "cancelled" && apt.status !== "completed")
-      .sort((a, b) => (a.date !== b.date ? a.date.localeCompare(b.date) : a.time.localeCompare(b.time)));
+      .filter(
+        (apt) =>
+          apt.date >= today && apt.status !== "cancelled" && apt.status !== "completed",
+      )
+      .sort((a, b) =>
+        a.date !== b.date ? a.date.localeCompare(b.date) : a.time.localeCompare(b.time),
+      );
 
-    // Mostrar la hora del próximo turno o el nombre del cliente si hay uno
     const nextAppt = upcoming.length > 0 ? upcoming[0] : null;
-    setNextAppointmentTime(nextAppt ? `${nextAppt.time} - ${nextAppt.clientName}` : null);
-  }, [appointments, selectedSalon]);
+    return nextAppt ? `${nextAppt.time} - ${nextAppt.clientName}` : null;
+  }, [isLoading, salonAppointments]);
 
   const CommissionsCard = (
     <div className="bg-card border border-border rounded-2xl p-3" role="region" aria-label="Comisiones del día de hoy">
@@ -95,8 +73,11 @@ export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps
         </div>
         <div className="min-w-0">
           <p className="text-muted-foreground truncate">Comisiones Hoy</p>
-          <p className="font-medium" aria-label={`Comisiones del día: $${todayCommissions.toFixed(2)}`}>
-            ${todayCommissions.toFixed(2)}
+          <p
+            className="font-medium"
+            aria-label={`Comisiones del día: $${todayCommissions.toFixed(2)}`}
+          >
+            {loadingCommissions ? "Cargando..." : `$${todayCommissions.toFixed(2)}`}
           </p>
         </div>
       </div>
@@ -111,7 +92,9 @@ export function TurnosPanel({ selectedSalon, variant = "all" }: TurnosPanelProps
         </div>
         <div className="min-w-0">
           <p className="text-muted-foreground truncate">Próximo Turno</p>
-          <p className="font-medium truncate">{nextAppointmentTime || "Sin turnos"}</p>
+          <p className="font-medium truncate">
+            {isLoading ? "Cargando..." : nextAppointmentTime || "Sin turnos"}
+          </p>
         </div>
       </div>
     </div>

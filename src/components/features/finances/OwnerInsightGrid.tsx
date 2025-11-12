@@ -3,6 +3,16 @@ import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Tooltip, XAxis, YAxi
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
 import { ChartConfig, ChartContainer } from "../../ui/chart";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../ui/table";
+import { cn } from "../../ui/utils";
 
 type IncomeExpensePoint = {
   date: string;
@@ -37,6 +47,20 @@ export function OwnerInsightGrid({
   paymentMethodData,
   currencyFormatter,
 }: OwnerInsightGridProps) {
+  const isResultLabel = (label: string) => label.toLowerCase().includes("resultado");
+  const getValueToneClass = (value?: number | null) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "";
+    }
+    if (value > 0) {
+      return "text-emerald-500";
+    }
+    if (value < 0) {
+      return "text-rose-500";
+    }
+    return "";
+  };
+
   const lastPoint = incomeExpenseData.at(-1);
   const totalIncome = incomeExpenseData.reduce((sum, point) => sum + point.income, 0);
   const totalExpense = incomeExpenseData.reduce((sum, point) => sum + point.expense, 0);
@@ -69,26 +93,43 @@ export function OwnerInsightGrid({
     [paymentMethodData],
   );
   const reversedMethods = useMemo(() => [...sortedMethods].reverse(), [sortedMethods]);
+  const totalMethodAmount = useMemo(
+    () => paymentMethodData.reduce((sum, item) => sum + item.amount, 0),
+    [paymentMethodData],
+  );
+  const performanceSummary = useMemo(
+    () => [
+      {
+        label: "Resultado acumulado",
+        value: netResult,
+        detail: "Ingresos menos gastos en el período",
+      },
+      {
+        label: "Ingresos",
+        value: totalIncome,
+        detail: "Sumatoria de ingresos registrados",
+      },
+      {
+        label: "Gastos",
+        value: totalExpense,
+        detail: "Sumatoria de gastos registrados",
+      },
+      {
+        label: "Promedio diario",
+        value: Math.round(totalIncome / Math.max(1, incomeExpenseData.length)),
+        detail: "Ingresos promedio por día",
+      },
+    ],
+    [incomeExpenseData.length, netResult, totalExpense, totalIncome],
+  );
 
   return (
     <div className="grid gap-6 lg:gap-8 xl:gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <Card className="h-full">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader>
           <div>
             <CardTitle className="text-base font-semibold">Rendimiento financiero</CardTitle>
             <CardDescription>Evolución diaria de ingresos y gastos</CardDescription>
-          </div>
-          <div className="flex flex-col items-start gap-1 text-sm sm:items-end">
-            <span className="text-muted-foreground">Resultado acumulado</span>
-            <span className={netResult >= 0 ? "text-green-600 font-semibold" : "text-red-500 font-semibold"}>
-              {currencyFormatter(netResult)}
-            </span>
-            {trend !== null && (
-              <span className="text-muted-foreground text-xs">
-                Tendencia diaria: {trend >= 0 ? "+" : ""}
-                {trend.toFixed(1)}%
-              </span>
-            )}
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -145,21 +186,41 @@ export function OwnerInsightGrid({
               <Bar dataKey="expense" fill="var(--color-expense)" radius={[6, 6, 0, 0]} maxBarSize={28} />
             </ComposedChart>
           </ChartContainer>
-          <div className="mt-6 grid gap-3 text-xs text-muted-foreground sm:grid-cols-3">
-            <div className="rounded-lg border border-border/40 p-4">
-              <span className="block text-[11px] uppercase tracking-wide">Ingresos</span>
-              <span className="text-sm font-semibold text-foreground">{currencyFormatter(totalIncome)}</span>
-            </div>
-            <div className="rounded-lg border border-border/40 p-4">
-              <span className="block text-[11px] uppercase tracking-wide">Gastos</span>
-              <span className="text-sm font-semibold text-foreground">{currencyFormatter(totalExpense)}</span>
-            </div>
-            <div className="rounded-lg border border-border/40 p-4">
-              <span className="block text-[11px] uppercase tracking-wide">Promedio diario</span>
-              <span className="text-sm font-semibold text-foreground">
-                {currencyFormatter(Math.round(totalIncome / Math.max(1, incomeExpenseData.length)))}
-              </span>
-            </div>
+          <div className="mt-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Indicador</TableHead>
+                  <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                    Monto
+                  </TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Detalle</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {performanceSummary.map((item) => (
+                  <TableRow
+                    key={item.label}
+                    className={cn(
+                      isResultLabel(item.label) && "bg-muted/50 dark:bg-muted/40",
+                    )}
+                  >
+                    <TableCell className="text-sm font-medium">{item.label}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                        getValueToneClass(item.value),
+                      )}
+                    >
+                      {currencyFormatter(item.value)}
+                    </TableCell>
+                    <TableCell className="hidden text-right text-xs text-muted-foreground sm:table-cell">
+                      {item.detail}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
@@ -212,23 +273,71 @@ export function OwnerInsightGrid({
             </BarChart>
           </ChartContainer>
           <div className="grid gap-3 text-xs text-muted-foreground">
-            {sortedMethods.map((item, index) => (
-              <div
-                key={item.method}
-                className="flex items-center justify-between rounded-lg border border-border/30 px-4 py-2.5"
-              >
-                <span className="flex items-center gap-2 text-foreground">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: `hsl(var(--chart-${(index % 5) + 1}))` }}
-                  />
-                  {item.method}
-                </span>
-                <span className="font-mono font-semibold text-foreground">
-                  {currencyFormatter(item.amount)}
-                </span>
+            {sortedMethods.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin datos de medios de cobro.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border/30">
+                <Table>
+                  <TableHeader>
+                  <TableRow>
+                    <TableHead>Método</TableHead>
+                    <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
+                      Monto
+                    </TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">Participación</TableHead>
+                  </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedMethods.map((item, index) => {
+                      const share =
+                        totalMethodAmount > 0 ? (item.amount / totalMethodAmount) * 100 : null;
+                      return (
+                        <TableRow key={item.method}>
+                          <TableCell className="font-medium text-foreground">
+                            <span className="flex items-center gap-2">
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: `hsl(var(--chart-${(index % 5) + 1}))` }}
+                              />
+                              {item.method}
+                            </span>
+                          </TableCell>
+                    <TableCell
+                          className={cn(
+                            "text-right font-semibold text-foreground tabular-nums w-[140px] sm:w-[160px]",
+                            getValueToneClass(item.amount),
+                          )}
+                        >
+                            {currencyFormatter(item.amount)}
+                          </TableCell>
+                          <TableCell className="hidden text-right text-xs font-semibold text-muted-foreground sm:table-cell">
+                            {share === null ? "—" : `${share.toFixed(1)}%`}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                  {sortedMethods.length > 0 && (
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell className="font-semibold">Total</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right font-bold tabular-nums w-[140px] sm:w-[160px]",
+                        getValueToneClass(sortedMethods.reduce((sum, item) => sum + item.amount, 0)),
+                      )}
+                    >
+                          {currencyFormatter(sortedMethods.reduce((sum, item) => sum + item.amount, 0))}
+                        </TableCell>
+                        <TableCell className="hidden text-right text-xs font-semibold text-muted-foreground sm:table-cell">
+                          {totalMethodAmount > 0 ? "≈100%" : "—"}
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
               </div>
-            ))}
+            )}
           </div>
         </CardContent>
       </Card>

@@ -3,10 +3,10 @@ import { Menu, Calendar, Home, Users, Settings, DollarSign, Building2, MapPin, L
 import { motion, AnimatePresence } from "motion/react";
 import { SalonCarousel } from "./components/SalonCarousel";
 import { AppointmentCard, Appointment } from "./components/features/appointments/AppointmentCard";
-import { AppointmentGroup } from "./components/features/appointments/AppointmentGroup";
 import { turnosStore } from './stores/turnosStore';
 import { AppointmentDialog } from "./components/features/appointments/AppointmentDialog";
 import { AppointmentActionBar } from "./components/features/appointments/AppointmentActionBar";
+import { TurnosTable } from "./components/features/appointments/TurnosTable";
 import { FloatingQuickActions } from "./components/FloatingQuickActions";
 import { FilterBar } from "./components/FilterBar";
 import { ShortcutBanner } from "./components/ShortcutBanner";
@@ -28,7 +28,6 @@ import { LoadingView } from "./components/layout/LoadingView";
 import { SidebarContent } from "./components/layout/SidebarContent";
 import { PageContainer } from "./components/layout/PageContainer";
 import { Card, CardContent } from "./components/ui/card";
-import { SkeletonList } from "./components/ui/SkeletonLoader";
 import type { Salon, SalonService } from "./types/salon";
 import { sampleSalons } from "./constants/salons";
 import { CommandPaletteProvider, CommandAction } from "./contexts/CommandPaletteContext";
@@ -223,34 +222,31 @@ export default function App() {
     }
   }, [selectedSalon]);
 
-  // Pre-seleccionar primer salón disponible solo si no hay selección válida Y no es 'all'
-  useEffect(() => {
-    // Solo ejecutar si no hay selectedSalon (null o undefined), NO si es 'all'
-    if (effectiveSalons.length > 0 && (selectedSalon === null || selectedSalon === undefined)) {
-      // Si el salón guardado no existe en la lista, usar el primero
-      const savedSalon = typeof window !== 'undefined' 
-        ? localStorage.getItem('selectedSalon') 
-        : null;
-      
-      if (savedSalon && savedSalon !== 'all' && effectiveSalons.some(s => s.id === savedSalon)) {
-        // El salón guardado existe, mantenerlo
-        setSelectedSalon(savedSalon);
-        return;
-      }
-      
-      // Si savedSalon es 'all', respetarlo
-      if (savedSalon === 'all') {
-        setSelectedSalon('all');
-        return;
-      }
-      
-      // Pre-seleccionar primer salón disponible solo si no hay selección guardada
-      const firstSalon = effectiveSalons[0];
-      if (firstSalon && (!selectedSalon || selectedSalon !== firstSalon.id)) {
-        setSelectedSalon(firstSalon.id);
-      }
+// Asegurar selección inicial coherente (por defecto "all")
+useEffect(() => {
+  const savedSalon =
+    typeof window !== "undefined" ? localStorage.getItem("selectedSalon") : null;
+
+  if (selectedSalon === null || selectedSalon === undefined) {
+    if (
+      savedSalon &&
+      (savedSalon === "all" || effectiveSalons.some((s) => s.id === savedSalon))
+    ) {
+      setSelectedSalon(savedSalon);
+    } else if (effectiveSalons.length > 0) {
+      setSelectedSalon("all");
     }
-  }, [effectiveSalons, selectedSalon]);
+    return;
+  }
+
+  if (
+    selectedSalon !== "all" &&
+    effectiveSalons.length > 0 &&
+    !effectiveSalons.some((s) => s.id === selectedSalon)
+  ) {
+    setSelectedSalon("all");
+  }
+}, [effectiveSalons, selectedSalon]);
 
   // =========================================================================
   // EFECTOS
@@ -747,6 +743,33 @@ export default function App() {
     return turnosStore.getFiltered() as any as Appointment[];
   }, [isDemo, appointments, selectedSalon, searchQuery, statusFilter, stylistFilter, dateFilter]);
 
+  const appointmentSummary = useMemo(() => {
+    const summary = {
+      total: filteredAppointments.length,
+      today: 0,
+      upcoming: 0,
+      pending: 0,
+      confirmed: 0,
+      completed: 0,
+      cancelled: 0,
+    };
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    filteredAppointments.forEach((apt) => {
+      if (apt.status in summary) {
+        // @ts-expect-error narrow to known keys
+        summary[apt.status] += 1;
+      }
+      if (apt.date === todayStr) {
+        summary.today += 1;
+      } else if (apt.date > todayStr) {
+        summary.upcoming += 1;
+      }
+    });
+
+    return summary;
+  }, [filteredAppointments]);
+
   const handleAddSalon = useCallback(async (salonData: Omit<Salon, 'id'>) => {
     if (isDemo) {
       if (salons.length >= 1) {
@@ -1147,89 +1170,64 @@ export default function App() {
                   />
                 </div>
                 <div className="mt-4">
-                  {selectedSalon === null ? (
+                  {effectiveSalons.length === 0 ? (
                     <div className="text-center py-16 px-4">
                       <div className="text-muted-foreground mb-2">
-                        Por favor selecciona una peluquería para ver los turnos
+                        Aún no hay locales cargados
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Usa el carrusel superior para elegir una sucursal
+                        Crea tu primer local para comenzar a agendar turnos.
                       </p>
                     </div>
                   ) : (
                     <>
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
                         <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                            Total:{" "}
+                            <span className="font-medium text-foreground">
+                              {appointmentSummary.total}
+                            </span>
+                          </span>
+                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                            Hoy:{" "}
+                            <span className="font-medium text-foreground">
+                              {appointmentSummary.today}
+                            </span>
+                          </span>
+                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                            Confirmados:{" "}
+                            <span className="font-medium text-foreground">
+                              {appointmentSummary.confirmed}
+                            </span>
+                          </span>
+                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                            Pendientes:{" "}
+                            <span className="font-medium text-foreground">
+                              {appointmentSummary.pending}
+                            </span>
+                          </span>
+                          <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                            Finalizados:{" "}
+                            <span className="font-medium text-foreground">
+                              {appointmentSummary.completed}
+                            </span>
+                          </span>
+                        </div>
                       </div>
                       <div className="space-y-6">
-                        {loadingTurnos ? (
-                          <SkeletonList count={5} />
-                        ) : filteredAppointments.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            {selectedSalon === 'all' ? (
-                              <>
-                                <p className="mb-2">No se encontraron turnos</p>
-                                <p className="text-sm">Intenta seleccionar un local específico o cambia los filtros</p>
-                              </>
-                            ) : (
-                              "No se encontraron turnos"
-                            )}
-                          </div>
-                        ) : (
-                          (() => {
-                            // Agrupar turnos por fecha
-                            const today = new Date().toISOString().split('T')[0];
-                            const tomorrow = new Date();
-                            tomorrow.setDate(tomorrow.getDate() + 1);
-                            const tomorrowStr = tomorrow.toISOString().split('T')[0];
-                            
-                            const todayAppointments = filteredAppointments.filter(apt => apt.date === today);
-                            const tomorrowAppointments = filteredAppointments.filter(apt => apt.date === tomorrowStr);
-                            const thisWeekAppointments = filteredAppointments.filter(apt => {
-                              const aptDate = new Date(apt.date);
-                              const todayDate = new Date(today);
-                              const weekFromToday = new Date(todayDate);
-                              weekFromToday.setDate(todayDate.getDate() + 7);
-                              return aptDate > tomorrow && aptDate < weekFromToday && apt.date !== today && apt.date !== tomorrowStr;
-                            });
-                            const laterAppointments = filteredAppointments.filter(apt => {
-                              const aptDate = new Date(apt.date);
-                              const weekFromToday = new Date();
-                              weekFromToday.setDate(weekFromToday.getDate() + 7);
-                              return aptDate >= weekFromToday;
-                            });
-                            
-                            const groups = [];
-                            if (todayAppointments.length > 0) {
-                              groups.push({ title: 'Hoy', appointments: todayAppointments });
-                            }
-                            if (tomorrowAppointments.length > 0) {
-                              groups.push({ title: 'Mañana', appointments: tomorrowAppointments });
-                            }
-                            if (thisWeekAppointments.length > 0) {
-                              groups.push({ title: 'Esta semana', appointments: thisWeekAppointments });
-                            }
-                            if (laterAppointments.length > 0) {
-                              groups.push({ title: 'Próximamente', appointments: laterAppointments });
-                            }
-                            
-                            return groups.length > 0 ? (
-                              groups.map((group, idx) => (
-                                <AppointmentGroup
-                                  key={idx}
-                                  title={group.title}
-                                  appointments={group.appointments}
-                                  onAppointmentClick={handleSelectAppointment}
-                                  selectedAppointmentId={selectedAppointment?.id}
-                                />
-                              ))
-                            ) : (
-                              <div className="text-center py-8 text-muted-foreground">
-                                No se encontraron turnos
-                              </div>
-                            );
-                          })()
-                        )}
+                        <TurnosTable
+                          appointments={filteredAppointments}
+                          isLoading={isDemo ? false : loadingTurnos}
+                          onRowClick={handleSelectAppointment}
+                          selectedAppointmentId={selectedAppointment?.id}
+                          emptyLabel={
+                            selectedSalon === "all" || !selectedSalon
+                              ? "No se encontraron turnos. Ajusta los filtros o verifica que tus locales tengan disponibilidad."
+                              : "No se encontraron turnos para esta sucursal."
+                          }
+                        />
                       </div>
                     </>
                   )}

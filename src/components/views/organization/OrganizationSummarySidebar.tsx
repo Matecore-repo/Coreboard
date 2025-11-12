@@ -34,7 +34,7 @@ const OrganizationSummarySidebar: React.FC<OrganizationSummarySidebarProps> = ({
   onMemberOptions,
 }) => {
   return (
-    <Card className="h-fit">
+    <Card className="h-fit border-0 shadow-none">
       <CardHeader className="gap-3">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1">

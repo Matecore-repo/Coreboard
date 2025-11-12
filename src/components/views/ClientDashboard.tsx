@@ -13,6 +13,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
 import { toastSuccess, toastError } from '../../lib/toast';
 import type { Appointment } from '../../types';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../ui/table';
 
 interface ClientDashboardProps {
   selectedSalon: string | null;
@@ -26,6 +34,13 @@ export default function ClientDashboard({ selectedSalon, dateRange, onExportRead
   const { turnos } = useTurnos({ salonId: effectiveSalonId || undefined, enabled: true });
   const { currentOrgId } = useAuth();
   const { clients } = useClients(currentOrgId ?? undefined);
+
+  const formatCurrency = useCallback((value: number) => {
+    if (!Number.isFinite(value)) {
+      return "$0";
+    }
+    return `$${Math.round(value).toLocaleString("es-AR")}`;
+  }, []);
   
   // Convertir turnos a appointments para compatibilidad
   const allAppointments = useMemo(() => {
@@ -178,13 +193,6 @@ export default function ClientDashboard({ selectedSalon, dateRange, onExportRead
     const formatNumber = (value: number) =>
       value.toLocaleString("es-AR");
 
-    const formatCurrency = (value: number) => {
-      if (!Number.isFinite(value)) {
-        return "$0";
-      }
-      return `$${Math.round(value).toLocaleString("es-AR")}`;
-    };
-
     const completedAppointments = allAppointments.filter(
       (apt) => apt.status === "completed",
     );
@@ -257,7 +265,7 @@ export default function ClientDashboard({ selectedSalon, dateRange, onExportRead
         description: "Realizaron 2 o más turnos completados",
       },
     ];
-  }, [clients, allAppointments, abandonmentRisk]);
+  }, [clients, allAppointments, abandonmentRisk, formatCurrency]);
 
   const handleExport = useCallback(async () => {
     try {
@@ -331,23 +339,40 @@ export default function ClientDashboard({ selectedSalon, dateRange, onExportRead
           <CardDescription>Clientes con mayor valor</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {topClients.map((client, index) => (
-              <div key={client.name} className="flex justify-between items-center p-2 border rounded">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium">#{index + 1}</span>
-                  <div>
-                    <p className="text-sm font-medium">{client.name}</p>
-                    <p className="text-xs text-muted-foreground">{client.count} turnos</p>
-                  </div>
-                </div>
-                <span className="font-semibold">${client.revenue.toLocaleString()}</span>
-              </div>
-            ))}
-            {topClients.length === 0 && (
-              <p className="text-muted-foreground text-sm">No hay datos de clientes</p>
-            )}
-          </div>
+          {topClients.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[70px]">Ranking</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-center">Turnos</TableHead>
+                  <TableHead className="text-right">Ingresos</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topClients.map((client, index) => (
+                  <TableRow key={client.name}>
+                    <TableCell className="font-medium text-muted-foreground">
+                      #{index + 1}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-sm text-foreground">{client.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center text-sm text-muted-foreground">
+                      {client.count === 1 ? "1 turno" : `${client.count} turnos`}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(client.revenue)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-muted-foreground text-sm">No hay datos de clientes</p>
+          )}
         </CardContent>
       </Card>
 

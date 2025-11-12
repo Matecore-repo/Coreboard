@@ -28,6 +28,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
+import { cn } from '../ui/utils';
+
+const getValueToneClass = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "";
+  }
+  if (value > 0) {
+    return "text-emerald-500";
+  }
+  if (value < 0) {
+    return "text-rose-500";
+  }
+  return "";
+};
+
+const isResultLabel = (label: string) => {
+  const normalized = label?.toLowerCase() ?? "";
+  return (
+    normalized.includes("resultado")
+  );
+};
 
 interface AccountingDashboardProps {
   selectedSalon?: string | null;
@@ -96,6 +117,45 @@ export default function AccountingDashboard({ selectedSalon, dateRange, onExport
         currency: 'ARS',
       }).format(value),
     [],
+  );
+
+  const incomeStatementRows = useMemo(
+    () => [
+      {
+        label: "Ingresos netos",
+        detail: "Ventas netas del período",
+        value: incomeStatement.revenue,
+      },
+      {
+        label: "Costo directo (comisiones)",
+        detail: "Pagos a colaboradores registrados como comisiones",
+        value: incomeStatement.directCosts === 0 ? 0 : -incomeStatement.directCosts,
+      },
+      {
+        label: "Margen bruto",
+        detail: "Ingresos netos menos costos directos",
+        value: incomeStatement.grossMargin,
+        emphasis: true,
+      },
+      {
+        label: "Gastos totales",
+        detail: "Egresos contabilizados en el período",
+        value: incomeStatement.expenses === 0 ? 0 : -incomeStatement.expenses,
+      },
+      {
+        label: "Resultado neto",
+        detail: "Margen bruto menos gastos operativos",
+        value: incomeStatement.netIncome,
+        emphasis: true,
+      },
+    ],
+    [
+      incomeStatement.directCosts,
+      incomeStatement.expenses,
+      incomeStatement.grossMargin,
+      incomeStatement.netIncome,
+      incomeStatement.revenue,
+    ],
   );
 
   const handleEditExpense = (expense: Expense) => {
@@ -282,29 +342,44 @@ export default function AccountingDashboard({ selectedSalon, dateRange, onExport
             <ExportButton data={incomeStatementExportData} filename="estado_resultados" />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span>Ingresos Netos:</span>
-              <span className="font-semibold">${incomeStatement.revenue.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Costo Directo (Comisiones):</span>
-              <span className="font-semibold">${incomeStatement.directCosts.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2">
-              <span>Margen Bruto:</span>
-              <span className="font-semibold">${incomeStatement.grossMargin.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Gastos:</span>
-              <span className="font-semibold">${incomeStatement.expenses.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2 font-bold">
-              <span>Resultado Neto:</span>
-              <span className={incomeStatement.netIncome >= 0 ? 'text-green-600' : 'text-red-600'}>
-                ${incomeStatement.netIncome.toLocaleString()}
-              </span>
+        <CardContent className="pt-0">
+          <div className="px-5 pb-5">
+            <div className="overflow-hidden rounded-xl border border-border/60 bg-card/70 shadow-sm">
+              <Table className="[&_tr]:border-0">
+                <TableHeader>
+                  <TableRow className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground dark:bg-muted/40">
+                    <TableHead>Concepto</TableHead>
+                    <TableHead className="hidden sm:table-cell">Detalle</TableHead>
+                    <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">Monto</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {incomeStatementRows.map((row) => (
+                    <TableRow
+                      key={row.label}
+                      className={cn(
+                        isResultLabel(row.label) && "bg-muted/50 dark:bg-muted/40",
+                      )}
+                    >
+                      <TableCell className="text-sm font-semibold text-foreground">
+                        {row.label}
+                      </TableCell>
+                      <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                        {row.detail}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
+                          row.emphasis && "text-lg",
+                          getValueToneClass(row.value),
+                        )}
+                      >
+                        {row.value === null ? "—" : formatCurrency(row.value)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
         </CardContent>

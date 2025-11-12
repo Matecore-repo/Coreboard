@@ -1,38 +1,18 @@
-import React, { useState, memo, useEffect, useMemo } from "react";
+import React, { useState, memo, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Appointment } from "./features/appointments/AppointmentCard";
-import { useTurnos } from "../hooks/useTurnos";
+import type { TurnosSharedProps } from "../types/turnos-shared";
 
 interface CalendarViewProps {
+  data: Pick<TurnosSharedProps, "appointments" | "isLoading">;
   selectedSalon: string | null;
   focusDate?: string | null;
   onAppointmentClick?: (appointment: Appointment) => void;
 }
 
-export const CalendarView = memo(function CalendarView({ selectedSalon, focusDate, onAppointmentClick }: CalendarViewProps) {
-  // Usar useTurnos internamente como fuente única de verdad
-  const { turnos } = useTurnos({
-    salonId: selectedSalon === 'all' ? undefined : selectedSalon || undefined,
-    enabled: true
-  });
-  
-  // Convertir turnos a appointments para compatibilidad
-  const appointments = useMemo(() => {
-    return turnos.map(t => ({
-      id: t.id,
-      clientName: t.clientName,
-      service: t.service,
-      date: t.date,
-      time: t.time,
-      status: t.status,
-      stylist: t.stylist,
-      salonId: t.salonId,
-      notes: t.notes,
-      created_by: t.created_by,
-    } as Appointment));
-  }, [turnos]);
+export const CalendarView = memo(function CalendarView({ data, selectedSalon, focusDate, onAppointmentClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => {
     if (focusDate) return new Date(focusDate);
     return new Date();
@@ -77,8 +57,10 @@ export const CalendarView = memo(function CalendarView({ selectedSalon, focusDat
 
   const getAppointmentsForDay = (day: number) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return appointments.filter(
-      apt => apt.date === dateStr && (!selectedSalon || selectedSalon === "all" || apt.salonId === selectedSalon)
+    return data.appointments.filter(
+      (apt) =>
+        apt.date === dateStr &&
+        (!selectedSalon || selectedSalon === "all" || apt.salonId === selectedSalon),
     );
   };
 
@@ -202,7 +184,9 @@ export const CalendarView = memo(function CalendarView({ selectedSalon, focusDat
             : "Selecciona un día"}
         </h3>
 
-        {selectedDayAppointments.length === 0 ? (
+        {data.isLoading ? (
+          <div className="text-center py-6 text-muted-foreground text-sm">Cargando turnos...</div>
+        ) : selectedDayAppointments.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground text-sm">
             No hay turnos para este día
           </div>

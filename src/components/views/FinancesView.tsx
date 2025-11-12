@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, getStoredTheme } from "../../lib/theme";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { useCommandPaletteActions, CommandAction } from "../../contexts/CommandPaletteContext";
-import { DateRangeFilter, buildDefaultPresets } from "../features/finances/DateRangeFilter";
+import { DateRangeFilter } from "../features/finances/DateRangeFilter";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "../ui/pagination";
 import { Button } from "../ui/button";
 import { toastError } from "../../lib/toast";
@@ -49,7 +49,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     return "light";
   });
 
-  const datePresets = useMemo(() => buildDefaultPresets(), []);
   const filterButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const tabItems = useMemo(
@@ -303,7 +302,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
                 <DateRangeFilter
                   ref={filterButtonRef}
                   value={dateRange}
-                  presets={datePresets}
                   onChange={(next) => {
                     setDateRange(next);
                   }}

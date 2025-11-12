@@ -146,11 +146,9 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
             : selectedSalon === item.id;
 
           const cardClasses = [
-            "h-full transition-all duration-200 hover:border-primary hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+            "relative h-full transition-all duration-200 hover:border-primary hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
             isSelected ? "border-primary shadow-lg" : "",
-            isAllOption
-              ? "bg-black text-white hover:bg-black/90 hover:text-white dark:bg-zinc-900 dark:text-zinc-50"
-              : "",
+            isAllOption ? "bg-black text-white dark:bg-white dark:text-black" : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -194,19 +192,23 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                 }}
               >
                 <CardContent
-                  className={`flex aspect-square flex-col items-center justify-center gap-2 p-6 text-center ${
-                    isAllOption ? "text-white" : ""
+                  className={`flex aspect-square flex-col items-center justify-center gap-2 text-center ${
+                    isAllOption
+                      ? "relative overflow-hidden p-0 px-0 py-0 [&:last-child]:pb-0"
+                      : "p-6"
                   }`}
                 >
                   {isAllOption ? (
-                    <>
-                      <span className="text-sm uppercase tracking-wide opacity-80">
-                        Vista consolidada
+                    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-[22px] bg-transparent text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] dark:shadow-[inset_0_1px_0_rgba(15,23,42,0.12)]">
+                      <div className="pointer-events-none absolute inset-0 opacity-90">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.12),_transparent_60%)] dark:bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_60%)]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(120deg,_rgba(255,255,255,0.16)_0%,_transparent_50%,_rgba(255,255,255,0.16)_100%)] dark:bg-[linear-gradient(120deg,_rgba(15,23,42,0.1)_0%,_transparent_50%,_rgba(15,23,42,0.1)_100%)]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(0deg,_transparent_0%,_rgba(255,255,255,0.12)_50%,_transparent_100%)] dark:bg-[linear-gradient(0deg,_transparent_0%,_rgba(15,23,42,0.1)_50%,_transparent_100%)] mix-blend-soft-light" />
+                      </div>
+                      <span className="relative z-10 text-sm font-semibold uppercase tracking-[0.3em]">
+                        Ver todos los locales
                       </span>
-                      <span className="text-lg font-semibold">
-                        Seleccionar todos los locales
-                      </span>
-                    </>
+                    </div>
                   ) : (
                     <>
                       <span className="text-2xl font-semibold text-foreground">

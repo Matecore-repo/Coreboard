@@ -40,21 +40,6 @@ type GeneralSettings = {
   showPricesOnKiosk: boolean;
 };
 
-type NotificationSettings = {
-  emailDailySummary: boolean;
-  emailSameDayReminder: boolean;
-  smsReminders: boolean;
-  pushLowStock: boolean;
-};
-
-type SecuritySettings = {
-  enforce2fa: boolean;
-  sessionTimeoutMinutes: number;
-  alertNewDevices: boolean;
-  autoLockInactivity: boolean;
-  requireStrongPasswords: boolean;
-};
-
 type IntegrationSettings = {
   googleCalendar: boolean;
   whatsappBusiness: boolean;
@@ -78,21 +63,6 @@ const createGeneralDefaults = (email?: string | null): GeneralSettings => {
     showPricesOnKiosk: true,
   };
 };
-
-const createNotificationDefaults = (): NotificationSettings => ({
-  emailDailySummary: true,
-  emailSameDayReminder: true,
-  smsReminders: IS_PRODUCTION,
-  pushLowStock: IS_PRODUCTION,
-});
-
-const createSecurityDefaults = (): SecuritySettings => ({
-  enforce2fa: IS_PRODUCTION,
-  sessionTimeoutMinutes: IS_PRODUCTION ? 15 : 45,
-  alertNewDevices: true,
-  autoLockInactivity: IS_PRODUCTION,
-  requireStrongPasswords: true,
-});
 
 const createIntegrationDefaults = (): IntegrationSettings => ({
   googleCalendar: true,
@@ -240,20 +210,13 @@ export default function SettingsView() {
     () => createGeneralDefaults(user?.email),
     [user?.email],
   );
-  const notificationSettings = useMemo(createNotificationDefaults, []);
-  const securitySettings = useMemo(createSecurityDefaults, []);
   const integrationSettings = useMemo(createIntegrationDefaults, []);
 
   return (
     <PageContainer>
-      <Section 
+      <Section
         title="Configuración de la aplicación"
         description="Visualiza qué ajustes estarán disponibles cuando lancemos la consola de producción."
-        action={
-          <Badge variant={IS_PRODUCTION ? "default" : "secondary"} aria-label={`Entorno: ${IS_PRODUCTION ? "Producción" : "Previsualización"}`}>
-            Entorno: {IS_PRODUCTION ? "Producción" : "Previsualización"}
-          </Badge>
-        }
       >
       <section className="space-y-4" role="region" aria-label="Configuración de la aplicación">
         <div className="mb-4">
@@ -411,184 +374,6 @@ export default function SettingsView() {
       <Card className={DISABLED_CLASS}>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>Notificaciones</CardTitle>
-            <Badge variant="outline">En desarrollo</Badge>
-          </div>
-          <CardDescription>
-            Mantén a tu equipo y clientes informados. Las integraciones de correo
-            y SMS se activarán más adelante.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">Resumen diario por email</p>
-              <p className="text-xs text-muted-foreground">
-                Envía un resumen de turnos confirmados y tareas pendientes cada
-                mañana.
-              </p>
-            </div>
-            <Switch
-              checked={notificationSettings.emailDailySummary}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Activar resumen diario por email"
-            />
-          </div>
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">
-                Recordatorio por email el mismo día
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Notifica a los clientes horas antes del turno para reducir
-                ausencias.
-              </p>
-            </div>
-            <Switch
-              checked={notificationSettings.emailSameDayReminder}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Activar recordatorio por email"
-            />
-          </div>
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">Recordatorios por SMS / WhatsApp</p>
-              <p className="text-xs text-muted-foreground">
-                Requiere saldo de mensajería y aprobaciones regulatorias.
-              </p>
-            </div>
-            <Switch
-              checked={notificationSettings.smsReminders}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Activar recordatorios por SMS"
-            />
-          </div>
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">Alertas de stock bajo</p>
-              <p className="text-xs text-muted-foreground">
-                Recibe notificaciones push cuando un producto necesite
-                reposición.
-              </p>
-            </div>
-            <Switch
-              checked={notificationSettings.pushLowStock}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Activar alertas de stock bajo"
-            />
-          </div>
-        </CardContent>
-      </Card>
-        </div>
-
-        <div className="mb-4 space-y-4">
-      <Card className={DISABLED_CLASS}>
-        <CardHeader>
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>Seguridad y cumplimiento</CardTitle>
-            <Badge variant="outline">En desarrollo</Badge>
-          </div>
-          <CardDescription>
-            Establece políticas robustas para proteger datos y accesos. El
-            backend validará todas estas opciones una vez que la ruta esté
-            disponible.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">
-                Forzar doble factor de autenticación
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Recomendado para producción: solicita 2FA a todo el equipo.
-              </p>
-            </div>
-            <Switch
-              checked={securitySettings.enforce2fa}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Forzar doble factor de autenticación"
-            />
-          </div>
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">
-                Tiempo de expiración de sesión (minutos)
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Reduce la ventana de riesgo en dispositivos compartidos.
-              </p>
-            </div>
-            <Input
-              type="number"
-              min={10}
-              max={240}
-              value={securitySettings.sessionTimeoutMinutes}
-              readOnly
-              disabled
-              className="w-24 text-right"
-            />
-          </div>
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">Alertar nuevos dispositivos</p>
-              <p className="text-xs text-muted-foreground">
-                Notifica por email cuando alguien inicia sesión desde un equipo
-                desconocido.
-              </p>
-            </div>
-            <Switch
-              checked={securitySettings.alertNewDevices}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Alertar nuevos dispositivos"
-            />
-          </div>
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">
-                Bloqueo automático por inactividad
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Protege la aplicación cuando se deja abierta en recepción o caja.
-              </p>
-            </div>
-            <Switch
-              checked={securitySettings.autoLockInactivity}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Bloqueo automático por inactividad"
-            />
-          </div>
-          <div className={`flex items-center justify-between rounded-lg border p-3 ${DISABLED_CLASS}`}>
-            <div>
-              <p className="text-sm font-medium">
-                Exigir contraseñas robustas
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Obliga a usar mayúsculas, números y longitud mínima.
-              </p>
-            </div>
-            <Switch
-              checked={securitySettings.requireStrongPasswords}
-              onCheckedChange={noop}
-              disabled
-              aria-label="Exigir contraseñas robustas"
-            />
-          </div>
-        </CardContent>
-      </Card>
-        </div>
-
-        <div className="mb-4 space-y-4">
-      <Card className={DISABLED_CLASS}>
-        <CardHeader>
-          <div className="flex flex-wrap items-center gap-2">
             <CardTitle>Integraciones</CardTitle>
             <Badge variant="outline">En desarrollo</Badge>
           </div>
@@ -664,30 +449,6 @@ export default function SettingsView() {
             <MercadoPagoSection />
           </div>
         )}
-
-        <div className="mb-4">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>Apariencia</CardTitle>
-            <Badge>Cargado</Badge>
-          </div>
-          <CardDescription>
-            El cambio de tema está activo. Usa el botón flotante (☀️ / 🌙) en la
-            esquina inferior derecha para alternar entre modos claro y oscuro.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Estamos ajustando el layout para que la burbuja de tema no se
-            superponga con otros componentes. Mientras tanto, los accesos
-            deshabilitados se muestran en gris para indicar que aún no están
-            disponibles.
-          </p>
-        </CardContent>
-      </Card>
-      </div>
-
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end" role="group" aria-label="Acciones de configuración">
         <Button
           variant="outline"
