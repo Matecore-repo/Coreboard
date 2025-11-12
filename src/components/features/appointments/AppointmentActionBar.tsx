@@ -4,7 +4,6 @@ import { GenericActionBar } from "../../GenericActionBar";
 import { useEmployees } from "../../../hooks/useEmployees";
 import { useSalonServices } from "../../../hooks/useSalonServices";
 import { useAuth } from "../../../contexts/AuthContext";
-import { useMemo } from "react";
 
 interface AppointmentActionBarProps {
   appointment: Appointment | null;
@@ -17,11 +16,11 @@ interface AppointmentActionBarProps {
   onSetStatus?: (status: Appointment['status']) => void;
 }
 
-export function AppointmentActionBar({ 
-  appointment, 
-  onClose, 
-  onEdit, 
-  onComplete, 
+export function AppointmentActionBar({
+  appointment,
+  onClose,
+  onEdit,
+  onComplete,
   onCancel,
   onDelete,
   onRestore,
@@ -31,25 +30,19 @@ export function AppointmentActionBar({
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: !!currentOrgId });
   const { services: salonServices } = useSalonServices(appointment?.salonId, { enabled: !!appointment?.salonId });
 
+  if (!appointment) return null;
+
   // Mapear el ID del estilista al nombre legible
-  const stylistName = useMemo(() => {
-    if (!appointment?.stylist || appointment.stylist === '') {
-      return 'Sin asignar';
-    }
-    const employee = employees.find(e => e.id === appointment.stylist);
-    return employee?.full_name || appointment.stylist;
-  }, [appointment?.stylist, employees]);
+  const stylistName =
+    !appointment.stylist || appointment.stylist === ""
+      ? "Sin asignar"
+      : employees.find((e) => e.id === appointment.stylist)?.full_name ?? appointment.stylist;
 
   // Mapear el ID del servicio al nombre legible
-  const serviceName = useMemo(() => {
-    if (!appointment?.service || appointment.service === '') {
-      return 'Sin servicio';
-    }
-    const service = salonServices.find(s => s.service_id === appointment.service);
-    return service?.service_name || appointment.service;
-  }, [appointment?.service, salonServices]);
-
-  if (!appointment) return null;
+  const serviceName =
+    !appointment.service || appointment.service === ""
+      ? "Sin servicio"
+      : salonServices.find((s) => s.service_id === appointment.service)?.service_name ?? appointment.service;
 
   const statusLabels = {
     pending: "Pendiente",

@@ -758,7 +758,7 @@ const financialSummaryRows = useMemo<FinancialSectionItem[]>(
                   </div>
                   <div className="border-t pt-3">
                     <p className="text-xs text-muted-foreground">
-                      Nota: Los salarios se registran como gastos con categoría "salario"
+                      Nota: Los salarios se registran como gastos con categoría &quot;salario&quot;
                     </p>
                   </div>
                 </div>
@@ -766,7 +766,7 @@ const financialSummaryRows = useMemo<FinancialSectionItem[]>(
                 <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground">No hay salarios registrados</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Registra gastos con categoría "salario" para verlos aquí
+                    Registra gastos con categoría &quot;salario&quot; para verlos aquí
                   </p>
                 </div>
               )}

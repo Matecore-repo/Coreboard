@@ -59,7 +59,7 @@ export function useServices(orgId?: string, options?: { enabled?: boolean }) {
 
   useEffect(() => {
     fetchServices();
-  }, [orgId, enabled, isDemo]);
+  }, [fetchServices]);
 
   const createService = async (serviceData: Omit<Service, 'id'>) => {
     if (isDemo) {

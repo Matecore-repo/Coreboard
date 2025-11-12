@@ -16,12 +16,19 @@ export function ImageWithFallback(props: any) {
   if (didError) {
     return (
       <div
-        className={`inline-block bg-gray-100 text-center align-middle ${className ?? ''}`}
+        className={`relative inline-block bg-gray-100 text-center align-middle ${className ?? ''}`}
         style={style}
       >
-        <div className="flex items-center justify-center w-full h-full">
-          <img src={ERROR_IMG_SRC} alt="Error loading image" {...rest} data-original-url={src} />
-        </div>
+        <NextImage
+          src={ERROR_IMG_SRC}
+          alt="Error loading image"
+          fill
+          className="object-contain"
+          sizes={sizes ?? '100vw'}
+          data-original-url={src}
+          priority={priority}
+          {...rest}
+        />
       </div>
     )
   }

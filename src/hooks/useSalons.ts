@@ -127,7 +127,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
     if (enabled && orgId) {
       fetchSalons();
     }
-  }, [fetchSalons]);
+  }, [enabled, orgId, fetchSalons]);
 
   const createSalon = async (salonData: Omit<DBSalon, 'id'>) => {
     const cacheKey = `salons:${salonData.org_id}`;

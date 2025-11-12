@@ -190,7 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Solo es demo si es el usuario demo Y no es un usuario real
     return (isDemoModeFlag || isDemoUser) && !isRealUser;
-  }, [user?.id, user?.email]);
+  }, [user]);
 
   // =========================================================================
   // FUNCIÓN: fetchUserMemberships

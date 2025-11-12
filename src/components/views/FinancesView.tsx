@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { AlertCircle, Sparkles, ArrowRight, CalendarRange, Wallet, Sun, Moon, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent } from "../ui/tabs";
@@ -76,12 +76,17 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     if (typeof window === "undefined") return;
 
     const updateFromDocument = () => {
-      setTheme(document.documentElement.classList.contains("dark") ? "dark" : "light");
+      const nextTheme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+      startTransition(() => {
+        setTheme(nextTheme);
+      });
     };
 
     const stored = getStoredTheme();
     if (stored) {
-      setTheme(stored);
+      startTransition(() => {
+        setTheme(stored);
+      });
     } else {
       updateFromDocument();
     }
@@ -90,7 +95,9 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
       try {
         const detail = (event as CustomEvent<"light" | "dark">).detail;
         if (detail === "light" || detail === "dark") {
-          setTheme(detail);
+          startTransition(() => {
+            setTheme(detail);
+          });
           return;
         }
       } catch {}
@@ -147,7 +154,9 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
 
   const handleThemeSwitch = useCallback((next: "light" | "dark") => {
     applyTheme(next);
-    setTheme(next);
+    startTransition(() => {
+      setTheme(next);
+    });
     if (typeof window !== "undefined") {
       try {
         window.dispatchEvent(new CustomEvent<"light" | "dark">("theme:changed", { detail: next }));

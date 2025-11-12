@@ -104,7 +104,7 @@ export function useSalonServices(salonId?: string, options?: { enabled?: boolean
       subscribed.current = false;
     };
     */
-  }, [salonId, enabled, isDemo]);
+  }, [salonId, enabled, isDemo, fetchServices]);
 
   const assignService = async (serviceId: string, priceOverride?: number, durationOverride?: number) => {
     if (!salonId) throw new Error('Salon ID is required');

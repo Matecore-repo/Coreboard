@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, startTransition } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -35,8 +35,10 @@ export const InviteEmployeeModal: React.FC<InviteEmployeeModalProps> = ({ isOpen
   // Resetear form cuando se abre/cierra el modal
   useEffect(() => {
     if (!isOpen) {
-      setFormData({ name: '', email: '', phone: '' });
-      setRole('employee');
+      startTransition(() => {
+        setFormData({ name: '', email: '', phone: '' });
+        setRole('employee');
+      });
     }
   }, [isOpen]);
 

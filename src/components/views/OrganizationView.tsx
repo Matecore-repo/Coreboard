@@ -690,7 +690,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
       loadedOrgIdRef.current = null;
       previousOrgIdRef.current = null;
     }
-  }, [currentOrgId, isDemo, loadOrganizationData]);
+  }, [currentOrgId, currentUser?.email, currentUser?.id, isDemo, loadOrganizationData]);
 
   // ============================================================================
   // FUNCIONES DE ACCIÓN
@@ -699,6 +699,11 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
   const updateOrganization = async () => {
     if (!organization || !canEdit || !orgName.trim()) {
       toastError('El nombre es requerido');
+      return;
+    }
+
+    if (!/\p{L}/u.test(orgName)) {
+      toastError('El nombre de la organización debe incluir al menos una letra.');
       return;
     }
 
@@ -1191,7 +1196,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar organización?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará la organización "{organization.name}" y todos sus datos asociados.
+              Esta acción no se puede deshacer. Se eliminará la organización &quot;{organization.name}&quot; y todos sus datos asociados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1235,7 +1240,7 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
           <AlertDialogHeader>
             <AlertDialogTitle>¿Salir de la organización?</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Estás seguro de que deseas salir de la organización "{organization?.name}"? Esta acción no se puede deshacer. Ya no tendrás acceso a los datos de esta organización.
+              ¿Estás seguro de que deseas salir de la organización &quot;{organization?.name}&quot;? Esta acción no se puede deshacer. Ya no tendrás acceso a los datos de esta organización.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

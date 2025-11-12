@@ -310,6 +310,11 @@ export function AppointmentDialog({
       toastError('Por favor completa todos los campos requeridos correctamente');
       return;
     }
+    if (formData.clientName && !/\p{L}/u.test(formData.clientName)) {
+      toastError('El nombre del cliente debe incluir al menos una letra.');
+      return;
+    }
+
     // Si no hay salonId seleccionado o es 'all', usar el primer salón disponible
     let targetSalonId = formData.salonId;
     if (!targetSalonId || targetSalonId === 'all') {

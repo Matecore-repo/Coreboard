@@ -36,10 +36,10 @@ import { applyTheme } from "./lib/theme";
 
 // Lazy-loaded views
 const HomeView = lazy(() => {
-  const module = import("./components/views/HomeView");
+  const homeModulePromise = import("./components/views/HomeView");
   (window as any).__preloadedViews = (window as any).__preloadedViews || {};
-  (window as any).__preloadedViews.home = module;
-  return module;
+  (window as any).__preloadedViews.home = homeModulePromise;
+  return homeModulePromise;
 });
 const ClientsView = lazy(() => import("./components/sections/ClientsView"));
 const FinancesView = lazy(() => import("./components/views/FinancesView"));
@@ -379,7 +379,7 @@ useEffect(() => {
   // Sincronizar selectedAppointment cuando cambian los turnos en el store
   useEffect(() => {
     if (selectedAppointment && !isDemo) {
-      const updated = turnosStore.appointments.find(apt => apt.id === selectedAppointment.id);
+      const updated = remoteTurnos.find(apt => apt.id === selectedAppointment.id);
       if (updated) {
         const updatedAppointment = {
           id: updated.id,
@@ -403,7 +403,7 @@ useEffect(() => {
         setSelectedAppointment(updated);
       }
     }
-  }, [turnosStore.appointments, appointments, selectedAppointment?.id, isDemo]);
+  }, [isDemo, appointments, selectedAppointment, remoteTurnos]);
 
   useEffect(() => {
     // Solo mostrar onboarding si NO hay membresía aún ni org seleccionada.
@@ -469,7 +469,7 @@ useEffect(() => {
     shouldRestoreScrollRef.current = false;
   }, [selectedSalon]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     // Mostrar toast de despedida antes de cerrar sesión
     const userName = user?.email?.split('@')[0] || 'Usuario';
     toastError(`¡Hasta pronto ${userName}!`);
@@ -487,7 +487,7 @@ useEffect(() => {
         window.location.href = '/login';
       }
     }, 500);
-  };
+  }, [signOut, user?.email]);
 
   const handleSaveAppointment = useCallback(async (appointmentData: Partial<Appointment>) => {
     try {
@@ -556,7 +556,7 @@ useEffect(() => {
       console.error('Error al guardar turno:', e);
       toastError(e?.message || 'No se pudo guardar el turno');
     }
-  }, [isDemo, editingAppointment, selectedSalon, createTurno, updateTurno]);
+  }, [isDemo, editingAppointment, selectedSalon, salons, createTurno, updateTurno]);
 
   const handleEditAppointment = useCallback((appointment: Appointment) => {
     setEditingAppointment(appointment);
@@ -832,25 +832,31 @@ useEffect(() => {
     (t.status === 'pending' || t.status === 'confirmed') &&
     (!selectedSalon || selectedSalon === 'all' || t.salonId === selectedSalon)
   ).length;
-  const allNavItems = [
-    { id: "home", label: "Inicio", icon: Home },
-    { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
-    { id: "clients", label: "Clientes", icon: Users },
-    { id: "organization", label: "Organización", icon: Building2 },
-    { id: "salons", label: "Locales", icon: MapPin },
-    { id: "finances", label: "Finanzas", icon: DollarSign },
-    { id: "settings", label: "Configuración", icon: Settings },
-  ];
+  const allNavItems = useMemo(
+    () => [
+      { id: "home", label: "Inicio", icon: Home },
+      { id: "appointments", label: pendingToday > 0 ? `Turnos (${pendingToday})` : "Turnos", icon: Calendar },
+      { id: "clients", label: "Clientes", icon: Users },
+      { id: "organization", label: "Organización", icon: Building2 },
+      { id: "salons", label: "Locales", icon: MapPin },
+      { id: "finances", label: "Finanzas", icon: DollarSign },
+      { id: "settings", label: "Configuración", icon: Settings },
+    ],
+    [pendingToday],
+  );
 
-  const viewNames: Record<string, string> = {
-    home: "Inicio",
-    appointments: "Turnos",
-    clients: "Clientes",
-    organization: "Organización",
-    salons: "Locales",
-    finances: "Finanzas",
-    settings: "Configuración"
-  };
+  const viewNames = useMemo<Record<string, string>>(
+    () => ({
+      home: "Inicio",
+      appointments: "Turnos",
+      clients: "Clientes",
+      organization: "Organización",
+      salons: "Locales",
+      finances: "Finanzas",
+      settings: "Configuración",
+    }),
+    [],
+  );
 
   const navItems = useMemo(() => {
     const role = isDemo ? 'demo' : (currentRole ?? 'viewer');
@@ -870,7 +876,7 @@ useEffect(() => {
     
     // Owners ven todo
     return allNavItems;
-  }, [currentRole, isDemo]);
+  }, [currentRole, isDemo, allNavItems]);
 
   const navigateToView = useCallback((itemId: string) => {
     if (itemId === activeNavItem) return;
@@ -985,10 +991,10 @@ useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const viewParam = params.get('view');
-    if (viewParam && allNavItems.some(n => n.id === viewParam)) {
+    if (viewParam && allNavItems.some((navItem) => navItem.id === viewParam)) {
       setActiveNavItem(viewParam);
     }
-  }, []);
+  }, [allNavItems]);
 
   useEffect(() => {
     const isTypingElement = (target: EventTarget | null) => {
@@ -1237,7 +1243,7 @@ useEffect(() => {
           </PageContainer>
         );
     }
-  }, [activeNavItem, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, selectedAppointment, currentRole]);
+  }, [activeNavItem, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, searchQuery, statusFilter, dateFilter, stylistFilter, filteredAppointments, appointmentSummary, selectedAppointment, currentRole, loadingTurnos]);
 
 
   // =========================================================================

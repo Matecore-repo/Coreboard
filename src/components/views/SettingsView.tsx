@@ -210,7 +210,7 @@ export default function SettingsView() {
     () => createGeneralDefaults(user?.email),
     [user?.email],
   );
-  const integrationSettings = useMemo(createIntegrationDefaults, []);
+  const integrationSettings = useMemo(() => createIntegrationDefaults(), []);
 
   return (
     <PageContainer>

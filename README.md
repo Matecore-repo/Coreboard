@@ -61,6 +61,7 @@ Ver `docs/DEPLOY.md` para instrucciones completas de deploy.
 ## Scripts Disponibles
 
 - `npm run dev` - Desarrollo
+- `npm run lint` - Ejecuta ESLint, imprime el resultado en consola y genera `lint-report.txt` para revisar las salidas completas
 - `npm run build` - Build de producción
 - `npm start` - Servidor de producción
 - `npm run e2e` - Pruebas E2E

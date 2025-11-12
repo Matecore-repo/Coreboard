@@ -352,6 +352,14 @@ export default function AppContainer() {
     return Array.from(map.entries());
   }, [navigationActions, systemActions, viewActions]);
 
+  const handleCommandSelect = useCallback(
+    (action: CommandAction) => {
+      action.onSelect?.();
+      closeCommandPalette();
+    },
+    [closeCommandPalette],
+  );
+
   useEffect(() => {
     const isTypingElement = (target: EventTarget | null) => {
       if (!target || !(target instanceof HTMLElement)) return false;
@@ -399,7 +407,7 @@ export default function AppContainer() {
     if ((isDemoModeEnv || isDemo) && user && !session?.user?.user_metadata?.demo_seen) {
       setShowDemoWelcome(true);
     }
-  }, [isDemoModeEnv, isDemo, user, session]);
+  }, [isDemo, user, session]);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -522,14 +530,6 @@ export default function AppContainer() {
       </>
     );
   }
-
-  const handleCommandSelect = useCallback(
-    (action: CommandAction) => {
-      action.onSelect?.();
-      closeCommandPalette();
-    },
-    [closeCommandPalette],
-  );
 
   return (
     <CommandPaletteProvider value={commandPaletteValue}>

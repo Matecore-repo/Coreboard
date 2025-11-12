@@ -72,7 +72,7 @@ export function usePublicCheckout(token: string) {
   const [error, setError] = useState<string | null>(null);
 
   // Obtener token de autenticación de Supabase
-  const getAuthToken = async (): Promise<string | null> => {
+  const getAuthToken = useCallback(async (): Promise<string | null> => {
     if (!session) return null;
     try {
       const supabase = getClient();
@@ -82,7 +82,7 @@ export function usePublicCheckout(token: string) {
       console.error('Error obteniendo token de autenticación:', error);
       return null;
     }
-  };
+  }, [session]);
 
   // Cargar configuración del payment link
   const loadConfig = useCallback(async () => {
@@ -115,7 +115,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, config: false }));
     }
-  }, [token, session]);
+  }, [getAuthToken, token]);
 
   // Cargar servicios del salón
   const loadServices = useCallback(async (salonId: string) => {
@@ -147,7 +147,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, services: false }));
     }
-  }, [token, session]);
+  }, [getAuthToken, token]);
 
   // Cargar estilistas del salón
   const loadStylists = useCallback(async (salonId: string) => {
@@ -179,7 +179,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, stylists: false }));
     }
-  }, [token, session]);
+  }, [getAuthToken, token]);
 
   // Cargar disponibilidad de horarios
   const loadAvailability = useCallback(async (
@@ -219,7 +219,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, availability: false }));
     }
-  }, [token, session]);
+  }, [getAuthToken, token]);
 
   // Crear turno y redirigir a Mercado Pago
   const createAppointment = useCallback(async (): Promise<string | null> => {
@@ -278,7 +278,7 @@ export function usePublicCheckout(token: string) {
     } finally {
       setLoading(prev => ({ ...prev, creating: false }));
     }
-  }, [token, config, checkoutData, services, session]);
+  }, [getAuthToken, token, config, checkoutData, services]);
 
   // Cargar configuración al montar
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState, memo, useCallback, useEffect } from "react";
+import { useState, memo, useCallback, useEffect, startTransition } from "react";
 import { Edit2, Trash2, Eye, X, MoreVertical } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "./ui/button";
@@ -60,7 +60,10 @@ export const GenericActionBar = memo(function GenericActionBar({
   // Detect mobile screens
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
+      const isMobileViewport = window.innerWidth < 640;
+      startTransition(() => {
+        setIsMobile(isMobileViewport);
+      });
     };
     
     checkMobile();
@@ -71,7 +74,9 @@ export const GenericActionBar = memo(function GenericActionBar({
   // Reset details when action bar closes
   useEffect(() => {
     if (!isOpen) {
-      setShowDetails(false);
+      startTransition(() => {
+        setShowDetails(false);
+      });
     }
   }, [isOpen]);
 
@@ -335,7 +340,7 @@ export const GenericActionBar = memo(function GenericActionBar({
                     className="border-t border-border overflow-hidden"
                     role="region"
                     aria-label="Detalles del elemento"
-                    aria-expanded={showDetails}
+                    aria-hidden={!showDetails}
                   >
                     <div className="px-4 py-3 space-y-2.5 bg-muted/10">
                       {detailFields.map((field, index) => (

@@ -1,4 +1,4 @@
-import React, { useState, memo, useEffect } from "react";
+import React, { useState, memo, useEffect, startTransition } from "react";
 import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -20,13 +20,15 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
 
   // When focusDate changes, update currentDate to that month
   useEffect(() => {
-    if (focusDate) {
-      const f = new Date(focusDate);
-      if (f.getMonth() !== currentDate.getMonth() || f.getFullYear() !== currentDate.getFullYear()) {
+    if (!focusDate) return;
+    const f = new Date(focusDate);
+    if (Number.isNaN(f.getTime())) return;
+    if (f.getMonth() !== currentDate.getMonth() || f.getFullYear() !== currentDate.getFullYear()) {
+      startTransition(() => {
         setCurrentDate(f);
-      }
+      });
     }
-  }, [focusDate]);
+  }, [focusDate, currentDate]);
 
   const daysInMonth = new Date(
     currentDate.getFullYear(),

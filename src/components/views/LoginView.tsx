@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, startTransition } from "react";
 import { Lock, Mail, CalendarCheck, BellRing, BarChart3 } from "lucide-react";
 import { Button } from "../ui/button";
 import { toastSuccess, toastError } from "../../lib/toast";
@@ -55,7 +55,10 @@ function LoginView() {
     if (typeof window === "undefined") return;
 
     const updateFromDocument = () => {
-      setTheme(document.documentElement.classList.contains("dark") ? "dark" : "light");
+      const nextTheme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+      startTransition(() => {
+        setTheme(nextTheme);
+      });
     };
 
     updateFromDocument();
@@ -64,7 +67,9 @@ function LoginView() {
       try {
         const detail = (event as CustomEvent<"light" | "dark">).detail;
         if (detail === "light" || detail === "dark") {
-          setTheme(detail);
+          startTransition(() => {
+            setTheme(detail);
+          });
           return;
         }
       } catch {}
@@ -98,14 +103,18 @@ function LoginView() {
   // Si el usuario ya está autenticado, redirigir al dashboard
   useEffect(() => {
     if (user && !isLoggingIn) {
-      setIsLoggingIn(false);
+      startTransition(() => {
+        setIsLoggingIn(false);
+      });
       router.push('/dashboard');
     }
   }, [user, router, isLoggingIn]);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+      startTransition(() => {
+        setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+      });
     }, 9000);
 
     return () => clearInterval(timer);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, startTransition } from 'react';
 import { Button } from '../src/components/ui/button';
 import { Card } from '../src/components/ui/card';
 import { CheckCircle2, XCircle, AlertCircle, Info } from 'lucide-react';
@@ -15,7 +15,7 @@ export default function TestPage() {
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState({ total: 0, passed: 0, failed: 0 });
 
-  const runTests = async () => {
+  const runTests = useCallback(async () => {
     setRunning(true);
     setResults([]);
     const testResults: TestResult[] = [];
@@ -218,12 +218,14 @@ export default function TestPage() {
     setResults(testResults);
     setSummary({ total: testResults.length, passed, failed });
     setRunning(false);
-  };
+  }, []);
 
   useEffect(() => {
     // Ejecutar tests automáticamente al cargar
-    runTests();
-  }, []);
+    startTransition(() => {
+      void runTests();
+    });
+  }, [runTests]);
 
   const percentage = summary.total > 0 ? Math.round((summary.passed / summary.total) * 100) : 0;
   const allPassed = summary.failed === 0;

@@ -5,7 +5,7 @@
  * Proporciona una interfaz limpia para trabajar con turnos sin exponer detalles internos.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { turnosStore, type Turno, type AppointmentStatus, type TurnosFilters, subscribeTurnosStore } from '../stores/turnosStore';
 import { useAppointments } from './useAppointments';
 import { useEmployees } from './useEmployees';
@@ -100,9 +100,7 @@ export function useTurnos(options: UseTurnosOptions = {}): UseTurnosReturn {
   }, []);
   
   // Turnos filtrados según filtros actuales
-  const filteredTurnos = useMemo(() => {
-    return turnosStore.getFiltered();
-  }, [storeTurnos, storeFilters]);
+  const filteredTurnos = turnosStore.getFiltered();
   
   // Acciones
   const createTurno = useCallback(async (turno: Partial<Turno>): Promise<Turno> => {

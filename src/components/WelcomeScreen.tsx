@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, startTransition } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "next-themes";
 
@@ -17,7 +17,9 @@ export function WelcomeScreen({ onComplete, isGoodbye = false }: WelcomeScreenPr
   useEffect(() => {
     if (isGoodbye) {
       // Para despedida, mostrar inmediatamente
-      setShowContent(true);
+      startTransition(() => {
+        setShowContent(true);
+      });
       const timer = setTimeout(() => {
         onComplete();
       }, 2500);
@@ -32,10 +34,14 @@ export function WelcomeScreen({ onComplete, isGoodbye = false }: WelcomeScreenPr
         day: 'numeric'
       };
       const formattedDate = today.toLocaleDateString('es-AR', options);
-      setDateText(formattedDate);
+      startTransition(() => {
+        setDateText(formattedDate);
+      });
 
       const timer = setTimeout(() => {
-        setShowContent(true);
+        startTransition(() => {
+          setShowContent(true);
+        });
       }, 400);
 
       const autoCompleteTimer = setTimeout(() => {

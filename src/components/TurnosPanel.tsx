@@ -17,10 +17,7 @@ export function TurnosPanel({ data, variant = "all" }: TurnosPanelProps) {
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
 
   // Encontrar el empleado actual por user_id
-  const currentEmployee = useMemo(() => {
-    if (!user?.id) return null;
-    return employees.find(emp => emp.user_id === user.id);
-  }, [employees, user?.id]);
+  const currentEmployee = user?.id ? employees.find((emp) => emp.user_id === user.id) ?? null : null;
 
   // Calcular comisiones del día de hoy
   // Owner/Admin: ver todas las comisiones de todos los empleados

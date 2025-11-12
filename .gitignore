@@ -17,4 +17,6 @@ yarn-error.log*
 .pnp.*
 coverage/
 
+lint-report.txt
+
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, startTransition } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useClients } from '../../hooks/useClients';
 import { Card, CardContent } from '../ui/card';
@@ -46,14 +46,18 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
   // Mostrar loading pero con timeout de 5 segundos
   useEffect(() => {
     if (hooksLoading) {
-      setDisplayLoading(true);
+      startTransition(() => {
+        setDisplayLoading(true);
+      });
       if (!loadToastRef.current) {
         loadToastRef.current = toastLoading('Cargando clientes...');
       }
       loadTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
           console.warn('Clients loading timeout');
-          setDisplayLoading(false);
+          startTransition(() => {
+            setDisplayLoading(false);
+          });
           if (loadToastRef.current) {
             toastDismiss(loadToastRef.current);
             loadToastRef.current = null;
@@ -62,7 +66,9 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
       }, 5000);
     } else {
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-      setDisplayLoading(false);
+      startTransition(() => {
+        setDisplayLoading(false);
+      });
       if (loadToastRef.current) {
         if (!clientsError) {
           toastSuccess('Clientes cargados correctamente');
@@ -93,6 +99,11 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
     try {
       if (!formData.full_name.trim()) {
         toastError('El nombre del cliente es requerido');
+        return;
+      }
+
+      if (!/\p{L}/u.test(formData.full_name)) {
+        toastError('El nombre del cliente debe incluir al menos una letra.');
         return;
       }
 
@@ -309,7 +320,9 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
         />
       ) : filteredClients.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          <p className="text-sm">No se encontraron clientes que coincidan con "{searchQuery}"</p>
+          <p className="text-sm">
+            No se encontraron clientes que coincidan con &quot;{searchQuery}&quot;
+          </p>
         </div>
       ) : (
         <div className="space-y-3" role="list" aria-label={`Lista de ${filteredClients.length} clientes`}>
