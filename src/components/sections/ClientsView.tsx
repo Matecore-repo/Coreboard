@@ -8,7 +8,7 @@ import { Label } from '../ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { EmptyStateClients } from '../empty-states/EmptyStateClients';
-import { toastSuccess, toastError, toastInfo } from '../../lib/toast';
+import { toastSuccess, toastError, toastInfo, toastLoading, toastDismiss, toastPromise } from '../../lib/toast';
 import { Trash2, Edit3, Plus, User, Phone, Mail, Search, Sparkles } from 'lucide-react';
 import { EmptyState } from '../ui/empty-state';
 import { Building2 } from 'lucide-react';
@@ -34,6 +34,7 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
   const [displayLoading, setDisplayLoading] = useState(false);
   const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
+  const loadToastRef = useRef<string | number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -46,27 +47,45 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
   useEffect(() => {
     if (hooksLoading) {
       setDisplayLoading(true);
+      if (!loadToastRef.current) {
+        loadToastRef.current = toastLoading('Cargando clientes...');
+      }
       loadTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
           console.warn('Clients loading timeout');
           setDisplayLoading(false);
+          if (loadToastRef.current) {
+            toastDismiss(loadToastRef.current);
+            loadToastRef.current = null;
+          }
         }
       }, 5000);
     } else {
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
       setDisplayLoading(false);
+      if (loadToastRef.current) {
+        if (!clientsError) {
+          toastSuccess('Clientes cargados correctamente');
+        }
+        toastDismiss(loadToastRef.current);
+        loadToastRef.current = null;
+      }
     }
 
     return () => {
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
     };
-  }, [hooksLoading]);
+  }, [hooksLoading, clientsError]);
 
   // Mostrar error si existe
   useEffect(() => {
     if (clientsError) {
       console.error('Error loading clients:', clientsError);
       toastError('Error al cargar clientes');
+      if (loadToastRef.current) {
+        toastDismiss(loadToastRef.current);
+        loadToastRef.current = null;
+      }
     }
   }, [clientsError]);
 
@@ -83,14 +102,26 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
       }
 
       if (editingClient) {
-        await updateClient(editingClient.id, formData);
-        toastSuccess('Cliente actualizado correctamente');
+        await toastPromise(
+          updateClient(editingClient.id, formData),
+          {
+            loading: 'Actualizando cliente...',
+            success: 'Cliente actualizado correctamente',
+            error: 'Error al guardar el cliente',
+          }
+        );
       } else {
-        await createClient({
-          ...formData,
-          org_id: currentOrgId,
-        } as any);
-        toastSuccess('Cliente creado correctamente');
+        await toastPromise(
+          createClient({
+            ...formData,
+            org_id: currentOrgId,
+          } as any),
+          {
+            loading: 'Creando cliente...',
+            success: 'Cliente creado correctamente',
+            error: 'Error al guardar el cliente',
+          }
+        );
       }
 
       setDialogOpen(false);
@@ -98,7 +129,6 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
       setFormData({ full_name: '', phone: '', email: '' });
     } catch (error) {
       console.error('Error saving client:', error);
-      toastError('Error al guardar el cliente');
     }
   };
 
@@ -116,11 +146,16 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
     if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return;
 
     try {
-      await deleteClient(id);
-      toastSuccess('Cliente eliminado correctamente');
+      await toastPromise(
+        deleteClient(id),
+        {
+          loading: 'Eliminando cliente...',
+          success: 'Cliente eliminado correctamente',
+          error: 'Error al eliminar el cliente',
+        }
+      );
     } catch (error) {
       console.error('Error deleting client:', error);
-      toastError('Error al eliminar el cliente');
     }
   };
 

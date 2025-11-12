@@ -8,12 +8,6 @@ import { toast } from "sonner";
 export function toastSuccess(message: string, duration: number = 4000) {
   return toast.success(message, {
     duration,
-    className: "toast-success",
-    style: {
-      background: "var(--toast-success-bg)",
-      color: "var(--toast-success-text)",
-      border: "1px solid var(--toast-success-border)",
-    },
   });
 }
 
@@ -25,12 +19,6 @@ export function toastSuccess(message: string, duration: number = 4000) {
 export function toastError(message: string, duration: number = 4000) {
   return toast.error(message, {
     duration,
-    className: "toast-error",
-    style: {
-      background: "var(--toast-error-bg)",
-      color: "var(--toast-error-text)",
-      border: "1px solid var(--toast-error-border)",
-    },
   });
 }
 
@@ -42,12 +30,6 @@ export function toastError(message: string, duration: number = 4000) {
 export function toastWarning(message: string, duration: number = 4000) {
   return toast.warning(message, {
     duration,
-    className: "toast-warning",
-    style: {
-      background: "var(--toast-warning-bg)",
-      color: "var(--toast-warning-text)",
-      border: "1px solid var(--toast-warning-border)",
-    },
   });
 }
 
@@ -59,7 +41,26 @@ export function toastWarning(message: string, duration: number = 4000) {
 export function toastInfo(message: string, duration: number = 4000) {
   return toast.info(message, {
     duration,
-    className: "toast-info",
   });
+}
+
+export function toastLoading(message: string) {
+  return toast.loading(message);
+}
+
+export function toastDismiss(toastId?: number | string) {
+  return toast.dismiss(toastId);
+}
+
+export function toastPromise<T>(
+  promise: Promise<T>,
+  messages: {
+    loading: string;
+    success: string | ((data: T) => string);
+    error: string | ((error: unknown) => string);
+  },
+  options?: Parameters<typeof toast.promise>[2]
+) {
+  return toast.promise(promise, messages, options);
 }
 

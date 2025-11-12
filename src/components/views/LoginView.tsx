@@ -89,11 +89,10 @@ function LoginView() {
     ? "bg-gradient-to-t from-black/85 via-black/60 to-transparent"
     : "bg-gradient-to-t from-white via-white/80 to-transparent";
 
-  const copyPanelClass = isDarkTheme
-    ? "bg-black/70 shadow-[0_18px_55px_rgba(0,0,0,0.55)] text-white"
-    : "bg-white/85 shadow-[0_18px_45px_rgba(0,0,0,0.15)] text-slate-900";
+  const copyPanelClass =
+    "bg-black/70 shadow-[0_18px_55px_rgba(0,0,0,0.55)] text-white";
 
-  const copyBodyClass = isDarkTheme ? "text-white/85" : "text-slate-700";
+  const copyBodyClass = "text-white/85";
 
 
   // Si el usuario ya está autenticado, redirigir al dashboard
@@ -231,7 +230,7 @@ function LoginView() {
                 className="relative z-10 max-w-2xl"
               >
                 <div className={`mt-auto rounded-3xl px-10 py-9 sm:px-11 sm:py-10 space-y-4 ${copyPanelClass}`}>
-                  <h2 className={`text-3xl sm:text-4xl font-semibold tracking-tight leading-tight ${isDarkTheme ? "text-white" : "text-slate-900"}`}>
+                  <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight leading-tight text-white">
                     {currentSlide.headline}
                   </h2>
                   <p className={`text-base sm:text-lg leading-relaxed ${copyBodyClass}`}>
@@ -361,7 +360,7 @@ function LoginView() {
                     setConfirmPassword("");
                   }}
                 >
-                  Iniciar sesión
+                  Acceder
                 </button>
                 <button 
                   type="button" 

@@ -3543,16 +3543,6 @@
   --sidebar-border: oklch(.922 0 0);
   --sidebar-ring: oklch(.708 0 0);
   
-  /* Toast colors - Light mode (colores suaves) */
-  --toast-success-bg: #f0fdf4;
-  --toast-success-text: #15803d;
-  --toast-success-border: #bbf7d0;
-  --toast-error-bg: #fef2f2;
-  --toast-error-text: #dc2626;
-  --toast-error-border: #fecaca;
-  --toast-warning-bg: #fffbeb;
-  --toast-warning-text: #d97706;
-  --toast-warning-border: #fde68a;
 }
 
 .dark {
@@ -3591,16 +3581,6 @@
   --sidebar-border: oklch(.269 0 0);
   --sidebar-ring: oklch(.439 0 0);
   
-  /* Toast colors - Dark mode */
-  --toast-success-bg: oklch(.25 .08 150);
-  --toast-success-text: oklch(.85 .12 150);
-  --toast-success-border: oklch(.35 .10 150);
-  --toast-error-bg: oklch(.25 .08 25);
-  --toast-error-text: oklch(.85 .15 25);
-  --toast-error-border: oklch(.35 .10 25);
-  --toast-warning-bg: oklch(.25 .08 85);
-  --toast-warning-text: oklch(.85 .15 85);
-  --toast-warning-border: oklch(.35 .10 85);
 }
 
 html {
@@ -3941,24 +3921,3 @@ html {
   }
 }
 
-/* Toast styles */
-.toast-success,
-[data-sonner-toast][data-type="success"] {
-  background: var(--toast-success-bg) !important;
-  color: var(--toast-success-text) !important;
-  border-color: var(--toast-success-border) !important;
-}
-
-.toast-error,
-[data-sonner-toast][data-type="error"] {
-  background: var(--toast-error-bg) !important;
-  color: var(--toast-error-text) !important;
-  border-color: var(--toast-error-border) !important;
-}
-
-.toast-warning,
-[data-sonner-toast][data-type="warning"] {
-  background: var(--toast-warning-bg) !important;
-  color: var(--toast-warning-text) !important;
-  border-color: var(--toast-warning-border) !important;
-}

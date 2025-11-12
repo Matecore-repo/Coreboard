@@ -148,7 +148,7 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
           const cardClasses = [
             "relative h-full transition-all duration-200 hover:border-primary hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
             isSelected ? "border-primary shadow-lg" : "",
-            isAllOption ? "bg-black text-white dark:bg-white dark:text-black" : "",
+            isAllOption ? "!bg-black !text-white dark:!bg-white dark:!text-black" : "",
           ]
             .filter(Boolean)
             .join(" ");
