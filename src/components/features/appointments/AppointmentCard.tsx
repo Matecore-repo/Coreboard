@@ -6,6 +6,8 @@ export interface Appointment {
   id: string;
   clientName: string;
   service: string;
+  serviceName?: string;
+  servicePrice?: number | null;
   date: string;
   time: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
@@ -36,7 +38,7 @@ export const AppointmentCard = memo(function AppointmentCard({ appointment, onCl
       }`}
       role="button"
       tabIndex={0}
-      aria-label={`Turno de ${appointment.clientName} para ${appointment.service} el ${appointment.date} a las ${appointment.time}`}
+      aria-label={`Turno de ${appointment.clientName} para ${(appointment.serviceName || appointment.service || "Servicio sin definir")} el ${appointment.date} a las ${appointment.time}`}
       aria-pressed={isSelected}
       data-appointment-id={appointment.id}
       data-appointment-status={appointment.status}
@@ -57,8 +59,8 @@ export const AppointmentCard = memo(function AppointmentCard({ appointment, onCl
             <p className="font-medium truncate" aria-label={`Cliente: ${appointment.clientName}`}>
               {appointment.clientName}
             </p>
-            <p className="text-muted-foreground truncate" aria-label={`Servicio: ${appointment.service}`}>
-              {appointment.service}
+            <p className="text-muted-foreground truncate" aria-label={`Servicio: ${appointment.serviceName || appointment.service || "Servicio sin definir"}`}>
+              {appointment.serviceName || appointment.service || "Servicio sin definir"}
             </p>
           </div>
         </div>

@@ -51,6 +51,7 @@ export function TurnosTable({
   const rows = useMemo(() => {
     return appointments.map((appointment) => ({
       ...appointment,
+      serviceLabel: appointment.serviceName || appointment.service || "—",
       statusLabel: statusLabelMap[appointment.status] ?? appointment.status,
       statusVariant: statusVariantMap[appointment.status] ?? "outline",
     }));
@@ -120,7 +121,7 @@ export function TurnosTable({
           }}
         >
           <TableCell className="font-medium">{row.clientName}</TableCell>
-          <TableCell>{row.service || "—"}</TableCell>
+          <TableCell>{row.serviceLabel}</TableCell>
           <TableCell>{row.date}</TableCell>
           <TableCell>{row.time}</TableCell>
           <TableCell>{row.stylist || "Sin asignar"}</TableCell>

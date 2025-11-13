@@ -443,7 +443,6 @@ useEffect(() => {
         localStorage.setItem('selectedSalon', salonId);
       } catch {}
     }
-    toastSuccess(`${salonName} seleccionado`);
   }, []);
 
   useLayoutEffect(() => {
@@ -516,6 +515,8 @@ useEffect(() => {
             id: Date.now().toString(),
             clientName: appointmentData.clientName || "",
             service: appointmentData.service || "",
+            serviceName: appointmentData.serviceName,
+            servicePrice: appointmentData.servicePrice,
             date: appointmentData.date || "",
             time: appointmentData.time || "",
             status: appointmentData.status || "pending",
@@ -1001,6 +1002,24 @@ useEffect(() => {
           </Suspense>
         );
       }
+      case "appointments":
+        return (
+          <Suspense fallback={<LoadingView />}>
+            <TurnosView
+              isDemo={isDemo}
+              salons={effectiveSalons}
+              selectedSalon={selectedSalon}
+              onSelectSalon={handleSelectSalon}
+              onSelectAppointment={handleSelectAppointment}
+              selectedAppointmentId={selectedAppointment?.id}
+              demoAppointments={appointments}
+              remoteTurnos={remoteTurnos}
+              isLoading={isDemo ? false : loadingTurnos}
+              onSyncRemoteFilters={setTurnosFilters}
+              onSyncSelectedSalon={setTurnosSelectedSalon}
+            />
+          </Suspense>
+        );
       case "clients":
         return (
           <Suspense fallback={<LoadingView />}>
@@ -1057,22 +1076,44 @@ useEffect(() => {
         );
       default:
         return (
-          <TurnosView
-            isDemo={isDemo}
-            salons={effectiveSalons}
-            selectedSalon={selectedSalon}
-            onSelectSalon={handleSelectSalon}
-            onSelectAppointment={handleSelectAppointment}
-            selectedAppointmentId={selectedAppointment?.id}
-            demoAppointments={appointments}
-            remoteTurnos={remoteTurnos}
-            isLoading={isDemo ? false : loadingTurnos}
-            onSyncRemoteFilters={setTurnosFilters}
-            onSyncSelectedSalon={setTurnosSelectedSalon}
-          />
+          <Suspense fallback={<LoadingView />}>
+            <HomeView
+              selectedSalon={selectedSalon}
+              salons={effectiveSalons}
+              onSelectSalon={handleSelectSalon}
+              onAppointmentClick={handleSelectAppointment}
+              onAddAppointment={() => {
+                setEditingAppointment(null);
+                setDialogOpen(true);
+              }}
+              orgName={user?.memberships?.[0]?.org_id ? 'tu local' : undefined}
+              isNewUser={user?.isNewUser}
+            />
+          </Suspense>
         );
     }
-  }, [activeNavItem, effectiveSalons, selectedSalon, selectedSalonName, handleSelectSalon, handleSelectAppointment, handleAddSalon, handleEditSalon, handleDeleteSalon, isDemo, user, appointments, remoteTurnos, selectedAppointment, currentRole, loadingTurnos, setTurnosFilters, setTurnosSelectedSalon]);
+  }, [
+    activeNavItem,
+    effectiveSalons,
+    selectedSalon,
+    selectedSalonName,
+    handleSelectSalon,
+    handleSelectAppointment,
+    handleAddSalon,
+    handleEditSalon,
+    handleDeleteSalon,
+    isDemo,
+    user,
+    appointments,
+    remoteTurnos,
+    selectedAppointment,
+    currentRole,
+    loadingTurnos,
+    setTurnosFilters,
+    setTurnosSelectedSalon,
+    setDialogOpen,
+    setEditingAppointment,
+  ]);
 
 
   // =========================================================================
@@ -1224,82 +1265,83 @@ useEffect(() => {
           }
         }}
         onDelete={handleDeleteAppointment}
-        onRestore={(id: string) => {
+        onRestore={async (id: string) => {
           if (isDemo) {
-            setAppointments(prev => {
-              const updated = prev.map(apt => apt.id === id ? { ...apt, status: 'pending' as const } : apt);
-              const updatedAppointment = updated.find(apt => apt.id === id);
+            setAppointments((prev) => {
+              const updated = prev.map((apt) =>
+                apt.id === id ? { ...apt, status: "pending" as const } : apt,
+              );
+              const updatedAppointment = updated.find((apt) => apt.id === id);
               if (updatedAppointment && selectedAppointment?.id === id) {
                 setSelectedAppointment(updatedAppointment);
               }
               return updated;
             });
-            toastSuccess('Turno restaurado a pendiente');
-          } else {
-            (async () => { 
-              try { 
-                // Restaurar a estado pendiente (más común que confirmado)
-                const updated = await updateTurno(id, { status: 'pending' as const } as any);
-                if (updated) {
-                  setSelectedAppointment(updated as any);
-                  turnosStore.updateStatus(id, 'pending');
-                  toastSuccess('Turno restaurado a pendiente'); 
-                } else {
-                  toastError('No se pudo restaurar el turno');
-                }
-              } catch (e: any) {
-                console.error('Error restoring appointment:', e);
-                const errorMessage = e?.message || 'No se pudo restaurar el turno';
-                toastError(errorMessage); 
-              } 
-            })();
+            return;
           }
+
+          // Restaurar a estado pendiente (más común que confirmado)
+          const updated = await updateTurno(id, { status: "pending" as const } as any);
+
+          if (!updated) {
+            throw new Error("No se pudo restaurar el turno");
+          }
+
+          setSelectedAppointment(updated as any);
+          turnosStore.updateStatus(id, "pending");
         }}
-        onSetStatus={(status) => {
-          if (!selectedAppointment) return;
-          const statusLabels = {
-            pending: 'Pendiente',
-            confirmed: 'Confirmado',
-            completed: 'Completado',
-            cancelled: 'Cancelado',
-          };
-          const statusLabel = statusLabels[status] || status;
-          
+        onSetStatus={async (status) => {
+          if (!selectedAppointment) {
+            throw new Error("No hay un turno seleccionado");
+          }
+
           if (isDemo) {
-            setAppointments(prev => {
-              const updated = prev.map(apt => apt.id === selectedAppointment.id ? { ...apt, status } : apt);
-              const updatedAppointment = updated.find(apt => apt.id === selectedAppointment.id);
+            setAppointments((prev) => {
+              const updated = prev.map((apt) =>
+                apt.id === selectedAppointment.id ? { ...apt, status } : apt,
+              );
+              const updatedAppointment = updated.find(
+                (apt) => apt.id === selectedAppointment.id,
+              );
               if (updatedAppointment) {
                 setSelectedAppointment(updatedAppointment);
               }
               return updated;
             });
-            (async () => { try { (await import('./stores/appointments')).appointmentsStore.updateStatus(selectedAppointment.id, status as any); } catch {} })();
-            toastSuccess(`Estado actualizado a ${statusLabel}`);
-          } else {
-            (async () => { 
-              try { 
-                // Usar updateTurno que ya incluye todas las validaciones
-                const updated = await updateTurno(selectedAppointment.id, { status } as any);
-                if (updated) {
-                  setSelectedAppointment(updated as any);
-                  turnosStore.updateStatus(selectedAppointment.id, status as any);
-                  // Disparar evento si se completó
-                  if (status === 'completed') {
-                    window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: selectedAppointment.id } }));
-                  }
-                  try { (await import('./stores/appointments')).appointmentsStore.updateStatus(selectedAppointment.id, status as any); } catch {}
-                  toastSuccess(`Estado actualizado a ${statusLabel}`); 
-                } else {
-                  toastError('No se pudo actualizar el estado');
-                }
-              } catch (e: any) {
-                console.error('Error updating status:', e);
-                const errorMessage = e?.message || 'No se pudo actualizar el estado';
-                toastError(errorMessage); 
-              } 
-            })();
+
+            try {
+              (await import("./stores/appointments")).appointmentsStore.updateStatus(
+                selectedAppointment.id,
+                status as any,
+              );
+            } catch {}
+
+            return;
           }
+
+          const updated = await updateTurno(selectedAppointment.id, { status } as any);
+
+          if (!updated) {
+            throw new Error("No se pudo actualizar el estado");
+          }
+
+          setSelectedAppointment(updated as any);
+          turnosStore.updateStatus(selectedAppointment.id, status as any);
+
+          if (status === "completed") {
+            window.dispatchEvent(
+              new CustomEvent("appointment:completed", {
+                detail: { appointmentId: selectedAppointment.id },
+              }),
+            );
+          }
+
+          try {
+            (await import("./stores/appointments")).appointmentsStore.updateStatus(
+              selectedAppointment.id,
+              status as any,
+            );
+          } catch {}
         }}
       />
       )}

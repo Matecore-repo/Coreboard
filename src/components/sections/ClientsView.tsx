@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, startTransition } from 'react';
+import React, { useState, useEffect, useRef, useMemo, startTransition, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useClients } from '../../hooks/useClients';
 import { Card, CardContent } from '../ui/card';
@@ -8,7 +8,7 @@ import { Label } from '../ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { EmptyStateClients } from '../empty-states/EmptyStateClients';
-import { toastSuccess, toastError, toastInfo, toastLoading, toastDismiss, toastPromise } from '../../lib/toast';
+import { toastSuccess, toastError, toastInfo, toastLoading, toastDismiss } from '../../lib/toast';
 import { Trash2, Edit3, Plus, User, Phone, Mail, Search, Sparkles } from 'lucide-react';
 import { EmptyState } from '../ui/empty-state';
 import { Building2 } from 'lucide-react';
@@ -95,6 +95,38 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
     }
   }, [clientsError]);
 
+  const runClientMutation = useCallback(
+    async <T>(
+      operation: () => Promise<T>,
+      messages: {
+        loading: string;
+        success: string | ((result: T) => string);
+        error?: string | ((error: any) => string);
+      },
+    ) => {
+      const toastId = toastLoading(messages.loading);
+      try {
+        const result = await operation();
+        const successMessage =
+          typeof messages.success === 'function' ? messages.success(result) : messages.success;
+        toastSuccess(successMessage);
+        return result;
+      } catch (error: any) {
+        const errorMessage =
+          typeof messages.error === 'function'
+            ? messages.error(error)
+            : messages.error || error?.message || 'Error inesperado';
+        toastError(errorMessage);
+        throw error;
+      } finally {
+        if (toastId) {
+          toastDismiss(toastId);
+        }
+      }
+    },
+    [],
+  );
+
   const handleSave = async () => {
     try {
       if (!formData.full_name.trim()) {
@@ -112,26 +144,28 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
         return;
       }
 
+      const trimmedName = formData.full_name.trim();
       if (editingClient) {
-        await toastPromise(
-          updateClient(editingClient.id, formData),
+        await runClientMutation(
+          () => updateClient(editingClient.id, formData),
           {
-            loading: 'Actualizando cliente...',
-            success: 'Cliente actualizado correctamente',
-            error: 'Error al guardar el cliente',
-          }
+            loading: `Actualizando ${trimmedName}...`,
+            success: () => `Cliente ${trimmedName} actualizado correctamente`,
+            error: (error) => error?.message || 'Error al actualizar el cliente',
+          },
         );
       } else {
-        await toastPromise(
-          createClient({
-            ...formData,
-            org_id: currentOrgId,
-          } as any),
+        await runClientMutation(
+          () =>
+            createClient({
+              ...formData,
+              org_id: currentOrgId,
+            } as any),
           {
-            loading: 'Creando cliente...',
-            success: 'Cliente creado correctamente',
-            error: 'Error al guardar el cliente',
-          }
+            loading: `Creando ${trimmedName}...`,
+            success: () => `Cliente ${trimmedName} creado correctamente`,
+            error: (error) => error?.message || 'Error al crear el cliente',
+          },
         );
       }
 
@@ -157,13 +191,15 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
     if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return;
 
     try {
-      await toastPromise(
-        deleteClient(id),
+      const targetClient = clients.find(client => client.id === id);
+      const targetName = targetClient?.full_name || 'cliente';
+      await runClientMutation(
+        () => deleteClient(id),
         {
-          loading: 'Eliminando cliente...',
-          success: 'Cliente eliminado correctamente',
-          error: 'Error al eliminar el cliente',
-        }
+          loading: `Eliminando ${targetName}...`,
+          success: () => `Cliente ${targetName} eliminado correctamente`,
+          error: (error) => error?.message || `Error al eliminar ${targetName}`,
+        },
       );
     } catch (error) {
       console.error('Error deleting client:', error);

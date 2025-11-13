@@ -16,6 +16,8 @@ export interface Turno {
   id: string;
   clientName: string;
   service: string;
+  serviceName?: string;
+  servicePrice?: number | null;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   status: AppointmentStatus;
@@ -352,7 +354,64 @@ export const turnosStore: TurnosStore = {
   
   // Acciones
   setAll(list) {
-    state.appointments = list;
+    const statusPriority = (status: AppointmentStatus) => {
+      switch (status) {
+        case 'confirmed':
+          return 3;
+        case 'completed':
+          return 2;
+        case 'pending':
+          return 1;
+        case 'cancelled':
+        default:
+          return 0;
+      }
+    };
+
+    const byComposite = new Map<string, Turno>();
+
+    for (const turno of list) {
+      if (!turno) continue;
+
+      const compositeKey = [
+        turno.salonId || 'all',
+        turno.date,
+        turno.time,
+        (turno.clientName || '').trim().toLowerCase(),
+      ].join('|');
+
+      const existing = byComposite.get(compositeKey);
+
+      if (!existing) {
+        byComposite.set(compositeKey, turno);
+        continue;
+      }
+
+      if (!existing.id && turno.id) {
+        byComposite.set(compositeKey, turno);
+        continue;
+      }
+
+      if (existing.id && turno.id && existing.id === turno.id) {
+        byComposite.set(compositeKey, turno);
+        continue;
+      }
+
+      if (statusPriority(turno.status) > statusPriority(existing.status)) {
+        byComposite.set(compositeKey, turno);
+        continue;
+      }
+
+      if (
+        statusPriority(turno.status) === statusPriority(existing.status) &&
+        turno.id &&
+        !existing.id
+      ) {
+        byComposite.set(compositeKey, turno);
+      }
+    }
+
+    state.appointments = Array.from(byComposite.values());
     state.lastSyncedAt = Date.now();
     notify();
   },

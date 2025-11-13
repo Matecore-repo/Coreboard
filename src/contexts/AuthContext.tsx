@@ -274,11 +274,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentOrgId = savedOrgId || primaryOrg?.org_id;
 
       // Construir el objeto de usuario con toda la información
+      let resolvedOrgId = currentOrgId;
+      const membershipsByOrg = new Map((memberships || []).map((m: Membership) => [m.org_id, m]));
+
+      // Intentar recuperar org guardada en localStorage si existe y es válida
+      if (!resolvedOrgId) {
+        const storedOrg = safeLocalStorage.getItem(STORAGE_KEYS.currentOrg);
+        if (storedOrg && membershipsByOrg.has(storedOrg)) {
+          resolvedOrgId = storedOrg;
+        }
+      }
+
+      // Si aún no hay org resuelta, usar la primaria o la primera
+      if (!resolvedOrgId && memberships && memberships.length > 0) {
+        resolvedOrgId = primaryOrg?.org_id || memberships[0].org_id;
+      }
+
+      // Sincronizar perfil si resolvimos una org distinta a la almacenada
+      const shouldPersistOrg =
+        resolvedOrgId &&
+        resolvedOrgId !== savedOrgId &&
+        resolvedOrgId !== safeLocalStorage.getItem(STORAGE_KEYS.currentOrg);
+
+      if (shouldPersistOrg) {
+        safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, resolvedOrgId);
+        safeLocalStorage.removeItem(STORAGE_KEYS.selectedSalon);
+
+        try {
+          await supabase
+            .from('profiles')
+            .update({
+              raw_app_meta_data: {
+                ...(profile?.raw_app_meta_data ?? {}),
+                current_org_id: resolvedOrgId,
+              },
+            })
+            .eq('id', userId);
+        } catch (updateError) {
+          console.warn('No se pudo persistir current_org_id en profile:', updateError);
+        }
+      }
+
       const userData: User = {
         id: authUser.id,                  // ID del usuario
         email: authUser.email,            // Email del usuario
         memberships: memberships || [],   // Lista de orgs a las que pertenece
-        current_org_id: currentOrgId,     // Org actualmente seleccionada
+        current_org_id: resolvedOrgId ?? undefined,     // Org actualmente seleccionada
         isNewUser,                        // Flag de usuario nuevo
       };
 
@@ -286,14 +327,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(userData);
       
       // Guardar la org actual en localStorage para persistencia
-      if (currentOrgId) {
-        safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, currentOrgId);
+      if (resolvedOrgId) {
+        safeLocalStorage.setItem(STORAGE_KEYS.currentOrg, resolvedOrgId);
       } else {
         safeLocalStorage.removeItem(STORAGE_KEYS.currentOrg);
       }
       
       // Retornar la org actual
-      return currentOrgId || null;
+      return resolvedOrgId || null;
     } catch (e) {
       // Si hay error general
       console.error('Error al construir contexto de usuario:', e);

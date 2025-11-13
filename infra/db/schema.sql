@@ -637,13 +637,25 @@ begin
     raise exception 'User not authenticated';
   end if;
   
-  -- Validar status (la tabla usa text con CHECK constraint, no enum)
-  if p_status not in ('pending', 'confirmed', 'completed', 'cancelled', 'no_show') then
+-- Validar status (compatibilidad enum/text)
+if p_status not in ('pending', 'confirmed', 'completed', 'cancelled', 'no_show') then
     raise exception 'Invalid status: %', p_status;
   end if;
   
-  -- Actualizar appointment SOLO si el usuario tiene membresía en la organización del turno
-  -- Usar text directamente ya que la tabla usa text, no enum
+-- Actualizar appointment SOLO si el usuario tiene membresía en la organización del turno
+-- Intentar primero casteando al enum; si falla, caer a text
+begin
+  update app.appointments
+  set status = p_status::appointment_status,
+      updated_at = now()
+  where id = p_appointment_id
+    and org_id IN (
+      SELECT m.org_id 
+      FROM app.memberships m
+      WHERE m.user_id = v_user_id
+    )
+  returning * into v_appointment;
+exception when others then
   update app.appointments
   set status = p_status,
       updated_at = now()
@@ -654,6 +666,7 @@ begin
       WHERE m.user_id = v_user_id
     )
   returning * into v_appointment;
+end;
   
   -- Verificar que se actualizó
   if not found then

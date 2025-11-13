@@ -133,12 +133,15 @@ export function AppointmentDialog({
   }, [clients, clientSearch]);
 
   // Obtener precio del servicio seleccionado
-  const selectedServicePrice = useMemo(() => {
+  const selectedService = useMemo(() => {
     if (!formData.service) return null;
-    const service = salonServices.find(s => s.service_id === formData.service);
-    if (!service) return null;
-    return service.price_override ?? service.base_price ?? 0;
+    return salonServices.find((s) => s.service_id === formData.service) ?? null;
   }, [formData.service, salonServices]);
+
+  const selectedServicePrice = useMemo(() => {
+    if (!selectedService) return null;
+    return selectedService.price_override ?? selectedService.base_price ?? 0;
+  }, [selectedService]);
 
   // Validación en tiempo real mejorada
   const validateField = (field: string, value: any) => {
@@ -339,6 +342,7 @@ export function AppointmentDialog({
         }
         if (formData.service !== appointment.service) {
           turnoData.service = formData.service || '';
+          turnoData.serviceName = selectedService?.service_name;
         }
         if (formData.date !== appointment.date) {
           turnoData.date = formData.date;
@@ -377,6 +381,8 @@ export function AppointmentDialog({
         const turnoData = {
           clientName: formData.clientName,
           service: formData.service || '',
+          serviceName: selectedService?.service_name,
+          servicePrice: selectedServicePrice ?? undefined,
           date: formData.date,
           time: formData.time,
           status: formData.status || 'pending',

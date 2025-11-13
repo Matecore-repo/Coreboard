@@ -2,7 +2,7 @@ CRM de turnos
 
 1.a iniciar con npm run dev
 
-2.a entrar a la ip:http://192.168.100.50:3000/
+2.a entrar a la ip:http://192.168.0.15:3000/
 
 3.a usar alguna de estas cuentas
 

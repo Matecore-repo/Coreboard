@@ -16,8 +16,6 @@ import { PageContainer } from "../layout/PageContainer";
 import type { Appointment } from "../features/appointments/AppointmentCard";
 import type { Salon } from "../../types/salon";
 import type { Turno, TurnosFilters } from "../../stores/turnosStore";
-import { toastDismiss, toastPromise } from "../../lib/toast";
-import { Spinner } from "../ui/spinner";
 
 export interface TurnosViewProps {
   isDemo: boolean;
@@ -38,6 +36,8 @@ function mapTurnoToAppointment(turno: Turno): Appointment {
     id: turno.id,
     clientName: turno.clientName,
     service: turno.service || "—",
+    serviceName: turno.serviceName,
+    servicePrice: turno.servicePrice,
     date: turno.date,
     time: turno.time,
     status: turno.status,
@@ -165,7 +165,7 @@ function filterAppointmentsList(
     if (hasSearchQuery) {
       const matchesSearch =
         apt.clientName.toLowerCase().includes(searchQuery) ||
-        (apt.service || "").toLowerCase().includes(searchQuery);
+        (apt.serviceName || apt.service || "").toLowerCase().includes(searchQuery);
       if (!matchesSearch) {
         return false;
       }
@@ -226,7 +226,6 @@ export function TurnosView({
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [stylistFilter, setStylistFilter] = useState<string>("all");
   const [isPendingTransition, startTransition] = useTransition();
-  const [delayComplete, setDelayComplete] = useState(false);
 
   const deferredSearch = useDeferredValue(searchQuery);
   const normalizedSalonId = selectedSalon ?? "all";
@@ -237,7 +236,53 @@ export function TurnosView({
   }, [remoteTurnos]);
 
   const sourceAppointments = useMemo<Appointment[]>(() => {
-    return isDemo ? demoAppointments : remoteAppointments;
+    const base = isDemo ? demoAppointments : remoteAppointments;
+    if (base.length === 0) {
+      return [];
+    }
+
+    const byId = new Map<string, Appointment>();
+    base.forEach((appointment) => {
+      if (!byId.has(appointment.id)) {
+        byId.set(appointment.id, appointment);
+      }
+    });
+
+    const byComposite = new Map<string, Appointment>();
+    byId.forEach((appointment) => {
+      const compositeKey = [
+        appointment.salonId || "all",
+        appointment.date,
+        appointment.time,
+        appointment.clientName.trim().toLowerCase(),
+      ].join("|");
+
+      if (!byComposite.has(compositeKey)) {
+        byComposite.set(compositeKey, appointment);
+        return;
+      }
+
+      const existing = byComposite.get(compositeKey)!;
+      const statusPriority = (status: Appointment["status"]) => {
+        switch (status) {
+          case "confirmed":
+            return 3;
+          case "completed":
+            return 2;
+          case "pending":
+            return 1;
+          case "cancelled":
+          default:
+            return 0;
+        }
+      };
+
+      if (statusPriority(appointment.status) > statusPriority(existing.status)) {
+        byComposite.set(compositeKey, appointment);
+      }
+    });
+
+    return Array.from(byComposite.values());
   }, [demoAppointments, isDemo, remoteAppointments]);
 
   const stylistOptions = useMemo(() => {
@@ -271,84 +316,6 @@ export function TurnosView({
     ],
   );
 
-  const delayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDelayRef = useRef(false);
-  const isMountedRef = useRef(true);
-  const initialDelayShownRef = useRef(false);
-  const delayToastIdRef = useRef<string>("turnos-loading-toast");
-
-  const triggerDelay = useCallback(
-    (message: string) => {
-      if (pendingDelayRef.current) {
-        return;
-      }
-
-      pendingDelayRef.current = true;
-      setDelayComplete(false);
-
-      if (delayTimeoutRef.current) {
-        clearTimeout(delayTimeoutRef.current);
-      }
-
-      const delayPromise = new Promise<void>((resolve) => {
-        delayTimeoutRef.current = setTimeout(() => {
-          resolve();
-        }, 2000);
-      });
-
-      toastDismiss(delayToastIdRef.current);
-      toastPromise(
-        delayPromise,
-        {
-          loading: message,
-          success: "Turnos listos",
-          error: "No se pudieron preparar los turnos",
-        },
-        {
-          id: delayToastIdRef.current,
-        },
-      );
-
-      delayPromise
-        .then(() => {
-          if (isMountedRef.current) {
-            setDelayComplete(true);
-          }
-        })
-        .finally(() => {
-          pendingDelayRef.current = false;
-          if (delayTimeoutRef.current) {
-            clearTimeout(delayTimeoutRef.current);
-            delayTimeoutRef.current = null;
-          }
-        });
-    },
-    [setDelayComplete],
-  );
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    if (!initialDelayShownRef.current) {
-      initialDelayShownRef.current = true;
-      triggerDelay("Preparando turnos...");
-    }
-
-    return () => {
-      isMountedRef.current = false;
-      if (delayTimeoutRef.current) {
-        clearTimeout(delayTimeoutRef.current);
-      }
-      pendingDelayRef.current = false;
-      delayTimeoutRef.current = null;
-      toastDismiss(delayToastIdRef.current);
-    };
-  }, [triggerDelay]);
-
-  useEffect(() => {
-    if (isLoading) {
-      triggerDelay("Actualizando turnos...");
-    }
-  }, [isLoading, triggerDelay]);
 
   const sanitizedAppointments = useMemo(
     () =>
@@ -453,7 +420,9 @@ export function TurnosView({
       ? "No se encontraron turnos. Ajusta los filtros o verifica que tus locales tengan disponibilidad."
       : "No se encontraron turnos para esta sucursal.";
 
-  const effectiveLoading = isLoading || isPendingTransition || !delayComplete;
+  const hasAppointments = sanitizedAppointments.length > 0;
+  const showLoadingSkeleton =
+    (!hasAppointments && isLoading) || isPendingTransition;
 
   return (
     <PageContainer>
@@ -536,16 +505,10 @@ export function TurnosView({
                     </span>
                   </div>
                 </div>
-              {effectiveLoading && (
-                <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Spinner className="text-primary" />
-                  <span>Cargando turnos…</span>
-                </div>
-              )}
                 <div className="space-y-6">
                   <TurnosTable
                     appointments={sanitizedAppointments}
-                    isLoading={effectiveLoading}
+                    isLoading={showLoadingSkeleton}
                     onRowClick={onSelectAppointment}
                     selectedAppointmentId={selectedAppointmentId}
                     emptyLabel={emptyLabel}

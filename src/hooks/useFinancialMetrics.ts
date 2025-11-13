@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { usePayments } from './usePayments';
 import { useExpenses } from './useExpenses';
-import { turnosStore } from '../stores/turnosStore';
+import { turnosStore, subscribeTurnosStore } from '../stores/turnosStore';
 import { useCommissions } from './useCommissions';
 import type { Appointment } from '../types';
 
@@ -53,9 +53,15 @@ export function useFinancialMetrics(
   const { expenses } = useExpenses({ enabled: true });
   const { commissions } = useCommissions({ enabled: true });
 
+  const turnosSnapshot = useSyncExternalStore(
+    subscribeTurnosStore,
+    () => turnosStore.appointments,
+    () => turnosStore.appointments,
+  );
+
   // Usar turnosStore directamente
   const appointments = useMemo(() => {
-    const allTurnos = turnosStore.appointments;
+    const allTurnos = turnosSnapshot;
     // Filtrar por salonId si se proporciona
     let filtered = selectedSalonId 
       ? allTurnos.filter(t => t.salonId === selectedSalonId)
@@ -79,7 +85,7 @@ export function useFinancialMetrics(
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     } as Appointment));
-  }, [selectedSalonId]);
+  }, [turnosSnapshot, selectedSalonId]);
 
   const filteredAppointments = useMemo(() => {
     if (!dateRange) return appointments;

@@ -11,6 +11,8 @@ export interface Appointment {
   id: string;
   clientName: string;
   service: string;
+  serviceName?: string;
+  servicePrice?: number | null;
   date: string;
   time: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -34,10 +36,24 @@ function mapRowToAppointment(row: any): Appointment {
   // La tabla appointments en public usa client_name directamente
   const clientName = row.client_name || row.clients?.full_name || '';
 
+  const serviceId = row.service_id || '';
+  const serviceName =
+    row.services?.name ||
+    row.salon_services?.service_name ||
+    row.service_name ||
+    '';
+  const servicePrice =
+    row.total_amount ??
+    row.services?.base_price ??
+    row.salon_services?.price_override ??
+    null;
+
   return {
     id: row.id,
     clientName,
-    service: row.service_id || '',
+    service: serviceId,
+    serviceName,
+    servicePrice,
     date,
     time,
     status: row.status || 'pending',
@@ -46,7 +62,7 @@ function mapRowToAppointment(row: any): Appointment {
     notes: row.notes || undefined,
     created_by: row.created_by || undefined,
     org_id: row.org_id || undefined,
-    total_amount: row.total_amount || 0,
+    total_amount: row.total_amount || servicePrice || 0,
   };
 }
 
@@ -155,31 +171,66 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         return;
       }
 
-      let base = supabase
-        .from('appointments')
-        .select(`
-          id, 
-          org_id, 
-          salon_id, 
-          service_id,
-          stylist_id, 
-          client_name,
-          client_phone,
-          client_email,
-          starts_at, 
-          status, 
-          total_amount, 
-          notes, 
-          created_by, 
-          created_at, 
-          updated_at
-        `);
-      // Asegurar scoping por organización si está disponible
-      if (currentOrgId) {
-        base = base.eq('org_id', currentOrgId);
+      const selectWithServices = `
+        id,
+        org_id,
+        salon_id,
+        service_id,
+        stylist_id,
+        client_name,
+        client_phone,
+        client_email,
+        starts_at,
+        status,
+        total_amount,
+        notes,
+        created_by,
+        created_at,
+        updated_at,
+        services:service_id (
+          name,
+          base_price
+        )
+      `;
+
+      const basicSelect = `
+        id,
+        org_id,
+        salon_id,
+        service_id,
+        stylist_id,
+        client_name,
+        client_phone,
+        client_email,
+        starts_at,
+        status,
+        total_amount,
+        notes,
+        created_by,
+        created_at,
+        updated_at
+      `;
+
+      const runQuery = async (selectClause: string) => {
+        let query = supabase.from('appointments').select(selectClause);
+        if (currentOrgId) {
+          query = query.eq('org_id', currentOrgId);
+        }
+        if (salonId) {
+          query = query.eq('salon_id', salonId);
+        }
+        return query.order('starts_at');
+      };
+
+      let { data, error } = await runQuery(selectWithServices);
+
+      if (error && error.code === 'PGRST200') {
+        console.warn('Falling back to appointments select without services join:', error.message);
+        const fallback = await runQuery(basicSelect);
+        data = fallback.data;
+        error = fallback.error;
       }
-      // Si salonId es undefined, no filtrar por salon_id (mostrar todos)
-      const { data, error } = salonId ? await base.eq('salon_id', salonId).order('starts_at') : await base.order('starts_at');
+
       if (error) {
         console.error('Error fetching appointments:', error);
         setAppointments([]);
@@ -191,6 +242,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
           id: apt.id,
           clientName: apt.clientName,
           service: apt.service || '',
+          serviceName: apt.serviceName,
+          servicePrice: apt.servicePrice,
           date: apt.date || '',
           time: apt.time || '',
           status: apt.status as any,
@@ -210,7 +263,11 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
   }, [salonId, enabled, isDemo, currentOrgId]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setLoading(false);
+      turnosStore.setLoading(false);
+      return;
+    }
     fetchAppointments();
     if (isDemo || subscribed.current) return;
     
@@ -263,6 +320,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         id: apt.id,
         clientName: apt.clientName,
         service: apt.service,
+        serviceName: apt.serviceName,
+        servicePrice: apt.servicePrice,
         date: apt.date,
         time: apt.time,
         status: apt.status,
@@ -380,6 +439,9 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       created_by: user?.id || null,
       ...(clientId ? { client_id: clientId } : {}),
     } as any;
+    if (appointmentData.service) {
+      row.service_id = appointmentData.service;
+    }
     const { data, error } = await supabase
       .from('appointments')
       .insert([row])
@@ -429,25 +491,34 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         });
         
         if (rpcError) {
-          // Si el RPC falla, intentar actualización directa como fallback
+          // Si el RPC directo falla, intentar la RPC genérica que maneja casting y nullables
           try {
-            const { error: updateError } = await supabase
-              .from('appointments')
-              .update({ status: updates.status, updated_at: new Date().toISOString() })
-              .eq('id', id);
-            
-            if (updateError) {
-              throw new Error(`Error al actualizar el estado: ${rpcError?.message || updateError?.message || 'Error desconocido'}`);
+            const { data: fallbackData, error: fallbackError } = await supabase.rpc('update_appointment_rpc', {
+              p_appointment_id: id,
+              p_status: updates.status,
+            });
+
+            if (fallbackError) {
+              throw new Error(
+                `Error al actualizar el estado: ${rpcError?.message || fallbackError?.message || 'Error desconocido'}`,
+              );
             }
             
             // Refrescar la lista para obtener el estado actualizado
             await fetchAppointments();
             const updatedAppointment = appointments.find(apt => apt.id === id);
             if (updatedAppointment) {
-              setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: updates.status! } : apt));
+              setAppointments(prev =>
+                prev.map(apt => (apt.id === id ? { ...apt, status: updates.status! } : apt)),
+              );
               return { ...updatedAppointment, status: updates.status };
             }
-            return null;
+            const normalizedFallback = Array.isArray(fallbackData)
+              ? fallbackData[0]
+              : typeof fallbackData === 'string'
+                ? JSON.parse(fallbackData)
+                : fallbackData;
+            return normalizedFallback ? mapRowToAppointment(normalizedFallback) : null;
           } catch (fallbackError: any) {
             throw new Error(`Error al actualizar el estado: ${rpcError?.message || fallbackError?.message || 'Error desconocido'}`);
           }
@@ -455,10 +526,21 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         
         // El RPC fue exitoso, refrescar la lista
         await fetchAppointments();
-        return rpcData ? mapRowToAppointment(rpcData) : null;
+        const normalizedRpc = Array.isArray(rpcData)
+          ? rpcData[0]
+          : typeof rpcData === 'string'
+            ? JSON.parse(rpcData)
+            : rpcData;
+        return normalizedRpc ? mapRowToAppointment(normalizedRpc) : null;
       } catch (error: any) {
         console.error('Error updating appointment status:', error);
-        throw new Error(`Error al actualizar el estado: ${error?.message || 'Error desconocido'}`);
+        const message = error?.message || '';
+        if (message.includes('appointment_status') || message.includes('enum')) {
+          throw new Error(
+            'No se pudo actualizar el estado porque la función update_appointment_status no castea correctamente al enum appointment_status. Ejecutá las últimas migraciones o sincronizá la base de datos.',
+          );
+        }
+        throw new Error(`Error al actualizar el estado: ${message || 'Error desconocido'}`);
       }
     }
     

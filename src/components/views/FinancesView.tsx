@@ -185,6 +185,14 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
     }
   }, [currentExporter]);
 
+  const effectiveSalonName = useMemo(() => {
+    if (!selectedSalon || selectedSalon === "all") {
+      return salons.length > 0 ? "Todos los locales" : salonName ?? "Sin locales";
+    }
+    const target = salons.find((s) => s.id === selectedSalon);
+    return target?.name ?? salonName ?? "Local sin nombre";
+  }, [salonName, salons, selectedSalon]);
+
   const quickActions = useMemo<CommandAction[]>(() => {
     const tabActions: CommandAction[] = tabItems.map((item) => ({
       id: `finances-tab-${item.id}`,
@@ -305,7 +313,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
         >
         <Section 
             title="Finanzas"
-            description={salonName}
+            description={effectiveSalonName}
             action={(
               <div className="flex flex-wrap items-center gap-2">
                 <DateRangeFilter
@@ -393,7 +401,7 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
                     >
                       <OwnerDashboard 
                         selectedSalon={selectedSalon}
-                        salonName={salonName}
+                        salonName={effectiveSalonName}
                         dateRange={dateRange || undefined}
                         onExportReady={(fn) => setOwnerExport(() => fn)}
                       />

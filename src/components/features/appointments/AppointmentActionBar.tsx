@@ -1,9 +1,11 @@
+import { useCallback, useMemo, useState } from "react";
 import { CheckCircle, XCircle, RefreshCw, Book } from "lucide-react";
 import { Appointment } from "./AppointmentCard";
 import { GenericActionBar } from "../../GenericActionBar";
 import { useEmployees } from "../../../hooks/useEmployees";
 import { useSalonServices } from "../../../hooks/useSalonServices";
 import { useAuth } from "../../../contexts/AuthContext";
+import { toastPromise } from "../../../lib/toast";
 
 interface AppointmentActionBarProps {
   appointment: Appointment | null;
@@ -12,8 +14,8 @@ interface AppointmentActionBarProps {
   onComplete: () => void;
   onCancel: () => void;
   onDelete: () => void;
-  onRestore?: (id: string) => void;
-  onSetStatus?: (status: Appointment['status']) => void;
+  onRestore?: (id: string) => Promise<void>;
+  onSetStatus?: (status: Appointment["status"]) => Promise<void>;
 }
 
 export function AppointmentActionBar({
@@ -29,6 +31,8 @@ export function AppointmentActionBar({
   const { currentOrgId } = useAuth() as any;
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: !!currentOrgId });
   const { services: salonServices } = useSalonServices(appointment?.salonId, { enabled: !!appointment?.salonId });
+  const [isMutatingStatus, setIsMutatingStatus] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   if (!appointment) return null;
 
@@ -40,9 +44,10 @@ export function AppointmentActionBar({
 
   // Mapear el ID del servicio al nombre legible
   const serviceName =
-    !appointment.service || appointment.service === ""
+    appointment.serviceName ??
+    (!appointment.service || appointment.service === ""
       ? "Sin servicio"
-      : salonServices.find((s) => s.service_id === appointment.service)?.service_name ?? appointment.service;
+      : salonServices.find((s) => s.service_id === appointment.service)?.service_name ?? appointment.service);
 
   const statusLabels = {
     pending: "Pendiente",
@@ -58,71 +63,119 @@ export function AppointmentActionBar({
     cancelled: "destructive" as const,
   };
 
-  const customActions = [];
-  
-  if (appointment.status !== "completed") {
-    customActions.push({
-      label: "Completar",
-      onClick: onComplete,
-      variant: "ghost" as const,
-      icon: <CheckCircle className="h-3.5 w-3.5" />,
-    });
-  }
-  
-  if (appointment.status !== "cancelled") {
-    customActions.push({
-      label: "Cancelar",
-      onClick: onCancel,
-      variant: "ghost" as const,
-      icon: <XCircle className="h-3.5 w-3.5" />,
-    });
-  }
-
   // Aseguramos que se muestren todas las acciones pero deshabilitadas si no aplican
   const completeDisabled = appointment.status === "completed";
   const cancelDisabled = appointment.status === "cancelled";
 
+  const runStatusMutation = useCallback(
+    async (status: Appointment["status"]) => {
+      if (!onSetStatus) {
+        return;
+      }
+      setIsMutatingStatus(true);
+      const statusPromise = onSetStatus(status);
+      toastPromise(statusPromise, {
+        loading: "Actualizando estado...",
+        success: `Estado actualizado a ${statusLabels[status]}`,
+        error: (error) =>
+          error instanceof Error && error.message
+            ? error.message
+            : "No se pudo actualizar el estado del turno",
+      });
+      try {
+        await statusPromise;
+      } finally {
+        setIsMutatingStatus(false);
+      }
+    },
+    [onSetStatus],
+  );
+
+  const handleStatusClick = useCallback(
+    (status: Appointment["status"]) => {
+      if (isMutatingStatus) return;
+      void runStatusMutation(status);
+    },
+    [isMutatingStatus, runStatusMutation],
+  );
+
+  const handleRestoreClick = useCallback(() => {
+    if (!onRestore || isRestoring) return;
+    setIsRestoring(true);
+
+    const promise = (async () => {
+      try {
+        await onRestore(appointment.id);
+      } finally {
+        setIsRestoring(false);
+      }
+    })();
+
+    toastPromise(promise, {
+      loading: "Restaurando turno...",
+      success: "Turno restaurado a pendiente",
+      error: (error) =>
+        error instanceof Error && error.message
+          ? error.message
+          : "No se pudo restaurar el turno",
+    });
+  }, [appointment.id, isRestoring, onRestore]);
+
+  const subtitle = useMemo(() => serviceName, [serviceName]);
+
   const fullCustomActions = [
     {
       label: "Completar",
-      onClick: () => { if (!completeDisabled && onSetStatus) onSetStatus('completed'); },
+      onClick: () => {
+        if (!completeDisabled) {
+          handleStatusClick("completed");
+        }
+      },
       variant: "ghost" as const,
       icon: <CheckCircle className="h-3.5 w-3.5" />,
-      disabled: completeDisabled,
+      disabled: completeDisabled || isMutatingStatus,
     },
     {
       label: "Cancelar",
-      onClick: () => { if (!cancelDisabled && onSetStatus) onSetStatus('cancelled'); },
+      onClick: () => {
+        if (!cancelDisabled) {
+          handleStatusClick("cancelled");
+        }
+      },
       variant: "ghost" as const,
       icon: <XCircle className="h-3.5 w-3.5" />,
-      disabled: cancelDisabled,
+      disabled: cancelDisabled || isMutatingStatus,
     },
   ];
 
   // Añadir 'Restaurar' siempre
   fullCustomActions.push({
     label: "Restaurar",
-    onClick: () => { if (onRestore) onRestore(appointment.id); },
+    onClick: handleRestoreClick,
     variant: "ghost" as const,
     icon: <RefreshCw className="h-3.5 w-3.5" />,
-    disabled: false,
+    disabled: isRestoring || isMutatingStatus,
   });
 
   // Añadir acción de estado Confirmado
-  const confirmedDisabled = appointment.status === 'confirmed';
+  const confirmedDisabled = appointment.status === "confirmed";
 
   fullCustomActions.push({
-    label: 'Confirmado',
-    onClick: () => { if (onSetStatus) onSetStatus('confirmed'); },
-    variant: 'ghost' as const,
+    label: "Confirmado",
+    onClick: () => {
+      if (!confirmedDisabled) {
+        handleStatusClick("confirmed");
+      }
+    },
+    variant: "ghost" as const,
     icon: <Book className="h-3.5 w-3.5" />,
-    disabled: confirmedDisabled,
+    disabled: confirmedDisabled || isMutatingStatus,
   });
 
   return (
     <GenericActionBar
       title={appointment.clientName}
-      subtitle={appointment.service}
+      subtitle={subtitle}
       badge={{
         text: statusLabels[appointment.status],
         variant: statusVariants[appointment.status],

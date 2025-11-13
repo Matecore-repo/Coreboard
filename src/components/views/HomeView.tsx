@@ -1,6 +1,5 @@
 import { DollarSign, Users, Clock, MapPin, Plus, Sparkles } from "lucide-react";
 import { Appointment } from "../features/appointments/AppointmentCard";
-import { CalendarView } from "../CalendarView";
 import { SalonCarousel } from "../SalonCarousel";
 import { Button } from "../ui/button";
 import { EmptyStateCTA } from "../EmptyStateCTA";
@@ -8,14 +7,10 @@ import { InviteEmployeeModal } from "../InviteEmployeeModal";
 import { PageContainer } from "../layout/PageContainer";
 import { Section } from "../layout/Section";
 import { useTurnos } from "../../hooks/useTurnos";
-import React, { lazy, Suspense, useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { useCommandPalette } from "../../contexts/CommandPaletteContext";
-import type { TurnosSharedProps } from "../../types/turnos-shared";
-
-const TurnosPanel = lazy(() => import("../TurnosPanel").then(m => ({ default: m.TurnosPanel })));
-const ClientsPanel = lazy(() => import("../ClientsPanel").then(m => ({ default: m.ClientsPanel })));
-// ServicesPanel moved to Salons Management view
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface Salon {
   id: string;
@@ -48,6 +43,8 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
       id: t.id,
       clientName: t.clientName,
       service: t.service,
+      serviceName: t.serviceName,
+      servicePrice: t.servicePrice,
       date: t.date,
       time: t.time,
       status: t.status,
@@ -65,24 +62,46 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
     return appointments.filter((appointment) => appointment.salonId === selectedSalon);
   }, [appointments, selectedSalon]);
 
-  const sharedAppointments: TurnosSharedProps = useMemo(
-    () => ({
-      appointments,
-      salonAppointments,
-      isLoading: loadingTurnos,
-      error: undefined,
-    }),
-    [appointments, loadingTurnos, salonAppointments],
-  );
-
   // Datos del día de hoy
   const today = new Date().toISOString().split("T")[0];
-  const todayAppointments = salonAppointments.filter(
-    (apt) => apt.date === today && apt.status === "completed"
+  const pendingAppointments = salonAppointments.filter((apt) => apt.status === "pending");
+  const confirmedAppointments = salonAppointments.filter((apt) => apt.status === "confirmed");
+  const completedToday = salonAppointments.filter(
+    (apt) => apt.status === "completed" && apt.date === today,
   );
 
-  // Calcular comisiones (ejemplo: $500 por cliente atendido)
-  const totalCommissions = todayAppointments.length * 500;
+  const upcomingAppointments = useMemo(() => {
+    const now = new Date();
+    return salonAppointments
+      .filter((apt) => {
+        const dateTime = new Date(`${apt.date}T${apt.time}`);
+        return dateTime >= now;
+      })
+      .slice(0, 3);
+  }, [salonAppointments]);
+
+  const metrics: Array<{
+    label: string;
+    value: number;
+    icon: React.ReactNode;
+    trendLabel?: string;
+  }> = [
+    {
+      label: "Turnos pendientes",
+      value: pendingAppointments.length,
+      icon: <Clock className="h-5 w-5 text-amber-500" aria-hidden="true" />,
+    },
+    {
+      label: "Turnos confirmados",
+      value: confirmedAppointments.length,
+      icon: <Users className="h-5 w-5 text-blue-500" aria-hidden="true" />,
+    },
+    {
+      label: "Atendidos hoy",
+      value: completedToday.length,
+      icon: <DollarSign className="h-5 w-5 text-emerald-500" aria-hidden="true" />,
+    },
+  ];
 
   const salonNames = useMemo(() => {
     const map: Record<string, string> = {
@@ -173,47 +192,148 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
 
       <section className="mt-4 gap-4 p-4 sm:p-6" aria-label="Panel principal">
         {/* Header con métricas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4" role="group" aria-label="Métricas principales">
-        {/* Peluquería Asignada */}
-        <div className="bg-card border border-border/60 dark:border-border/40 rounded-2xl p-3" role="region" aria-label="Local seleccionado">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
-              <MapPin className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm text-muted-foreground truncate">Local</p>
-              <p className="text-sm truncate" aria-label={`Local: ${currentSalonName}`}>
+        <div
+          className="grid grid-cols-1 gap-4 md:grid-cols-4"
+          role="group"
+          aria-label="Métricas principales"
+        >
+          <Card
+            className="border-border/60 dark:border-border/40"
+            role="region"
+            aria-label="Local seleccionado"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Local seleccionado</CardTitle>
+              <MapPin className="h-5 w-5 text-purple-500" aria-hidden="true" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-base font-semibold" aria-label={`Local: ${currentSalonName}`}>
                 {currentSalonName}
               </p>
-            </div>
-          </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cambiá el local desde el carrusel superior para ajustar los números.
+              </p>
+            </CardContent>
+          </Card>
+
+          {metrics.map((metric) => (
+            <Card key={metric.label} className="border-border/60 dark:border-border/40">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{metric.label}</CardTitle>
+                {metric.icon}
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold">{metric.value}</p>
+                {metric.trendLabel && (
+                  <p className="text-xs text-muted-foreground mt-1">{metric.trendLabel}</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        <Suspense fallback={<div className="col-span-1 md:col-span-2">Cargando...</div>}>
-          <div className="col-span-1 md:col-span-1">
-            <TurnosPanel data={sharedAppointments} variant="commissions" />
-          </div>
+        <section
+          className="mt-6 grid gap-4 lg:grid-cols-3"
+          role="region"
+          aria-label="Próximos turnos y actividad reciente"
+        >
+          <Card className="lg:col-span-2 border-border/60 dark:border-border/40">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <CardTitle className="text-base font-medium">Próximos turnos</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Los próximos tres turnos confirmados o pendientes se muestran acá.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onAddAppointment}
+                aria-label="Crear nuevo turno desde el inicio"
+              >
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                Nuevo turno
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingTurnos ? (
+                <p className="text-sm text-muted-foreground">Cargando turnos…</p>
+              ) : upcomingAppointments.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No hay turnos futuros para mostrar. Creá uno nuevo o revisá tu agenda completa.
+                </div>
+              ) : (
+                <ul className="space-y-3" role="list">
+                  {upcomingAppointments.map((appointment) => {
+                    const dateTime = new Date(`${appointment.date}T${appointment.time}`);
+                    const formattedDate = dateTime.toLocaleDateString("es-AR", {
+                      day: "2-digit",
+                      month: "short",
+                    });
+                    const formattedTime = dateTime.toLocaleTimeString("es-AR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
 
-          <div className="col-span-1 md:col-span-1">
-            <ClientsPanel data={sharedAppointments} />
-          </div>
+                    return (
+                      <li
+                        key={appointment.id}
+                        className="flex items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-3 text-sm transition-colors hover:bg-card"
+                        role="listitem"
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-foreground">
+                            {appointment.clientName}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {appointment.serviceName || appointment.service || "Servicio sin definir"}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium">{formattedTime}</p>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                            {formattedDate}
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
 
-          <div className="col-span-1 md:col-span-2">
-            <TurnosPanel data={sharedAppointments} variant="next" />
-          </div>
-
-          {/* Servicios: movidos al módulo de Peluquerías */}
-        </Suspense>
-        </div>
-
-        {/* Calendario */}
-        <section className="mt-4" role="region" aria-label="Calendario de turnos" data-section="calendar">
-          <CalendarView
-            data={sharedAppointments}
-            selectedSalon={selectedSalon}
-            focusDate={null}
-            onAppointmentClick={onAppointmentClick}
-          />
+          <Card className="border-border/60 dark:border-border/40">
+            <CardHeader>
+              <CardTitle className="text-base font-medium">Resumen rápido</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Turnos totales</span>
+                <span className="font-semibold">{salonAppointments.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Clientes distintos</span>
+                <span className="font-semibold">
+                  {new Set(salonAppointments.map((apt) => apt.clientName)).size}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Última actualización</span>
+                <span className="font-semibold">
+                  {new Date().toLocaleTimeString("es-AR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Podés gestionar la agenda completa desde la sección{" "}
+                <span className="font-medium text-foreground">Turnos</span>. Este resumen solo
+                muestra la actividad más relevante.
+              </p>
+            </CardContent>
+          </Card>
         </section>
       </section>
 
