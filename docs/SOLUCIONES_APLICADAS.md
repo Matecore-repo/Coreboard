@@ -87,3 +87,16 @@ Al completar un turno:
 
 1. `src/hooks/usePayments.ts` - Actualizado para usar `method` y `received_at` en lugar de `payment_method` y `processed_at`
 
+---
+
+## 2025-11-13 – Actualización de estados y finanzas
+
+### ✅ Cambios aplicados
+- Se actualizó la función `public.update_appointment_status` en `infra/db/schema.sql` para castear `p_status::appointment_status` y retroceder a texto cuando la tabla todavía usa `text`.
+- `src/hooks/useAppointments.ts` normaliza las respuestas de los RPC (`update_appointment_status` y `update_appointment_rpc`) y añade errores guía si la función sigue en una versión antigua.
+- La navegación a “Finanzas” usa el `case "finances"` de `App.tsx`, por lo que ya se renderiza `FinancesView` completo con tabs y métricas alimentadas por `useFinancialMetrics`.
+
+### 🚧 Pendiente
+- Ejecutar las migraciones de Supabase para que la nueva versión de `update_appointment_status` quede activa en el entorno real (sin ese cast el cambio de estado sigue fallando).
+- Repetir la prueba manual: completar un turno remoto, verificar que Home y Finanzas actualicen KPIs y, si aplica, registrar un pago para validar los cálculos.
+
