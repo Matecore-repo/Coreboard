@@ -116,6 +116,14 @@ export function useFinancialMetrics(
     });
   }, [expenses, dateRange]);
 
+  const filteredCommissions = useMemo(() => {
+    if (!dateRange) return commissions;
+    return commissions.filter(commission => {
+      const commissionDate = commission.date;
+      return commissionDate >= dateRange.startDate && commissionDate <= dateRange.endDate;
+    });
+  }, [commissions, dateRange]);
+
   const calculateKPIs = useMemo((): KPIs => {
     const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');
     
@@ -127,12 +135,15 @@ export function useFinancialMetrics(
     const grossRevenue = grossRevenueFromPayments > 0 ? grossRevenueFromPayments : grossRevenueFromAppointments;
     
     // Ingreso neto: bruto - descuentos - impuestos (asumiendo que están en payments)
-    const netRevenue = filteredPayments.reduce((sum, payment) => {
+    // Si hay payments, usar payments (con descuentos/impuestos), si no usar grossRevenue como fallback
+    const netRevenueFromPayments = filteredPayments.reduce((sum, payment) => {
       return sum + payment.amount - (payment.discountAmount || 0) - (payment.taxAmount || 0);
     }, 0);
+    // Usar payments si están disponibles, si no usar grossRevenue como fallback
+    const netRevenue = netRevenueFromPayments > 0 ? netRevenueFromPayments : grossRevenue;
     
-    // Costos directos: comisiones + costos directos de appointments
-    const directCosts = commissions.reduce((sum, comm) => sum + comm.amount, 0);
+    // Costos directos: comisiones filtradas por fecha + costos directos de appointments
+    const directCosts = filteredCommissions.reduce((sum, comm) => sum + comm.amount, 0);
     
     // Margen bruto: ingreso neto - costos directos
     const grossMargin = netRevenue - directCosts;
@@ -174,7 +185,7 @@ export function useFinancialMetrics(
       dailyCash,
       pendingSettlement,
     };
-  }, [filteredAppointments, filteredPayments, filteredExpenses, commissions]);
+  }, [filteredAppointments, filteredPayments, filteredExpenses, filteredCommissions]);
 
   const calculateMargins = useMemo(() => {
     const kpis = calculateKPIs;
@@ -214,11 +225,11 @@ export function useFinancialMetrics(
   }, [filteredAppointments]);
 
   const calculateBreakEven = useMemo(() => {
-    // Gastos fijos diarios (promedio mensual / 30)
-    const fixedExpenses = filteredExpenses
-      .filter(exp => exp.type === 'fixed')
+    // Gastos diarios (promedio mensual / 30)
+    // Nota: Ya no tenemos el campo 'type', todos los gastos se consideran igual
+    const totalExpenses = filteredExpenses
       .reduce((sum, exp) => sum + exp.amount, 0);
-    const dailyFixedCost = fixedExpenses / 30; // Simplificado
+    const dailyFixedCost = totalExpenses / 30; // Simplificado
     
     // Ingreso diario promedio
     const totalRevenue = filteredPayments.reduce((sum, p) => sum + p.amount, 0);

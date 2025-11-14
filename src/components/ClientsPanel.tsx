@@ -8,17 +8,17 @@ interface ClientsPanelProps {
 
 export function ClientsPanel({ data }: ClientsPanelProps) {
   const clientsCount = useMemo(() => {
-    if (data.isLoading) {
+    if (!data || data.isLoading) {
       return null;
     }
 
     const today = new Date().toISOString().split("T")[0];
-    const todayAppointments = data.salonAppointments.filter(
+    const todayAppointments = (data.salonAppointments || []).filter(
       (apt) => apt.date === today && apt.status === "completed",
     );
     const uniqueClients = new Set(todayAppointments.map((a) => a.clientName));
     return uniqueClients.size;
-  }, [data.isLoading, data.salonAppointments]);
+  }, [data?.isLoading, data?.salonAppointments]);
 
   return (
     <div className="bg-card border border-border rounded-2xl p-3" role="region" aria-label="Clientes atendidos hoy">
@@ -29,7 +29,7 @@ export function ClientsPanel({ data }: ClientsPanelProps) {
         <div className="min-w-0">
           <p className="text-muted-foreground truncate">Clientes Atendidos</p>
           <p className="font-medium" aria-label={`Total de clientes atendidos: ${clientsCount ?? 0}`}>
-            {data.isLoading ? "..." : clientsCount ?? 0}
+            {!data || data.isLoading ? "..." : clientsCount ?? 0}
           </p>
         </div>
       </div>

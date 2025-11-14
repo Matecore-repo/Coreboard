@@ -343,6 +343,8 @@ export function AppointmentDialog({
         if (formData.service !== appointment.service) {
           turnoData.service = formData.service || '';
           turnoData.serviceName = selectedService?.service_name;
+          // Recalcular total_amount cuando cambia el servicio
+          turnoData.total_amount = selectedServicePrice ?? 0;
         }
         if (formData.date !== appointment.date) {
           turnoData.date = formData.date;

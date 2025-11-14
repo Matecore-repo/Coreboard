@@ -58,6 +58,7 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
   };
 
   const getAppointmentsForDay = (day: number) => {
+    if (!data || !data.appointments) return [];
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return data.appointments.filter(
       (apt) =>
@@ -186,7 +187,7 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
             : "Selecciona un día"}
         </h3>
 
-        {data.isLoading ? (
+        {!data || data.isLoading ? (
           <div className="text-center py-6 text-muted-foreground text-sm">Cargando turnos...</div>
         ) : selectedDayAppointments.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground text-sm">

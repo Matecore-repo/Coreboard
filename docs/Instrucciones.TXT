@@ -1,0 +1,7 @@
+1 iniciar con npm run dev
+
+2 entrar a la ip:http://192.168.100.50:3000/login
+
+3 Usuario: iangel.oned@gmail.com (propietario) o nachoangelone@gmail.com (empleado)
+
+4 Contraseña: 123456

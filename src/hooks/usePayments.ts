@@ -159,20 +159,48 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     try {
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, method, received_at, notes, org_id, created_at, discount_amount, tax_amount, tip_amount, gateway_fee, payment_method_detail, gateway_transaction_id, gateway_settlement_date, gateway_settlement_amount')
+        .select('id, appointment_id, amount, method, received_at, org_id, created_at, salon_id, reference')
         .eq('org_id', currentOrgId);
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
       }
       
-      const { data, error } = await query.order('received_at', { ascending: false });
+      // Agregar timeout a la query
+      const queryPromise = query.order('received_at', { ascending: false });
+      const timeoutPromise = new Promise<{ data: null; error: { code: string; message: string } }>((_, reject) => 
+        setTimeout(() => reject({ code: 'TIMEOUT', message: 'Query timeout' }), 10000)
+      );
+      
+      let data, error;
+      try {
+        const result = await Promise.race([queryPromise, timeoutPromise]);
+        data = result.data;
+        error = result.error;
+      } catch (timeoutError: any) {
+        if (timeoutError.code === 'TIMEOUT') {
+          data = null;
+          error = timeoutError;
+        } else {
+          throw timeoutError;
+        }
+      }
       
       if (error) {
-        console.error('Error fetching payments:', error);
-        // Manejar errores específicos de manera más amigable
-        if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-          console.warn('Schema mismatch detected. Please verify database schema.');
+        // Throttling de logs: solo loguear una vez cada 5 segundos para el mismo error
+        const errorKey = `${error.code || 'unknown'}:${currentOrgId}:payments`;
+        const lastErrorTime = (globalThis as any).__lastPaymentsError?.[errorKey] || 0;
+        const now = Date.now();
+        if (now - lastErrorTime > 5000) {
+          console.error('Error fetching payments:', error);
+          // Manejar errores específicos de manera más amigable
+          if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+            console.warn('Schema mismatch detected. Please verify database schema.');
+          }
+          if (!(globalThis as any).__lastPaymentsError) {
+            (globalThis as any).__lastPaymentsError = {};
+          }
+          (globalThis as any).__lastPaymentsError[errorKey] = now;
         }
         setPayments([]);
       } else {

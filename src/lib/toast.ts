@@ -61,6 +61,7 @@ export function toastPromise<T>(
   },
   options?: ExternalToast,
 ) {
-  return toast.promise(promise, messages, options);
+  // toast.promise solo acepta promise y messages, no options
+  return toast.promise(promise, messages);
 }
 

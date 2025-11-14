@@ -7,7 +7,7 @@ import React, {
   useState,
   useTransition,
 } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Plus } from "lucide-react";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { SalonCarousel } from "../SalonCarousel";
 import { FilterBar } from "../FilterBar";
@@ -29,6 +29,7 @@ export interface TurnosViewProps {
   isLoading: boolean;
   onSyncRemoteFilters?: (filters: Partial<TurnosFilters>) => void;
   onSyncSelectedSalon?: (salonId: string | null) => void;
+  onAddAppointment?: () => void;
 }
 
 function mapTurnoToAppointment(turno: Turno): Appointment {
@@ -218,6 +219,7 @@ export function TurnosView({
   isLoading,
   onSyncRemoteFilters,
   onSyncSelectedSalon,
+  onAddAppointment,
 }: TurnosViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Appointment["status"] | "all">(
@@ -471,7 +473,20 @@ export function TurnosView({
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
-                  <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
+                    {onAddAppointment && (
+                      <button
+                        onClick={onAddAppointment}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                        aria-label="Crear nuevo turno"
+                        data-action="new-appointment"
+                      >
+                        <Plus className="w-4 h-4" aria-hidden="true" />
+                        Nuevo Turno
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
                       Total:{" "}

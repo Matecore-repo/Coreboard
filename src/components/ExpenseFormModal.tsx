@@ -34,7 +34,6 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
   const [amount, setAmount] = useState(expense?.amount.toString() || '');
   const [description, setDescription] = useState(expense?.description || '');
   const [category, setCategory] = useState(expense?.category || '');
-  const [type, setType] = useState<Expense['type']>(expense?.type || 'variable');
   const [paymentStatus, setPaymentStatus] = useState<Expense['payment_status']>(expense?.payment_status || 'pending');
   const [incurredAt, setIncurredAt] = useState(expense?.incurred_at || new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
@@ -44,14 +43,12 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
       setAmount(expense.amount.toString());
       setDescription(expense.description);
       setCategory(expense.category || '');
-      setType(expense.type || 'variable');
       setPaymentStatus(expense.payment_status || 'pending');
       setIncurredAt(expense.incurred_at);
     } else if (isOpen) {
       setAmount('');
       setDescription('');
       setCategory('');
-      setType('variable');
       setPaymentStatus('pending');
       setIncurredAt(new Date().toISOString().split('T')[0]);
     }
@@ -75,7 +72,6 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
         amount: parseFloat(amount),
         description: description.trim(),
         category: category || undefined,
-        type,
         payment_status: paymentStatus,
         incurred_at: incurredAt,
       };
@@ -155,20 +151,6 @@ export function ExpenseFormModal({ isOpen, onClose, expense, salonId }: ExpenseF
                 <option key={option} value={option} />
               ))}
             </datalist>
-          </div>
-
-          <div>
-            <Label htmlFor="type">Tipo</Label>
-            <Select value={type} onValueChange={(value) => setType(value as Expense['type'])}>
-              <SelectTrigger id="type" aria-label="Seleccionar tipo de gasto" data-field="type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fixed" aria-label="Tipo: Fijo">Fijo</SelectItem>
-                <SelectItem value="variable" aria-label="Tipo: Variable">Variable</SelectItem>
-                <SelectItem value="supply_purchase" aria-label="Tipo: Compra de Insumos">Compra de Insumos</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div>

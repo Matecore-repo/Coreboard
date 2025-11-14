@@ -221,8 +221,8 @@ create table if not exists app.payments (
   org_id uuid not null references app.organizations(id) on delete cascade,
   appointment_id uuid references app.appointments(id) on delete set null,
   amount numeric not null,
-  payment_method text not null check (payment_method in ('cash', 'card', 'transfer', 'mercadopago', 'other')),
-  processed_at timestamptz default now(),
+  method app.payment_method not null,
+  received_at timestamptz default now(),
   notes text,
   created_by uuid references auth.users(id), -- Permitir NULL para pagos desde pasarela pública
   created_at timestamptz default now()
@@ -560,7 +560,7 @@ as $$
 declare
   v_appointment_total numeric;
   v_payment_exists boolean;
-  v_payment_method text;
+  v_payment_method app.payment_method;
 begin
   -- Solo generar pago cuando turno se completa y no había estado completado antes
   if new.status = 'completed' and (old.status is null or old.status != 'completed') then
@@ -577,20 +577,22 @@ begin
       
       -- Solo crear pago si hay un monto mayor a cero
       if v_appointment_total > 0 then
-        -- Mapear payment_method del appointment al formato de payments
-        v_payment_method := coalesce(new.payment_method, 'cash');
-        
-        -- Validar y mapear el método de pago
-        if v_payment_method not in ('cash', 'card', 'transfer', 'mercadopago', 'other') then
-          v_payment_method := 'cash';
+        -- Mapear payment_method del appointment al enum payment_method
+        -- El enum acepta: 'cash', 'card', 'transfer', 'mp', 'mercadopago'
+        if coalesce(new.payment_method, 'cash') = 'mercadopago' then
+          v_payment_method := 'mp'::app.payment_method;  -- Usar 'mp' del enum
+        elsif coalesce(new.payment_method, 'cash') in ('cash', 'card', 'transfer', 'mp', 'mercadopago') then
+          v_payment_method := coalesce(new.payment_method, 'cash')::app.payment_method;
+        else
+          v_payment_method := 'cash'::app.payment_method;  -- Por defecto
         end if;
         
         insert into app.payments (
           org_id,
           appointment_id,
           amount,
-          payment_method,
-          processed_at,
+          method,
+          received_at,
           created_by,
           notes
         ) values (

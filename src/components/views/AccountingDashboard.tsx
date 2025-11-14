@@ -239,7 +239,6 @@ export default function AccountingDashboard({ selectedSalon, dateRange, onExport
       Monto: exp.amount,
       Descripción: exp.description,
       Categoría: exp.category || '',
-      Tipo: exp.type || '',
       Estado: exp.payment_status || '',
     }));
   }, [filteredExpenses]);
@@ -413,7 +412,6 @@ export default function AccountingDashboard({ selectedSalon, dateRange, onExport
                   <TableHead>Monto</TableHead>
                   <TableHead>Descripción</TableHead>
                   <TableHead>Categoría</TableHead>
-                  <TableHead>Tipo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -424,8 +422,7 @@ export default function AccountingDashboard({ selectedSalon, dateRange, onExport
                     <TableCell>{new Date(exp.incurred_at).toLocaleDateString('es-AR')}</TableCell>
                     <TableCell>${exp.amount.toLocaleString()}</TableCell>
                     <TableCell>{exp.description}</TableCell>
-                    <TableCell>{exp.category || '-'}</TableCell>
-                    <TableCell>{exp.type || '-'}</TableCell>
+                    <TableCell>{exp.category || '-'}</TableCell>        
                     <TableCell>{exp.payment_status || '-'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

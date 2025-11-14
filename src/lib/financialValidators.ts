@@ -100,10 +100,6 @@ export function validateExpense(expense: Partial<Expense>): { valid: boolean; er
     errors.push('Fecha requerida');
   }
 
-  if (expense.type && !['fixed', 'variable', 'supply_purchase'].includes(expense.type)) {
-    errors.push('Tipo de gasto inválido');
-  }
-
   if (expense.payment_status && !['pending', 'paid', 'partial'].includes(expense.payment_status)) {
     errors.push('Estado de pago inválido');
   }

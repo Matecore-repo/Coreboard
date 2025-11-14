@@ -122,7 +122,13 @@ export default function OwnerDashboard({
       total_amount: t.total_amount || 0,
     } as unknown as Appointment));
   }, [turnos]);
-  const { commissions } = useCommissions({ enabled: true });
+  const { commissions: allCommissions } = useCommissions({ enabled: true });
+  
+  // Filtrar comisiones por dateRange si está definido
+  const commissions = useMemo(() => {
+    if (!dateRange) return allCommissions;
+    return allCommissions.filter(c => c.date >= dateRange.startDate && c.date <= dateRange.endDate);
+  }, [allCommissions, dateRange]);
   const { employees } = useEmployees(currentOrgId || undefined, { enabled: true });
   const { salons } = useSalons(currentOrgId || undefined, { enabled: true });
 
