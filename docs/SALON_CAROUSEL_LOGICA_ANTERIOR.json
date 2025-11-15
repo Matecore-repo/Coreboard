@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "title": "Lógica anterior de `SalonCarousel`",
+    "path": "docs/SALON_CAROUSEL_LOGICA_ANTERIOR.md",
+    "category": "reference",
+    "tags": [
+      "reference"
+    ],
+    "lastUpdated": "2025-11-15",
+    "fileName": "SALON_CAROUSEL_LOGICA_ANTERIOR"
+  },
+  "content": "## Lógica anterior de `SalonCarousel`\r\n\r\nEsta es una referencia de la implementación que se retiró momentáneamente para priorizar el aspecto visual del carrusel.\r\n\r\n### Flujo original\r\n\r\n- El componente recibía `salons`, `selectedSalon` y `onSelectSalon`.\r\n- Se agregaba una tarjeta virtual \"`Ver todas`\" al inicio (id `\"all\"`).\r\n- Se calculaba el índice inicial a partir de `selectedSalon`.\r\n- Cada vez que Embla (`Carousel`) cambiaba de slide se sincronizaba el índice activo y se invocaba `onSelectSalon`.\r\n- El botón de cada card llamaba a `handleCardPress` para actualizar selección y mover el carrusel.\r\n\r\n### Estilos y comportamiento\r\n\r\n- Tarjetas visuales con imágenes, overlay y estados activos.\r\n- `CarouselItem` usaba bases responsivas (`basis-[85%]`, `md:basis-1/2`, etc.).\r\n- Controles personalizados (flechas y dots) se mostraban dentro del carrusel.\r\n- Las tarjetas activas aplicaban `ring-2` y `shadow` para destacar.\r\n\r\n### Motivo del cambio\r\n\r\nPor ahora se requiere replicar el carrusel de la documentación oficial de shadcn (visual simple), así que se eliminó la capa de lógica y el componente quedó en modo meramente presentacional. Esta nota sirve para restaurar la funcionalidad cuando vuelva a ser necesaria.\r\n\r\n",
+  "sections": []
+}

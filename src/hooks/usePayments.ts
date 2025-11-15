@@ -28,15 +28,15 @@ function normaliseDate(value?: string | null) {
 }
 
 function mapRowToPayment(row: any): Payment {
-  const processedAt = row.received_at || row.processed_at || row.date || row.created_at;
+  const processedAt = row.processed_at || row.received_at || row.date || row.created_at;
   const dateValue = processedAt ? new Date(processedAt) : new Date();
   const yyyy = dateValue.getFullYear();
   const mm = String(dateValue.getMonth() + 1).padStart(2, '0');
   const dd = String(dateValue.getDate()).padStart(2, '0');
   const date = `${yyyy}-${mm}-${dd}`;
 
-  // Mapear method (enum payment_method) a paymentMethod
-  // La tabla payments usa 'method' (enum payment_method) que puede ser: 'cash', 'card', 'transfer', 'mp', 'mercadopago'
+  // Mapear payment_method a paymentMethod
+  // La tabla payments usa 'payment_method' (text) que puede ser: 'cash', 'card', 'transfer', 'mercadopago', 'other'
   const methodMap: Record<string, 'cash' | 'card' | 'transfer' | 'mercadopago' | 'other'> = {
     'cash': 'cash',
     'card': 'card',
@@ -44,7 +44,7 @@ function mapRowToPayment(row: any): Payment {
     'mercadopago': 'mercadopago',
     'mp': 'mercadopago', // Alias para mercadopago (enum antiguo)
   };
-  const paymentMethod = methodMap[row.method || row.payment_method] || 'cash';
+  const paymentMethod = methodMap[row.payment_method || row.method] || 'cash';
 
   return {
     id: String(row.id),
@@ -52,7 +52,7 @@ function mapRowToPayment(row: any): Payment {
     amount: Number(row.amount ?? 0),
     paymentMethod,
     date,
-    notes: row.notes || undefined,
+    notes: undefined, // La columna notes no existe en la BD actual
     orgId: row.org_id ? String(row.org_id) : undefined,
     discountAmount: row.discount_amount !== undefined && row.discount_amount !== null ? Number(row.discount_amount) : undefined,
     taxAmount: row.tax_amount !== undefined && row.tax_amount !== null ? Number(row.tax_amount) : undefined,
@@ -83,20 +83,21 @@ function mapPaymentToRow(payload: Partial<Payment>) {
       'mercadopago': 'mercadopago',
       'other': 'other',
     };
-    row.method = methodMap[payload.paymentMethod] || 'cash';
+    row.payment_method = methodMap[payload.paymentMethod] || 'cash';
   }
   if (payload.date !== undefined) {
     try {
       const isoDate = new Date(`${payload.date}T00:00:00`);
-      row.received_at = Number.isNaN(isoDate.getTime()) ? new Date(payload.date).toISOString() : isoDate.toISOString();
+      row.processed_at = Number.isNaN(isoDate.getTime()) ? new Date(payload.date).toISOString() : isoDate.toISOString();
     } catch (error) {
-      console.warn('No se pudo formatear received_at, usando fecha cruda', error);
-      row.received_at = payload.date as any;
+      console.warn('No se pudo formatear processed_at, usando fecha cruda', error);
+      row.processed_at = payload.date as any;
     }
   }
-  if (payload.notes !== undefined) {
-    row.notes = payload.notes || null;
-  }
+  // Nota: La columna 'notes' no existe en la tabla payments según el schema actual
+  // if (payload.notes !== undefined) {
+  //   row.notes = payload.notes || null;
+  // }
   if (payload.orgId !== undefined) {
     row.org_id = payload.orgId;
   }
@@ -157,16 +158,19 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     
     setLoading(true);
     try {
+      // Solo solicitar columnas que existen en el schema actual
+      // La vista pública puede tener columnas diferentes a app.payments
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, method, received_at, notes, org_id, created_at, discount_amount, tax_amount, tip_amount, gateway_fee, payment_method_detail, gateway_transaction_id, gateway_settlement_date, gateway_settlement_amount')
+        .select('id, appointment_id, amount, org_id, created_at')
         .eq('org_id', currentOrgId);
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
       }
       
-      const { data, error } = await query.order('received_at', { ascending: false });
+      // Ordenar por created_at (siempre existe)
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         console.error('Error fetching payments:', error);
@@ -306,3 +310,4 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     calculateGatewayCommissions,
   };
 }
+

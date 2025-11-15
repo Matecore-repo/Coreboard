@@ -1,11 +1,14 @@
 {
   "mcpServers": {
-    "shadcn": {
+    "coreboard-indexer": {
       "command": "npx",
       "args": [
-        "shadcn@latest",
-        "mcp"
-      ]
+        "tsx",
+        "scripts/mcp-server.ts"
+      ],
+      "env": {
+        "PROJECT_ROOT": "${workspaceFolder}"
+      }
     }
   }
 }

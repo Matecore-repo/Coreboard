@@ -72,7 +72,7 @@ export function useFinancialMetrics(
       id: t.id,
       org_id: t.org_id || '',
       salon_id: t.salonId,
-      service_id: '',
+      service_id: (t as any).service || '',
       stylist_id: t.stylist,
       client_name: t.clientName,
       client_phone: undefined,
@@ -84,7 +84,11 @@ export function useFinancialMetrics(
       created_by: t.created_by || '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    } as Appointment));
+      // Incluir servicePrice para el cálculo de ingresos
+      servicePrice: (t as any).servicePrice || (t as any).service?.base_price || (t as any).services?.base_price || null,
+      service: (t as any).service ? { base_price: (t as any).servicePrice || (t as any).service?.base_price } : null,
+      services: (t as any).services ? { base_price: (t as any).servicePrice || (t as any).services?.base_price } : null,
+    } as Appointment & { servicePrice?: number | null; service?: { base_price?: number } | null; services?: { base_price?: number } | null }));
   }, [turnosSnapshot, selectedSalonId]);
 
   const filteredAppointments = useMemo(() => {
@@ -119,17 +123,32 @@ export function useFinancialMetrics(
   const calculateKPIs = useMemo((): KPIs => {
     const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');
     
-    // Ingreso bruto: suma de total_amount de turnos completados O suma de payments
-    // Usar payments como fuente principal ya que se crean automáticamente cuando se completa un turno
-    const grossRevenueFromAppointments = completedAppointments.reduce((sum, apt) => sum + ((apt as any).total_amount || 0), 0);
-    const grossRevenueFromPayments = filteredPayments.reduce((sum, payment) => sum + payment.amount, 0);
-    // Usar el mayor de los dos para asegurar que se reflejen los ingresos
-    const grossRevenue = grossRevenueFromPayments > 0 ? grossRevenueFromPayments : grossRevenueFromAppointments;
-    
-    // Ingreso neto: bruto - descuentos - impuestos (asumiendo que están en payments)
-    const netRevenue = filteredPayments.reduce((sum, payment) => {
-      return sum + payment.amount - (payment.discountAmount || 0) - (payment.taxAmount || 0);
+    // Ingreso bruto: suma de total_amount de turnos completados
+    // Cada turno completado genera ingresos basados en:
+    // 1. total_amount si existe y es > 0
+    // 2. O el precio del servicio (servicePrice) si total_amount es 0 o no existe
+    const grossRevenueFromAppointments = completedAppointments.reduce((sum, apt) => {
+      const aptAny = apt as any;
+      // Priorizar total_amount, si es 0 o no existe, usar servicePrice
+      const amount = (aptAny.total_amount && aptAny.total_amount > 0) 
+        ? aptAny.total_amount 
+        : (aptAny.servicePrice || aptAny.service?.base_price || aptAny.services?.base_price || 0);
+      return sum + Number(amount || 0);
     }, 0);
+    
+    // Los pagos son adicionales o confirmación, pero los ingresos vienen de turnos completados
+    const grossRevenueFromPayments = filteredPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    
+    // Usar turnos completados como fuente principal, pagos como complemento si son mayores
+    // Esto asegura que cada turno completado genere ingresos automáticamente
+    const grossRevenue = Math.max(grossRevenueFromAppointments, grossRevenueFromPayments);
+    
+    // Ingreso neto: usar ingresos de turnos completados, menos descuentos/impuestos de pagos si existen
+    // Si hay pagos, pueden tener descuentos/impuestos que ajustan el ingreso neto
+    const adjustmentsFromPayments = filteredPayments.reduce((sum, payment) => {
+      return sum - (payment.discountAmount || 0) - (payment.taxAmount || 0);
+    }, 0);
+    const netRevenue = grossRevenue + adjustmentsFromPayments;
     
     // Costos directos: comisiones + costos directos de appointments
     const directCosts = commissions.reduce((sum, comm) => sum + comm.amount, 0);
@@ -143,9 +162,9 @@ export function useFinancialMetrics(
     // Margen neto: margen bruto - gastos
     const netMargin = grossMargin - totalExpenses;
     
-    // Ticket promedio
+    // Ticket promedio: basado en turnos completados
     const averageTicket = completedAppointments.length > 0 
-      ? netRevenue / completedAppointments.length 
+      ? grossRevenue / completedAppointments.length 
       : 0;
     
     // % Ocupación: horas vendidas / horas disponibles (simplificado)
@@ -154,10 +173,26 @@ export function useFinancialMetrics(
       ? (completedAppointments.length / totalAppointments) * 100 
       : 0;
     
-    // Caja del día (últimos pagos del día actual)
+    // Caja del día: turnos completados hoy + pagos de hoy
     const today = new Date().toISOString().split('T')[0];
+    const todayAppointments = completedAppointments.filter(apt => {
+      const aptAny = apt as any;
+      const aptDate = aptAny.starts_at 
+        ? new Date(aptAny.starts_at).toISOString().split('T')[0]
+        : aptAny.date || today;
+      return aptDate === today;
+    });
+    const todayCashFromAppointments = todayAppointments.reduce((sum, apt) => {
+      const aptAny = apt as any;
+      const amount = (aptAny.total_amount && aptAny.total_amount > 0) 
+        ? aptAny.total_amount 
+        : (aptAny.servicePrice || aptAny.service?.base_price || aptAny.services?.base_price || 0);
+      return sum + Number(amount || 0);
+    }, 0);
     const todayPayments = filteredPayments.filter(p => p.date === today);
-    const dailyCash = todayPayments.reduce((sum, p) => sum + p.amount, 0);
+    const todayCashFromPayments = todayPayments.reduce((sum, p) => sum + p.amount, 0);
+    // Usar el mayor entre turnos de hoy y pagos de hoy
+    const dailyCash = Math.max(todayCashFromAppointments, todayCashFromPayments);
     
     // Saldo por liquidar: pagos con gatewaySettlementDate pendiente
     const pendingSettlement = filteredPayments
@@ -215,13 +250,23 @@ export function useFinancialMetrics(
 
   const calculateBreakEven = useMemo(() => {
     // Gastos fijos diarios (promedio mensual / 30)
+    // Nota: La columna 'type' no existe en expenses, usar category como alternativa
     const fixedExpenses = filteredExpenses
-      .filter(exp => exp.type === 'fixed')
+      .filter(exp => exp.category === 'rent' || exp.category === 'alquiler' || exp.category === 'salario' || exp.category === 'salary')
       .reduce((sum, exp) => sum + exp.amount, 0);
     const dailyFixedCost = fixedExpenses / 30; // Simplificado
     
-    // Ingreso diario promedio
-    const totalRevenue = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+    // Ingreso diario promedio: basado en turnos completados
+    const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');
+    const totalRevenueFromAppointments = completedAppointments.reduce((sum, apt) => {
+      const aptAny = apt as any;
+      const amount = (aptAny.total_amount && aptAny.total_amount > 0) 
+        ? aptAny.total_amount 
+        : (aptAny.servicePrice || aptAny.service?.base_price || aptAny.services?.base_price || 0);
+      return sum + Number(amount || 0);
+    }, 0);
+    const totalRevenueFromPayments = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalRevenue = Math.max(totalRevenueFromAppointments, totalRevenueFromPayments);
     const days = dateRange 
       ? Math.max(1, Math.ceil((new Date(dateRange.endDate).getTime() - new Date(dateRange.startDate).getTime()) / (1000 * 60 * 60 * 24)))
       : 30;
@@ -232,11 +277,21 @@ export function useFinancialMetrics(
       dailyRevenue,
       breakEvenPoint: dailyFixedCost,
     };
-  }, [filteredExpenses, filteredPayments, dateRange]);
+  }, [filteredExpenses, filteredPayments, filteredAppointments, dateRange]);
 
   const calculateProjections = useMemo(() => {
     // Proyección simple: tendencia lineal basada en últimos días
-    const totalRevenue = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+    // Basado en turnos completados
+    const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');
+    const totalRevenueFromAppointments = completedAppointments.reduce((sum, apt) => {
+      const aptAny = apt as any;
+      const amount = (aptAny.total_amount && aptAny.total_amount > 0) 
+        ? aptAny.total_amount 
+        : (aptAny.servicePrice || aptAny.service?.base_price || aptAny.services?.base_price || 0);
+      return sum + Number(amount || 0);
+    }, 0);
+    const totalRevenueFromPayments = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalRevenue = Math.max(totalRevenueFromAppointments, totalRevenueFromPayments);
     const days = dateRange 
       ? Math.max(1, Math.ceil((new Date(dateRange.endDate).getTime() - new Date(dateRange.startDate).getTime()) / (1000 * 60 * 60 * 24)))
       : 30;
@@ -246,7 +301,7 @@ export function useFinancialMetrics(
       next30Days: dailyAverage * 30,
       next90Days: dailyAverage * 90,
     };
-  }, [filteredPayments, dateRange]);
+  }, [filteredPayments, filteredAppointments, dateRange]);
 
   const metrics: FinancialMetrics = useMemo(() => ({
     kpis: calculateKPIs,

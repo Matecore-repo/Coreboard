@@ -1,0 +1,12 @@
+{
+  "title": "Servidor MCP para Coreboard",
+  "description": "Documentación del servidor MCP (Model Context Protocol) personalizado que indexa y sirve la documentación del proyecto para mejorar el contexto de la IA",
+  "content": "# Servidor MCP para Coreboard\n\nEste proyecto incluye un servidor MCP (Model Context Protocol) personalizado que indexa y sirve la documentación del proyecto para mejorar el contexto de la IA.\n\n## Configuración\n\nEl servidor MCP está configurado en `.cursor/mcp.json`. Cursor debería detectarlo automáticamente al abrir el proyecto.\n\n## Herramientas Disponibles\n\nEl servidor MCP expone las siguientes herramientas:\n\n1. **search_documents**: Buscar documentos por categoría, título o contenido\n2. **get_document**: Obtener el contenido completo de un documento\n3. **list_categories**: Listar todas las categorías disponibles\n4. **get_index_stats**: Obtener estadísticas del índice\n\n## Recursos\n\nTodos los documentos indexados en `docs/index.json` están disponibles como recursos MCP con el prefijo `coreboard://`.\n\n## Pruebas\n\nPara probar el servidor manualmente:\n\n```bash\nnpm run mcp:test\n```\n\n## Estructura\n\n- `scripts/mcp-server.ts`: Servidor MCP principal\n- `.cursor/mcp.json`: Configuración para Cursor\n- `docs/index.json`: Índice de documentación (30 documentos)",
+  "category": "mcp",
+  "metadata": {
+    "originalPath": ".cursor/README.md",
+    "type": "documentation",
+    "version": "1.0.0"
+  }
+}
+

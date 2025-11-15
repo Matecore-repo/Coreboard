@@ -207,13 +207,14 @@ export default function OwnerDashboard({
     () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
     [expenses],
   );
+  // Otros gastos: todos los gastos excepto alquileres y salarios
+  // Nota: Las comisiones NO están en expenses, vienen de la tabla commissions
   const otherExpensesAmount = useMemo(
     () =>
       totalExpensesAmount -
       rentExpenses -
-      salaryExpenses -
-      totalCommissionsAmount,
-    [totalExpensesAmount, rentExpenses, salaryExpenses, totalCommissionsAmount],
+      salaryExpenses,
+    [totalExpensesAmount, rentExpenses, salaryExpenses],
   );
   const commissionsShare = useMemo(() => {
     if (totalCommissionsAmount > 0 && metrics.kpis.grossRevenue > 0) {
@@ -275,12 +276,13 @@ export default function OwnerDashboard({
       .map(([date, data]) => ({ date, income: data.income, expense: data.expense }));
   }, [payments, expenses]);
 
-  // Resultado financiero (Ingresos - Gastos)
+  // Resultado financiero (Ingresos - Gastos - Comisiones)
   const netResult = useMemo(() => {
     const totalIncome = payments.reduce((sum, p) => sum + p.amount, 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    return totalIncome - totalExpenses;
-  }, [payments, expenses]);
+    // Las comisiones son un gasto que hay que pagar, así que se restan
+    return totalIncome - totalExpenses - totalCommissionsAmount;
+  }, [payments, expenses, totalCommissionsAmount]);
 
   const recentMovements = useMemo(() => {
     const incomeMovements = payments.map(payment => ({
@@ -389,8 +391,8 @@ const financialSummaryRows = useMemo<FinancialSectionItem[]>(
       detail: "Egresos operativos y administrativos",
     },
     {
-      label: "Comisiones pagadas",
-      value: totalCommissionsAmount,
+      label: "Comisiones",
+      value: -totalCommissionsAmount,
       detail: "Pagos a colaboradores",
     },
     {
@@ -498,11 +500,11 @@ const financialSummaryRows = useMemo<FinancialSectionItem[]>(
         ],
       },
       {
-        title: "Comisiones pagadas",
+        title: "Comisiones",
         items: [
           {
-            label: "Comisiones pagadas",
-            value: totalCommissionsAmount,
+            label: "Comisiones",
+            value: -totalCommissionsAmount,
             detail: "Pagos a colaboradores",
           },
           {
@@ -611,7 +613,7 @@ const financialSummaryRows = useMemo<FinancialSectionItem[]>(
                   <React.Fragment key={section.title}>
                     <TableRow
                       className={cn(
-                        section.title !== "Comisiones pagadas" &&
+                        section.title !== "Comisiones" &&
                           "bg-muted/50 dark:bg-muted/40",
                       )}
                     >

@@ -14,7 +14,7 @@ function mapRowToExpense(row: any): Expense {
     amount: Number(row.amount ?? 0),
     description: row.description || '',
     category: row.category || undefined,
-    type: row.type || undefined,
+    type: undefined, // La columna type no existe en el schema actual
     supplier_id: row.supplier_id ? String(row.supplier_id) : undefined,
     invoice_number: row.invoice_number || undefined,
     invoice_date: row.invoice_date || undefined,
@@ -41,9 +41,10 @@ function mapExpenseToRow(payload: Partial<Expense>) {
   if (payload.category !== undefined) {
     row.category = payload.category || null;
   }
-  if (payload.type !== undefined) {
-    row.type = payload.type || null;
-  }
+  // Nota: La columna 'type' no existe en la tabla expenses según el schema actual
+  // if (payload.type !== undefined) {
+  //   row.type = payload.type || null;
+  // }
   if (payload.supplier_id !== undefined) {
     row.supplier_id = payload.supplier_id || null;
   }
@@ -94,9 +95,10 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
     
     setLoading(true);
     try {
+      // Solo solicitar columnas que existen en el schema actual (la vista pública puede tener menos columnas)
       let query = supabase
         .from('expenses')
-        .select('id, org_id, salon_id, amount, description, category, type, payment_status, supplier_id, invoice_number, invoice_date, due_date, incurred_at, created_at, created_by')
+        .select('id, org_id, salon_id, amount, description, category, incurred_at, created_at')
         .eq('org_id', currentOrgId);
       
       if (options?.filters) {

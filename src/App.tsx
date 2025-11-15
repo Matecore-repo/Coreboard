@@ -901,15 +901,34 @@ useEffect(() => {
     return Array.from(map.entries()).map(([group, actions]) => [group, actions.sort((a, b) => a.label.localeCompare(b.label))] as [string, CommandAction[]]);
   }, [allActions]);
 
-  // Leer parámetro view de la URL al inicializar
+  // Leer parámetro view de la URL al inicializar y sincronizar con cambios de URL
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get('view');
-    if (viewParam && allNavItems.some((navItem) => navItem.id === viewParam)) {
-      setActiveNavItem(viewParam);
-    }
-  }, [allNavItems]);
+    
+    const syncViewFromURL = () => {
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view');
+      if (viewParam && allNavItems.some((navItem) => navItem.id === viewParam)) {
+        // Solo actualizar si es diferente para evitar renders innecesarios
+        if (viewParam !== activeNavItem) {
+          setActiveNavItem(viewParam);
+        }
+      } else if (!viewParam && activeNavItem !== 'home') {
+        // Si no hay parámetro y no estamos en home, ir a home
+        setActiveNavItem('home');
+      }
+    };
+    
+    // Sincronizar al montar
+    syncViewFromURL();
+    
+    // Sincronizar cuando cambia la URL (por ejemplo, botón atrás del navegador)
+    window.addEventListener('popstate', syncViewFromURL);
+    
+    return () => {
+      window.removeEventListener('popstate', syncViewFromURL);
+    };
+  }, [allNavItems, activeNavItem]);
 
   useEffect(() => {
     const isTypingElement = (target: EventTarget | null) => {

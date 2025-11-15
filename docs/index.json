@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "title": "Índice de Documentación - Coreboard",
+    "generatedAt": "2025-01-27T00:00:00.000Z",
+    "totalDocuments": 30
+  },
+  "documents": [
+    {
+      "path": "docs/AI_CONTEXT.json",
+      "originalPath": "docs/AI_CONTEXT.md",
+      "category": "ai-context"
+    },
+    {
+      "path": "docs/APLICAR_MIGRACION_PAYMENT_METHOD.json",
+      "originalPath": "docs/APLICAR_MIGRACION_PAYMENT_METHOD.md",
+      "category": "migration"
+    },
+    {
+      "path": "docs/ARCHITECTURE.json",
+      "originalPath": "docs/ARCHITECTURE.md",
+      "category": "architecture"
+    },
+    {
+      "path": "docs/archive/instructivos/alta-usuarios.json",
+      "originalPath": "docs/archive/instructivos/alta-usuarios.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/archive/instructivos/base-datos.json",
+      "originalPath": "docs/archive/instructivos/base-datos.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/archive/instructivos/desarrollo.json",
+      "originalPath": "docs/archive/instructivos/desarrollo.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/archive/instructivos/diagramas-rls.json",
+      "originalPath": "docs/archive/instructivos/diagramas-rls.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/archive/instructivos/funcionalidades.json",
+      "originalPath": "docs/archive/instructivos/funcionalidades.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/archive/instructivos/README.json",
+      "originalPath": "docs/archive/instructivos/README.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/archive/instructivos/seguridad-rls.json",
+      "originalPath": "docs/archive/instructivos/seguridad-rls.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/archive/instructivos/triggers-automacion.json",
+      "originalPath": "docs/archive/instructivos/triggers-automacion.md",
+      "category": "instructivos"
+    },
+    {
+      "path": "docs/ESTADO_FINAL.json",
+      "originalPath": "docs/ESTADO_FINAL.md",
+      "category": "status"
+    },
+    {
+      "path": "docs/INSTRUCTIVO_UNICO.json",
+      "originalPath": "docs/INSTRUCTIVO_UNICO.md",
+      "category": "guide"
+    },
+    {
+      "path": "docs/INTEGRACION_PAYMENT_LINKS.json",
+      "originalPath": "docs/INTEGRACION_PAYMENT_LINKS.md",
+      "category": "integration"
+    },
+    {
+      "path": "docs/MERCADOPAGO_TESTING.json",
+      "originalPath": "docs/MERCADOPAGO_TESTING.md",
+      "category": "testing"
+    },
+    {
+      "path": "docs/MONETIZACION_RESUMEN.json",
+      "originalPath": "docs/MONETIZACION_RESUMEN.md",
+      "category": "business"
+    },
+    {
+      "path": "docs/MONETIZACION.json",
+      "originalPath": "docs/MONETIZACION.md",
+      "category": "business"
+    },
+    {
+      "path": "docs/RECOMENDACIONES_UX.json",
+      "originalPath": "docs/RECOMENDACIONES_UX.md",
+      "category": "ux"
+    },
+    {
+      "path": "docs/SALON_CAROUSEL_LOGICA_ANTERIOR.json",
+      "originalPath": "docs/SALON_CAROUSEL_LOGICA_ANTERIOR.md",
+      "category": "reference"
+    },
+    {
+      "path": "docs/SETUP_COMPLETO.json",
+      "originalPath": "docs/SETUP_COMPLETO.md",
+      "category": "setup"
+    },
+    {
+      "path": "docs/SOLUCIONES_APLICADAS.json",
+      "originalPath": "docs/SOLUCIONES_APLICADAS.md",
+      "category": "technical"
+    },
+    {
+      "path": "docs/VALIDATORS.json",
+      "originalPath": "docs/VALIDATORS.md",
+      "category": "technical"
+    },
+    {
+      "path": "docs/VERIFICACION_COMISIONES_PAGOS.json",
+      "originalPath": "docs/VERIFICACION_COMISIONES_PAGOS.md",
+      "category": "verification"
+    },
+    {
+      "path": "docs/VERIFICACION_COMPLETA_PAGOS_COMISIONES.json",
+      "originalPath": "docs/VERIFICACION_COMPLETA_PAGOS_COMISIONES.md",
+      "category": "verification"
+    },
+    {
+      "path": "docs/VERSIONES.json",
+      "originalPath": "docs/VERSIONES.md",
+      "category": "changelog"
+    },
+    {
+      "path": "public/README.json",
+      "originalPath": "public/README.md",
+      "category": "documentation"
+    },
+    {
+      "path": "README.json",
+      "originalPath": "README.md",
+      "category": "documentation"
+    },
+    {
+      "path": "src/Attributions.json",
+      "originalPath": "src/Attributions.md",
+      "category": "legal"
+    },
+    {
+      "path": "src/guidelines/Guidelines.json",
+      "originalPath": "src/guidelines/Guidelines.md",
+      "category": "guidelines"
+    },
+    {
+      "path": "docs/MCP_SERVER.json",
+      "originalPath": ".cursor/README.md",
+      "category": "mcp"
+    }
+  ]
+}

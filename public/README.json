@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "title": "Document",
+    "path": "public/README.md",
+    "category": "documentation",
+    "tags": [
+      "documentation"
+    ],
+    "lastUpdated": "2025-11-15",
+    "fileName": "README"
+  },
+  "content": "Coloca aquí el archivo de imagen que se usará como fallback del login.\r\n\r\nNombre esperado: `login-fallback.jpg`\r\n\r\nRuta accesible desde el navegador: `/login-fallback.jpg`\r\n\r\nEjemplo de copia local (desde la raíz del proyecto):\r\n\r\n```bash\r\ncp src/assets/7a2f68d25eb7e57d2307a03131d109fa414c2013.png public/login-fallback.jpg\r\n```\r\n\r\nSi ya transferiste el archivo, reinicia el servidor de desarrollo:\r\n\r\n```bash\r\nnpm run dev\r\n```\r\n\r\nSi después de esto la imagen sigue sin aparecer, pega aquí el error de la consola (Network). \r\n\r\n\r\n",
+  "sections": []
+}

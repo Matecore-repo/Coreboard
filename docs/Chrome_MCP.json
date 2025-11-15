@@ -1,0 +1,21 @@
+{
+  "description": "Cuentas de prueba para acceso desde Chrome MCP Browser Extension",
+  "application": "CRM de turnos",
+  "setup": {
+    "start_command": "npm run dev",
+    "url": "http://192.168.0.14:3000/"
+  },
+  "test_accounts": [
+    {
+      "email": "iangel.oned@gmail.com",
+      "password": "123456",
+      "role": "propietario"
+    },
+    {
+      "email": "nachoangelone@gmail.com",
+      "password": "123456",
+      "role": "empleado"
+    }
+  ]
+}
+

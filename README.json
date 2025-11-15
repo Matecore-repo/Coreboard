@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "title": "Coreboard",
+    "path": "README.md",
+    "category": "documentation",
+    "tags": [
+      "documentation"
+    ],
+    "lastUpdated": "2025-11-15",
+    "fileName": "README"
+  },
+  "content": "# Coreboard\r\n\r\nCRM de turnos para salones/peluquerías.\r\n\r\n## Inicio Rápido\r\n\r\n### Desarrollo\r\n\r\n```bash\r\n# Instalar dependencias\r\nnpm install\r\n\r\n# Ejecutar en desarrollo\r\nnpm run dev\r\n```\r\n\r\nAbre http://localhost:3000\r\n\r\n### Producción\r\n\r\n```bash\r\n# Build de producción\r\nnpm run build\r\n\r\n# Iniciar servidor de producción\r\nnpm start\r\n```\r\n\r\n## Variables de Entorno\r\n\r\nCrear archivo `.env.local` con:\r\n\r\n```env\r\nNEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co\r\nNEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key\r\nNEXT_PUBLIC_DEMO_MODE=false\r\n```\r\n\r\n## Documentación\r\n\r\n- `docs/INSTRUCTIVO_UNICO.md` — Guía rápida de inicio\r\n- `docs/DEPLOY.md` — Guía de deploy para producción\r\n- `docs/TEST_RESULTS.md` — Resultados de pruebas E2E\r\n- `docs/ARCHITECTURE.md` — Arquitectura del sistema\r\n- `docs/VALIDATORS.md` — Validadores y reglas de negocio\r\n\r\n## Testing\r\n\r\n```bash\r\n# Pruebas E2E con Playwright\r\nnpm run e2e\r\n\r\n# Pruebas unitarias con Vitest\r\nnpm test\r\n```\r\n\r\n## Build y Deploy\r\n\r\nVer `docs/DEPLOY.md` para instrucciones completas de deploy.\r\n\r\n## Scripts Disponibles\r\n\r\n- `npm run dev` - Desarrollo\r\n- `npm run lint` - Ejecuta ESLint, imprime el resultado en consola y genera `lint-report.txt` para revisar las salidas completas\r\n- `npm run build` - Build de producción\r\n- `npm start` - Servidor de producción\r\n- `npm run e2e` - Pruebas E2E\r\n- `npm run e2e:ui` - Pruebas E2E con UI\r\n",
+  "sections": []
+}

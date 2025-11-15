@@ -187,7 +187,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         created_by,
         created_at,
         updated_at,
-        services:service_id (
+        services!service_id (
           name,
           base_price
         )
@@ -224,7 +224,8 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
 
       let { data, error } = await runQuery(selectWithServices);
 
-      if (error && error.code === 'PGRST200') {
+      // Si hay error en el join (400, PGRST200 o cualquier error relacionado con relaciones)
+      if (error && (error.code === 'PGRST200' || error.code === 'PGRST116' || error.message?.includes('relationship') || error.message?.includes('Could not find a relationship'))) {
         console.warn('Falling back to appointments select without services join:', error.message);
         const fallback = await runQuery(basicSelect);
         data = fallback.data;

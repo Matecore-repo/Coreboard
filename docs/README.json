@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "title": "README - Coreboard",
+    "path": "README.md",
+    "category": "documentation",
+    "tags": ["inicio", "setup", "desarrollo"],
+    "lastUpdated": "2024-12-19"
+  },
+  "content": "# Coreboard\n\nCRM de turnos para salones/peluquerías.\n\n## Inicio Rápido\n\n### Desarrollo\n\n```bash\n# Instalar dependencias\nnpm install\n\n# Ejecutar en desarrollo\nnpm run dev\n```\n\nAbre http://localhost:3000\n\n### Producción\n\n```bash\n# Build de producción\nnpm run build\n\n# Iniciar servidor de producción\nnpm start\n```\n\n## Variables de Entorno\n\nCrear archivo `.env.local` con:\n\n```env\nNEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co\nNEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key\nNEXT_PUBLIC_DEMO_MODE=false\n```\n\n## Documentación\n\n- `docs/INSTRUCTIVO_UNICO.md` — Guía rápida de inicio\n- `docs/DEPLOY.md` — Guía de deploy para producción\n- `docs/TEST_RESULTS.md` — Resultados de pruebas E2E\n- `docs/ARCHITECTURE.md` — Arquitectura del sistema\n- `docs/VALIDATORS.md` — Validadores y reglas de negocio\n\n## Testing\n\n```bash\n# Pruebas E2E con Playwright\nnpm run e2e\n\n# Pruebas unitarias con Vitest\nnpm test\n```\n\n## Build y Deploy\n\nVer `docs/DEPLOY.md` para instrucciones completas de deploy.\n\n## Scripts Disponibles\n\n- `npm run dev` - Desarrollo\n- `npm run lint` - Ejecuta ESLint, imprime el resultado en consola y genera `lint-report.txt` para revisar las salidas completas\n- `npm run build` - Build de producción\n- `npm start` - Servidor de producción\n- `npm run e2e` - Pruebas E2E\n- `npm run e2e:ui` - Pruebas E2E con UI",
+  "sections": [
+    {
+      "title": "Inicio Rápido",
+      "type": "code",
+      "content": "Instrucciones para desarrollo y producción"
+    },
+    {
+      "title": "Variables de Entorno",
+      "type": "config",
+      "content": "Configuración de variables de entorno necesarias"
+    },
+    {
+      "title": "Documentación",
+      "type": "links",
+      "content": "Referencias a otros documentos del proyecto"
+    },
+    {
+      "title": "Testing",
+      "type": "commands",
+      "content": "Comandos para ejecutar pruebas"
+    },
+    {
+      "title": "Scripts Disponibles",
+      "type": "list",
+      "content": "Lista de scripts npm disponibles"
+    }
+  ]
+}
+
