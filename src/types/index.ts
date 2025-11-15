@@ -129,7 +129,6 @@ export type Expense = {
   amount: number;
   description: string;
   category?: string;
-  type?: 'fixed' | 'variable' | 'supply_purchase';
   supplier_id?: string;
   invoice_number?: string;
   invoice_date?: string;

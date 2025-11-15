@@ -120,8 +120,8 @@ export function PaymentGateway({ orgId, paymentLinkToken }: PaymentGatewayProps)
           org_id: orgId,
           appointment_id: appointment.id,
           amount: totalAmount,
-          payment_method: 'card', // Por ahora, asumimos pago con tarjeta
-          processed_at: new Date().toISOString(),
+          method: 'card', // Por ahora, asumimos pago con tarjeta
+          received_at: new Date().toISOString(),
           notes: 'Pago realizado desde pasarela pública',
         });
 

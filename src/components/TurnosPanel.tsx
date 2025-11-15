@@ -11,7 +11,7 @@ interface TurnosPanelProps {
 }
 
 export function TurnosPanel({ data, variant = "all" }: TurnosPanelProps) {
-  const { salonAppointments, isLoading } = data;
+  const { salonAppointments = [], isLoading = true } = data || {};
   const { user, currentOrgId, currentRole } = useAuth();
   const { commissions, loading: loadingCommissions } = useCommissions({ enabled: true });
   const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: true });

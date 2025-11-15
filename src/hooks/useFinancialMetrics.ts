@@ -120,6 +120,14 @@ export function useFinancialMetrics(
     });
   }, [expenses, dateRange]);
 
+  const filteredCommissions = useMemo(() => {
+    if (!dateRange) return commissions;
+    return commissions.filter(commission => {
+      const commissionDate = commission.date;
+      return commissionDate >= dateRange.startDate && commissionDate <= dateRange.endDate;
+    });
+  }, [commissions, dateRange]);
+
   const calculateKPIs = useMemo((): KPIs => {
     const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');
     
@@ -150,8 +158,8 @@ export function useFinancialMetrics(
     }, 0);
     const netRevenue = grossRevenue + adjustmentsFromPayments;
     
-    // Costos directos: comisiones + costos directos de appointments
-    const directCosts = commissions.reduce((sum, comm) => sum + comm.amount, 0);
+    // Costos directos: comisiones filtradas por fecha + costos directos de appointments
+    const directCosts = filteredCommissions.reduce((sum, comm) => sum + comm.amount, 0);
     
     // Margen bruto: ingreso neto - costos directos
     const grossMargin = netRevenue - directCosts;
@@ -209,7 +217,7 @@ export function useFinancialMetrics(
       dailyCash,
       pendingSettlement,
     };
-  }, [filteredAppointments, filteredPayments, filteredExpenses, commissions]);
+  }, [filteredAppointments, filteredPayments, filteredExpenses, filteredCommissions]);
 
   const calculateMargins = useMemo(() => {
     const kpis = calculateKPIs;
@@ -254,7 +262,11 @@ export function useFinancialMetrics(
     const fixedExpenses = filteredExpenses
       .filter(exp => exp.category === 'rent' || exp.category === 'alquiler' || exp.category === 'salario' || exp.category === 'salary')
       .reduce((sum, exp) => sum + exp.amount, 0);
-    const dailyFixedCost = fixedExpenses / 30; // Simplificado
+    const totalExpenses = filteredExpenses
+      .reduce((sum, exp) => sum + exp.amount, 0);
+    // Usar fijos si existen, sino usar todos los gastos
+    const expensesToUse = fixedExpenses > 0 ? fixedExpenses : totalExpenses;
+    const dailyFixedCost = expensesToUse / 30; // Simplificado
     
     // Ingreso diario promedio: basado en turnos completados
     const completedAppointments = filteredAppointments.filter(apt => apt.status === 'completed');

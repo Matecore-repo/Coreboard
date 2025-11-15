@@ -13,6 +13,9 @@ import { Badge, badgeVariants } from "../../ui/badge";
 import { ScrollArea } from "../../ui/scroll-area";
 import { cn } from "../../ui/utils";
 import type { Appointment } from "./AppointmentCard";
+import { useEmployees } from "../../../hooks/useEmployees";
+import { useAuth } from "../../../contexts/AuthContext";
+import { isValidUUID } from "../../../lib/uuid";
 
 export type TurnosTableProps = {
   appointments: Appointment[];
@@ -48,14 +51,27 @@ export function TurnosTable({
   selectedAppointmentId,
   emptyLabel = "No hay turnos disponibles",
 }: TurnosTableProps) {
+  const { currentOrgId } = useAuth();
+  const { employees } = useEmployees(currentOrgId ?? undefined, { enabled: !!currentOrgId });
+
   const rows = useMemo(() => {
-    return appointments.map((appointment) => ({
-      ...appointment,
-      serviceLabel: appointment.serviceName || appointment.service || "—",
-      statusLabel: statusLabelMap[appointment.status] ?? appointment.status,
-      statusVariant: statusVariantMap[appointment.status] ?? "outline",
-    }));
-  }, [appointments]);
+    return appointments.map((appointment) => {
+      // Resolver nombre del estilista si es un UUID
+      let stylistLabel = appointment.stylist || "Sin asignar";
+      if (stylistLabel && stylistLabel !== "Sin asignar" && isValidUUID(stylistLabel)) {
+        const employee = employees.find((e) => e.id === stylistLabel);
+        stylistLabel = employee?.full_name || stylistLabel;
+      }
+
+      return {
+        ...appointment,
+        serviceLabel: appointment.serviceName || appointment.service || "—",
+        stylistLabel,
+        statusLabel: statusLabelMap[appointment.status] ?? appointment.status,
+        statusVariant: statusVariantMap[appointment.status] ?? "outline",
+      };
+    });
+  }, [appointments, employees]);
 
   const bodyContent = (() => {
     if (isLoading) {
@@ -124,7 +140,7 @@ export function TurnosTable({
           <TableCell>{row.serviceLabel}</TableCell>
           <TableCell>{row.date}</TableCell>
           <TableCell>{row.time}</TableCell>
-          <TableCell>{row.stylist || "Sin asignar"}</TableCell>
+          <TableCell>{row.stylistLabel || "Sin asignar"}</TableCell>
           <TableCell className="text-right">
             <Badge variant={row.statusVariant}>{row.statusLabel}</Badge>
           </TableCell>

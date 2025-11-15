@@ -70,7 +70,6 @@ function mapExpenseToRow(payload: Partial<Expense>) {
 export interface ExpenseFilters {
   salonId?: string;
   category?: string;
-  type?: 'fixed' | 'variable' | 'supply_purchase';
   paymentStatus?: 'pending' | 'paid' | 'partial';
   startDate?: string;
   endDate?: string;
@@ -109,11 +108,11 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
         if (filters.category) {
           query = query.eq('category', filters.category);
         }
-        if (filters.type) {
-          query = query.eq('type', filters.type);
-        }
         if (filters.paymentStatus) {
-          query = query.eq('payment_status', filters.paymentStatus);
+          // Solo filtrar por payment_status si la columna existe (se intentará y si falla se ignorará)
+          try {
+            query = query.eq('payment_status', filters.paymentStatus);
+          } catch {}
         }
         if (filters.startDate) {
           query = query.gte('incurred_at', filters.startDate);
@@ -123,13 +122,41 @@ export function useExpenses(options?: { enabled?: boolean; filters?: ExpenseFilt
         }
       }
       
-      const { data, error } = await query.order('incurred_at', { ascending: false });
+      // Agregar timeout a la query
+      const queryPromise = query.order('incurred_at', { ascending: false });
+      const timeoutPromise = new Promise<{ data: null; error: { code: string; message: string } }>((_, reject) => 
+        setTimeout(() => reject({ code: 'TIMEOUT', message: 'Query timeout' }), 10000)
+      );
+      
+      let data, error;
+      try {
+        const result = await Promise.race([queryPromise, timeoutPromise]);
+        data = result.data;
+        error = result.error;
+      } catch (timeoutError: any) {
+        if (timeoutError.code === 'TIMEOUT') {
+          data = null;
+          error = timeoutError;
+        } else {
+          throw timeoutError;
+        }
+      }
       
       if (error) {
-        console.error('Error fetching expenses:', error);
-        // Manejar errores específicos de manera más amigable
-        if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-          console.warn('Schema mismatch detected. Please verify database schema.');
+        // Throttling de logs: solo loguear una vez cada 5 segundos para el mismo error
+        const errorKey = `${error.code || 'unknown'}:${currentOrgId}:expenses`;
+        const lastErrorTime = (globalThis as any).__lastExpensesError?.[errorKey] || 0;
+        const now = Date.now();
+        if (now - lastErrorTime > 5000) {
+          console.error('Error fetching expenses:', error);
+          // Manejar errores específicos de manera más amigable
+          if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+            console.warn('Schema mismatch detected. Please verify database schema.');
+          }
+          if (!(globalThis as any).__lastExpensesError) {
+            (globalThis as any).__lastExpensesError = {};
+          }
+          (globalThis as any).__lastExpensesError[errorKey] = now;
         }
         setExpenses([]);
       } else {

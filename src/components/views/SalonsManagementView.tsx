@@ -1,5 +1,4 @@
 ﻿import React, { useState, useCallback, lazy, useRef, useEffect } from "react";
-import NextImage from "next/image";
 import { Plus, Users, MapPin, Upload, X, Phone, Mail, Clock, DollarSign, Edit3, FileText, Trash2, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -21,7 +20,6 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useEmployees } from "../../hooks/useEmployees";
 import { useSalonEmployees } from "../../hooks/useSalonEmployees";
 import { ShortcutBanner } from "../ShortcutBanner";
-import { useCommandPalette } from "../../contexts/CommandPaletteContext";
 
 interface Salon {
   id: string;
@@ -55,7 +53,6 @@ const RECOMMENDED_SERVICES: Array<{ key: string; name: string; base_price: numbe
 
 function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }: SalonsManagementViewProps) {
   const { currentOrgId } = useAuth();
-  const palette = useCommandPalette(true);
   const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
   const { services: allServices, createService: createOrgService, isLoading: servicesLoading } = useServices(currentOrgId ?? undefined);
   
@@ -244,11 +241,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       return;
     }
 
-    if (!/\p{L}/u.test(formData.name)) {
-      toastError("El nombre del local debe incluir al menos una letra.");
-      return;
-    }
-
     try {
       const dataToSave: Omit<Salon, "id"> = {
         ...formData,
@@ -330,7 +322,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       // Limpiar selección cuando se cierra el diálogo
       setSelectedEmployeeIds(new Set());
     }
-  }, [editingSalon, salonEmployeeAssignments]);
+  }, [editingSalon?.id, salonEmployeeAssignments]);
 
   // Toggle de empleado seleccionado (para checkboxes)
   const handleToggleEmployee = useCallback((employeeId: string) => {
@@ -360,10 +352,9 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         icon={<Sparkles className="size-4 text-primary" aria-hidden="true" />}
         message={(
           <>
-            Usa <span className="font-semibold">Ctrl + K</span> o <span className="font-semibold">Ctrl + B</span> para abrir la paleta de comandos.
+            Usa <span className="font-semibold">Ctrl + K</span> para abrir la paleta de comandos o <span className="font-semibold">Ctrl + ←/→</span> para alternar vistas.
           </>
         )}
-        onShortcutClick={palette?.openPalette}
       />
       <Section 
         title="Gestión de Locales"
@@ -393,7 +384,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
             role="listitem"
             tabIndex={0}
             aria-label={`Local: ${salon.name} en ${salon.address}`}
-            aria-current={selectedSalon?.id === salon.id ? "true" : undefined}
+            aria-pressed={selectedSalon?.id === salon.id}
             data-salon-id={salon.id}
             data-salon-name={salon.name}
             onKeyDown={(e) => {
@@ -404,13 +395,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
             }}
           >
             <div className="h-32 overflow-hidden relative">
-              <NextImage
-                src={salon.image || "/imagenlogin.jpg"}
-                alt={salon.name}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              />
+              <img src={salon.image} alt={salon.name} className="w-full h-full object-cover" />
             </div>
             <div className="p-4 space-y-3">
               <div className="space-y-1">
@@ -892,13 +877,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 <p className="text-xs text-muted-foreground">Formato: JPG, PNG. Tamaño máximo: 5MB</p>
                 {imagePreview && (
                   <div className="mt-2 rounded-lg overflow-hidden border relative h-40">
-                    <NextImage
-                      src={imagePreview}
-                      alt="Vista previa"
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                    />
+                    <img src={imagePreview} alt="Vista previa" className="w-full h-full object-cover" />
                   </div>
                 )}
               </div>

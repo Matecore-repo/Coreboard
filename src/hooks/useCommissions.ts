@@ -59,27 +59,35 @@ export function useCommissions(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true;
 
   const fetchCommissions = useCallback(async () => {
-    if (!enabled || !currentOrgId) return;
+    if (!enabled || !currentOrgId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const cacheKey = `commissions:${currentOrgId}`;
       
       // Usar caché para evitar consultas duplicadas
-      const mapped = await queryWithCache<Commission[]>(cacheKey, async () => {
-        let query = supabase
-          .from('commissions')
-          .select('id, org_id, employee_id, amount, pct, calculated_at')
-          .eq('org_id', currentOrgId);
-        
-        const { data, error } = await query.order('id', { ascending: false });
-        
-        if (error) {
-          console.error('Error fetching commissions:', error);
-          throw error;
-        }
-        
-        return ((data as any[]) || []).map(mapRowToCommission);
-      });
+      const mapped = await Promise.race([
+        queryWithCache<Commission[]>(cacheKey, async () => {
+          let query = supabase
+            .from('commissions')
+            .select('id, org_id, employee_id, amount, pct, calculated_at')
+            .eq('org_id', currentOrgId);
+          
+          const { data, error } = await query.order('id', { ascending: false });
+          
+          if (error) {
+            console.error('Error fetching commissions:', error);
+            throw error;
+          }
+          
+          return ((data as any[]) || []).map(mapRowToCommission);
+        }),
+        new Promise<Commission[]>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 10000)
+        )
+      ]);
       
       setCommissions(mapped);
     } catch (error) {

@@ -158,25 +158,49 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     
     setLoading(true);
     try {
-      // Solo solicitar columnas que existen en el schema actual
+      // Solo solicitar columnas que existen en el schema actual (payment_method, processed_at)
       // La vista pública puede tener columnas diferentes a app.payments
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, org_id, created_at')
+        .select('id, appointment_id, amount, org_id, created_at, processed_at, payment_method')
         .eq('org_id', currentOrgId);
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
       }
       
-      // Ordenar por created_at (siempre existe)
-      const { data, error } = await query.order('created_at', { ascending: false });
+      // Intentar ordenar por processed_at, si falla usar created_at
+      let { data, error } = await query.order('processed_at', { ascending: false });
+
+      // Si processed_at no existe, intentar con created_at
+      if (error && error.message?.includes('processed_at')) {
+        const retryQuery = supabase
+          .from('payments')
+          .select('id, appointment_id, amount, org_id, created_at')
+          .eq('org_id', currentOrgId);
+        if (options?.appointmentId) {
+          retryQuery.eq('appointment_id', options.appointmentId);
+        }
+        const retry = await retryQuery.order('created_at', { ascending: false });
+        data = retry.data;
+        error = retry.error;
+      }
       
       if (error) {
-        console.error('Error fetching payments:', error);
-        // Manejar errores específicos de manera más amigable
-        if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-          console.warn('Schema mismatch detected. Please verify database schema.');
+        // Throttling de logs: solo loguear una vez cada 5 segundos para el mismo error
+        const errorKey = `${error.code || 'unknown'}:${currentOrgId}:payments`;
+        const lastErrorTime = (globalThis as any).__lastPaymentsError?.[errorKey] || 0;
+        const now = Date.now();
+        if (now - lastErrorTime > 5000) {
+          console.error('Error fetching payments:', error);
+          // Manejar errores específicos de manera más amigable
+          if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+            console.warn('Schema mismatch detected. Please verify database schema.');
+          }
+          if (!(globalThis as any).__lastPaymentsError) {
+            (globalThis as any).__lastPaymentsError = {};
+          }
+          (globalThis as any).__lastPaymentsError[errorKey] = now;
         }
         setPayments([]);
       } else {

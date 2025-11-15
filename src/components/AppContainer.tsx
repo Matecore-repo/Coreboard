@@ -1,6 +1,12 @@
 import React, { Suspense, useCallback, useMemo, useState, lazy, memo, useTransition, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useSalons } from "../hooks/useSalons";
+import { useTurnos } from "../hooks/useTurnos";
+import type { Appointment } from "./features/appointments/AppointmentCard";
+import type { Turno, TurnosFilters } from "../stores/turnosStore";
+import { toastSuccess, toastError } from "../lib/toast";
+import { AppointmentDialog } from "./features/appointments/AppointmentDialog";
+import { AppointmentActionBar } from "./features/appointments/AppointmentActionBar";
 import { OnboardingModal } from "./OnboardingModal";
 import DemoDataBubble from "./DemoDataBubble";
 import DemoWelcomeModal from "./DemoWelcomeModal";
@@ -26,6 +32,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import {
   Building2,
+  Calendar,
   Home,
   LogOut,
   Scissors,
@@ -39,6 +46,7 @@ import { CommandPaletteProvider, CommandAction } from "../contexts/CommandPalett
 // Lazy load views
 const HomeView = lazy(() => import("./views/HomeView"));
 const ClientsView = lazy(() => import("./sections/ClientsView").then(module => ({ default: (module as any).default })));
+const TurnosView = lazy(() => import("./views/TurnosView"));
 const FinancesView = lazy(() => import("./views/FinancesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
 const SalonsManagementView = lazy(() => import("./views/SalonsManagementView"));
@@ -48,6 +56,7 @@ const isDemoModeEnv = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 type ViewKey =
   | "home"
+  | "appointments"
   | "clients"
   | "employees"
   | "salons"
@@ -63,6 +72,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Inicio", icon: Home },
+  { id: "appointments", label: "Turnos", icon: Calendar },
   { id: "clients", label: "Clientes", icon: Users },
   { id: "employees", label: "Empleados", icon: UserCog },
   { id: "salons", label: "Peluquerias", icon: Scissors },
@@ -194,6 +204,17 @@ export default function AppContainer() {
   const { salons, createSalon, updateSalon, deleteSalon } = useSalons(currentOrgId ?? undefined);
   const [activeView, setActiveView] = useState<ViewKey>("home");
   const [selectedSalon, setSelectedSalon] = useState<string | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [turnosFilters, setTurnosFilters] = useState<Partial<TurnosFilters>>({});
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  
+  // Hook de turnos para operaciones CRUD
+  const effectiveSalonId = selectedSalon === 'all' ? undefined : selectedSalon || undefined;
+  const { turnos, loading: turnosLoading, createTurno, updateTurno, deleteTurno, setFilters, setSelectedSalon: setTurnosSelectedSalon } = useTurnos({
+    salonId: effectiveSalonId,
+    enabled: true
+  });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDemoWelcome, setShowDemoWelcome] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -287,6 +308,25 @@ export default function AppContainer() {
   const handleSelectSalon = useCallback((id: string, _name: string) => {
     setSelectedSalon((prev) => (prev === id ? null : id));
   }, []);
+
+  const handleSelectAppointment = useCallback((appointment: Appointment) => {
+    setSelectedAppointment(appointment);
+  }, []);
+
+  const handleSyncRemoteFilters = useCallback((filters: Partial<TurnosFilters>) => {
+    setTurnosFilters(filters);
+    setFilters(filters);
+  }, [setFilters]);
+
+  const handleSyncSelectedSalon = useCallback((salonId: string | null) => {
+    if (salonId) {
+      setSelectedSalon(salonId);
+      setTurnosSelectedSalon(salonId);
+    } else {
+      setSelectedSalon(null);
+      setTurnosSelectedSalon(null);
+    }
+  }, [setTurnosSelectedSalon]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -459,6 +499,132 @@ export default function AppContainer() {
     }
   }), [currentOrgId, createSalon, updateSalon, deleteSalon]);
 
+  // Handlers para operaciones CRUD de turnos
+  const handleSaveAppointment = useCallback(async (appointmentData: Partial<Appointment>) => {
+    try {
+      const salonToUse = appointmentData.salonId || selectedSalon || normalizedSalons[0]?.id;
+      
+      if (!salonToUse) {
+        toastError('Debes seleccionar un salón para crear el turno');
+        return;
+      }
+
+      if (editingAppointment) {
+        await updateTurno(editingAppointment.id, {
+          ...appointmentData,
+          salonId: salonToUse,
+        } as any);
+        setEditingAppointment(null);
+        toastSuccess("Turno actualizado correctamente");
+      } else {
+        await createTurno({
+          ...appointmentData,
+          salonId: salonToUse,
+        } as any);
+        toastSuccess("Turno creado correctamente");
+      }
+      
+      setDialogOpen(false);
+    } catch (e: any) {
+      console.error('Error al guardar turno:', e);
+      toastError(e?.message || 'No se pudo guardar el turno');
+    }
+  }, [editingAppointment, selectedSalon, normalizedSalons, createTurno, updateTurno]);
+
+  const handleEditAppointment = useCallback((appointment: Appointment) => {
+    setEditingAppointment(appointment);
+    setDialogOpen(true);
+  }, []);
+
+  const handleCancelAppointment = useCallback(async (id: string) => {
+    try {
+      const updated = await updateTurno(id, { status: 'cancelled' as const } as any);
+      if (updated) {
+        setSelectedAppointment(updated as any);
+        toastSuccess("Turno cancelado correctamente");
+      } else {
+        toastError('No se pudo cancelar el turno');
+      }
+    } catch (e: any) {
+      console.error('Error cancelling appointment:', e);
+      const errorMessage = e?.message || 'No se pudo cancelar el turno';
+      toastError(errorMessage);
+    }
+  }, [updateTurno]);
+
+  const handleCompleteAppointment = useCallback(async (id: string) => {
+    try {
+      const updated = await updateTurno(id, { status: 'completed' as const } as any);
+      if (updated) {
+        setSelectedAppointment(updated as any);
+        // Disparar evento para refrescar comisiones
+        window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: id } }));
+        toastSuccess("Turno completado correctamente");
+      } else {
+        toastError("No se pudo completar el turno");
+      }
+    } catch (error: any) {
+      console.error('Error completing appointment:', error);
+      const errorMessage = error?.message || "Error al completar el turno";
+      toastError(errorMessage);
+    }
+  }, [updateTurno]);
+
+  const handleDeleteAppointment = useCallback(async () => {
+    if (!selectedAppointment) {
+      toastError("No hay turno seleccionado para eliminar");
+      return;
+    }
+    
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar el turno de ${selectedAppointment.clientName}?`);
+    if (!confirmed) return;
+    
+    try {
+      await deleteTurno(selectedAppointment.id);
+      toastSuccess("Turno eliminado correctamente");
+      setSelectedAppointment(null);
+    } catch (error: any) {
+      console.error('Error deleting appointment:', error);
+      const errorMessage = error?.message || "Error al eliminar el turno";
+      toastError(errorMessage);
+    }
+  }, [selectedAppointment, deleteTurno]);
+
+  const handleSetStatus = useCallback(async (status: Appointment["status"]) => {
+    if (!selectedAppointment) {
+      throw new Error("No hay un turno seleccionado");
+    }
+
+    try {
+      const updated = await updateTurno(selectedAppointment.id, { status } as any);
+      if (!updated) {
+        throw new Error("No se pudo actualizar el estado del turno");
+      }
+
+      setSelectedAppointment(updated as any);
+      toastSuccess(`Estado actualizado a ${status}`);
+    } catch (error: any) {
+      console.error('Error setting status:', error);
+      throw error;
+    }
+  }, [selectedAppointment, updateTurno]);
+
+  const handleRestoreAppointment = useCallback(async (id: string) => {
+    try {
+      const updated = await updateTurno(id, { status: "pending" as const } as any);
+
+      if (!updated) {
+        throw new Error("No se pudo restaurar el turno");
+      }
+
+      setSelectedAppointment(updated as any);
+      toastSuccess("Turno restaurado a pendiente");
+    } catch (error: any) {
+      console.error('Error restoring appointment:', error);
+      throw error;
+    }
+  }, [updateTurno]);
+
   // Memoize view props
   const viewProps = useMemo(() => ({
     home: {
@@ -466,7 +632,7 @@ export default function AppContainer() {
       selectedSalon,
       salons: normalizedSalons,
       onSelectSalon: handleSelectSalon,
-      onAppointmentClick: () => {},
+      onAppointmentClick: handleEditAppointment,
       onAddAppointment: () => setActiveView("clients"),
       orgName: "Tu Peluqueria",
       isNewUser: !currentOrgId,
@@ -475,13 +641,33 @@ export default function AppContainer() {
       appointments: [],
       selectedSalon,
     }
-  }), [selectedSalon, normalizedSalons, handleSelectSalon, currentOrgId]);
+  }), [selectedSalon, normalizedSalons, handleSelectSalon, handleSelectAppointment, handleEditAppointment, currentOrgId]);
 
   const renderContent = useCallback(() => {
     switch (activeView) {
       case "home":
         return (
           <HomeView {...viewProps.home} />
+        );
+      case "appointments":
+        return (
+          <TurnosView
+            isDemo={isDemo}
+            salons={normalizedSalons}
+            selectedSalon={selectedSalon}
+            onSelectSalon={handleSelectSalon}
+            onSelectAppointment={handleSelectAppointment}
+            selectedAppointmentId={selectedAppointment?.id}
+            demoAppointments={[]}
+            remoteTurnos={turnos}
+            isLoading={turnosLoading}
+            onSyncRemoteFilters={handleSyncRemoteFilters}
+            onSyncSelectedSalon={handleSyncSelectedSalon}
+            onAddAppointment={() => {
+              setEditingAppointment(null);
+              setDialogOpen(true);
+            }}
+          />
         );
       case "clients":
         return (
@@ -509,7 +695,7 @@ export default function AppContainer() {
           <HomeView {...viewProps.home} />
         );
     }
-  }, [activeView, viewProps, normalizedSalons, salonHandlers, isDemo]);
+  }, [activeView, viewProps, normalizedSalons, salonHandlers, isDemo, selectedSalon, handleSelectSalon, handleSelectAppointment, selectedAppointment, turnos, turnosLoading, handleSyncRemoteFilters, handleSyncSelectedSalon, dialogOpen, editingAppointment, setDialogOpen, setEditingAppointment]);
 
   if (!user) {
     return (
@@ -637,6 +823,46 @@ export default function AppContainer() {
           )}
 
           <Toaster position="top-right" />
+
+          {/* Appointment Dialog */}
+          <AppointmentDialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) setEditingAppointment(null);
+            }}
+            onSave={handleSaveAppointment}
+            appointment={editingAppointment}
+            salonId={selectedSalon}
+            salons={normalizedSalons}
+          />
+
+          {/* Appointment Action Bar - Mostrar cuando hay turno seleccionado */}
+          {selectedAppointment && (
+            <AppointmentActionBar
+              appointment={selectedAppointment}
+              onClose={() => setSelectedAppointment(null)}
+              onEdit={() => {
+                if (selectedAppointment) {
+                  handleEditAppointment(selectedAppointment);
+                  setSelectedAppointment(null);
+                }
+              }}
+              onComplete={() => {
+                if (selectedAppointment) {
+                  handleCompleteAppointment(selectedAppointment.id);
+                }
+              }}
+              onCancel={() => {
+                if (selectedAppointment) {
+                  handleCancelAppointment(selectedAppointment.id);
+                }
+              }}
+              onDelete={handleDeleteAppointment}
+              onRestore={handleRestoreAppointment}
+              onSetStatus={handleSetStatus}
+            />
+          )}
         </div>
       </SidebarProvider>
 
@@ -683,6 +909,7 @@ export default function AppContainer() {
 function preloadView(view: ViewKey) {
   const viewMap: Record<ViewKey, () => Promise<any>> = {
     home: () => import("./views/HomeView"),
+    appointments: () => import("./views/TurnosView"),
     clients: () => import("./sections/ClientsView"),
     employees: () => import("./views/OrganizationView"),
     salons: () => import("./views/SalonsManagementView"),

@@ -48,6 +48,10 @@ function mapRowToAppointment(row: any): Appointment {
     row.salon_services?.price_override ??
     null;
 
+  // Resolver nombre del estilista del join o usar UUID como fallback
+  const stylistId = row.stylist_id || row.employee_id || '';
+  const stylistName = row.employees?.full_name || null;
+
   return {
     id: row.id,
     clientName,
@@ -57,7 +61,8 @@ function mapRowToAppointment(row: any): Appointment {
     date,
     time,
     status: row.status || 'pending',
-    stylist: row.stylist_id || row.employee_id || '',
+    // Si tenemos el nombre del estilista, usarlo; si no, usar UUID (se resolverá en la UI)
+    stylist: stylistName || stylistId,
     salonId: row.salon_id || '',
     notes: row.notes || undefined,
     created_by: row.created_by || undefined,
@@ -190,6 +195,9 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         services!service_id (
           name,
           base_price
+        ),
+        employees!stylist_id (
+          full_name
         )
       `;
 
@@ -211,7 +219,7 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         updated_at
       `;
 
-      const runQuery = async (selectClause: string) => {
+      const runQuery = async (selectClause: string, timeoutMs: number = 10000) => {
         let query = supabase.from('appointments').select(selectClause);
         if (currentOrgId) {
           query = query.eq('org_id', currentOrgId);
@@ -219,21 +227,47 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
         if (salonId) {
           query = query.eq('salon_id', salonId);
         }
-        return query.order('starts_at');
+        
+        // Agregar timeout a la query
+        const queryPromise = query.order('starts_at');
+        const timeoutPromise = new Promise<{ data: null; error: { code: string; message: string } }>((_, reject) => 
+          setTimeout(() => reject({ code: 'TIMEOUT', message: 'Query timeout' }), timeoutMs)
+        );
+        
+        try {
+          return await Promise.race([queryPromise, timeoutPromise]);
+        } catch (timeoutError: any) {
+          if (timeoutError.code === 'TIMEOUT') {
+            return { data: null, error: timeoutError };
+          }
+          throw timeoutError;
+        }
       };
 
       let { data, error } = await runQuery(selectWithServices);
 
-      // Si hay error en el join (400, PGRST200 o cualquier error relacionado con relaciones)
-      if (error && (error.code === 'PGRST200' || error.code === 'PGRST116' || error.message?.includes('relationship') || error.message?.includes('Could not find a relationship'))) {
-        console.warn('Falling back to appointments select without services join:', error.message);
+      // Si hay error en el join (PGRST200 = relación no encontrada, PGRST116 = no encontrado, 42703 = columna no existe, TIMEOUT), usar fallback
+      if (error && (error.code === 'PGRST200' || error.code === 'PGRST116' || error.code === '42703' || error.code === 'TIMEOUT' || error.message?.includes('relationship') || error.message?.includes('Could not find a relationship'))) {
+        if (error.code !== 'TIMEOUT') {
+          console.warn('Falling back to appointments select without services/employees join:', error.message);
+        }
         const fallback = await runQuery(basicSelect);
         data = fallback.data;
         error = fallback.error;
       }
 
       if (error) {
-        console.error('Error fetching appointments:', error);
+        // Throttling de logs: solo loguear una vez cada 5 segundos para el mismo error
+        const errorKey = `${error.code || 'unknown'}:${currentOrgId}:${salonId || 'all'}`;
+        const lastErrorTime = (globalThis as any).__lastAppointmentsError?.[errorKey] || 0;
+        const now = Date.now();
+        if (now - lastErrorTime > 5000) {
+          console.error('Error fetching appointments:', error);
+          if (!(globalThis as any).__lastAppointmentsError) {
+            (globalThis as any).__lastAppointmentsError = {};
+          }
+          (globalThis as any).__lastAppointmentsError[errorKey] = now;
+        }
         setAppointments([]);
       } else {
         const mapped = ((data as any[]) || []).map(mapRowToAppointment);
@@ -545,6 +579,47 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
       }
     }
     
+  // Recalcular total_amount si cambió el servicio y no viene explícitamente en updates
+  if (updates.service !== undefined && (updates as any).total_amount === undefined) {
+    const targetSalonId = updates.salonId ?? salonId;
+    if (targetSalonId && updates.service) {
+      try {
+        // Obtener precio del servicio desde salon_services o services
+        const { data: salonServiceData } = await supabase
+          .from('salon_services')
+          .select('price_override, services!inner(base_price)')
+          .eq('salon_id', targetSalonId)
+          .eq('service_id', updates.service)
+          .eq('active', true)
+          .single();
+        
+        if (salonServiceData) {
+          const service = Array.isArray(salonServiceData.services) 
+            ? salonServiceData.services[0] 
+            : salonServiceData.services;
+          (updates as any).total_amount = salonServiceData.price_override ?? service?.base_price ?? 0;
+        } else {
+          // Si no se obtuvo desde salon_services, consultar directamente services
+          const { data: serviceData } = await supabase
+            .from('services')
+            .select('base_price')
+            .eq('id', updates.service)
+            .single();
+          
+          if (serviceData?.base_price) {
+            (updates as any).total_amount = Number(serviceData.base_price);
+          } else {
+            (updates as any).total_amount = 0;
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating total_amount from service:', error);
+        // Si falla, usar 0 como fallback
+        (updates as any).total_amount = 0;
+      }
+    }
+  }
+
   // Para otros updates, usar mapAppointmentToRow
   const row = mapAppointmentToRow(updates);
   // Filtrar campos undefined/null para evitar errores de actualización
@@ -612,7 +687,10 @@ export function useAppointments(salonId?: string, options?: { enabled?: boolean 
           if (startsAt !== null) rpcParams.p_starts_at = startsAt;
           if (updates.status !== undefined) rpcParams.p_status = updates.status || null;
           if (updates.notes !== undefined) rpcParams.p_notes = updates.notes || null;
-          if ((updates as any).total_amount !== undefined) rpcParams.p_total_amount = (updates as any).total_amount || null;
+          // Incluir total_amount si viene en updates (ya calculado arriba si cambió el servicio)
+          if ((updates as any).total_amount !== undefined) {
+            rpcParams.p_total_amount = (updates as any).total_amount || null;
+          }
           if ((updates as any).client_phone !== undefined) rpcParams.p_client_phone = (updates as any).client_phone || null;
           if ((updates as any).client_email !== undefined) rpcParams.p_client_email = (updates as any).client_email || null;
           

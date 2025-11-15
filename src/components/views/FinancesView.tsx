@@ -32,10 +32,28 @@ type DateRange = {
   endDate: string;
 };
 
+// Helper para obtener el rango del mes actual
+const getCurrentMonthRange = (): DateRange => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  
+  // Primer día del mes
+  const startDate = new Date(year, month, 1);
+  // Último día del mes
+  const endDate = new Date(year, month + 1, 0);
+  
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0],
+  };
+};
+
 export default function FinancesView({ selectedSalon, salonName, salons = [], onSelectSalon }: FinancesViewProps) {
   const { isDemo } = useAuth();
   const { canViewFinances } = useFinancialPermissions();
-  const [dateRange, setDateRange] = useState<DateRange | null>(null);
+  // Por defecto, mostrar el mes actual
+  const [dateRange, setDateRange] = useState<DateRange | null>(() => getCurrentMonthRange());
   const [activeTab, setActiveTab] = useState<string>("owner");
   const [ownerExport, setOwnerExport] = useState<(() => Promise<void>) | null>(null);
   const [accountingExport, setAccountingExport] = useState<(() => Promise<void>) | null>(null);

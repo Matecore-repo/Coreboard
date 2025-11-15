@@ -208,11 +208,11 @@ async function processWebhookEvent(event: any) {
           org_id: orgId,
           appointment_id: appointmentId,
           amount: mpPayment.transaction_amount || mpPayment.amount,
-          payment_method: 'mercadopago',
+          method: 'mp',
           mp_payment_id: parseInt(paymentId),
           mp_preference_id: mpPayment.preference_id || event.data?.preference_id,
           mp_status: status,
-          processed_at: mpPayment.date_approved || new Date().toISOString(),
+          received_at: mpPayment.date_approved || new Date().toISOString(),
           notes: `Pago aprobado por Mercado Pago - Payment ID: ${paymentId}`,
         })
         .select()
