@@ -10,6 +10,11 @@ export type UISalon = {
   name: string;
   address: string;
   image: string;
+  rentPrice?: number;
+  phone?: string;
+  email?: string;
+  notes?: string;
+  openingHours?: string;
   staff?: string[];
   services?: { id: string; name: string; price: number; durationMinutes: number }[];
 };
@@ -22,6 +27,7 @@ type DBSalon = {
   phone?: string | null;
   timezone?: string | null;
   active?: boolean | null;
+  rent_price?: number | null;
 };
 
 type DBService = {
@@ -49,6 +55,8 @@ function mapDBToUI(s: DBSalon, services: DBService[]): UISalon {
     name: s.name,
     address: s.address || '',
     image: '/imagenlogin.jpg',
+    rentPrice: s.rent_price ?? undefined,
+    phone: s.phone ?? undefined,
     services: salonServices,
     staff: [],
   };
@@ -91,7 +99,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
       const mappedSalons = await queryWithCache<UISalon[]>(cacheKey, async () => {
         const { data: salonsData, error: salonsError } = await supabase
           .from('salons')
-          .select('id, org_id, name, address, phone, timezone, active')
+          .select('id, org_id, name, address, phone, timezone, active, rent_price')
           .eq('org_id', orgId)
           .is('deleted_at', null)
           .order('name');

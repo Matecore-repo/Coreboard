@@ -283,40 +283,42 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
               aria-label={`Cliente: ${client.full_name}`}
               data-client-id={client.id}
             >
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="flex items-center gap-2" role="group" aria-label="Información del cliente">
-                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0" aria-hidden="true">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium truncate" aria-label={`Nombre: ${client.full_name}`}>
-                      {client.full_name}
-                    </p>
-                    {(client.phone || client.email) && (
-                      <p className="text-sm text-muted-foreground truncate" aria-label={`Contacto: ${client.phone || ''} ${client.email || ''}`}>
-                        {client.phone && client.email 
-                          ? `${client.phone} • ${client.email}`
-                          : client.phone || client.email}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
+                  <div className="flex items-center gap-2 min-w-0 flex-1" role="group" aria-label="Información del cliente">
+                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0 flex-1 max-w-full">
+                      <p className="font-medium truncate" aria-label={`Nombre: ${client.full_name}`}>
+                        {client.full_name}
                       </p>
-                    )}
+                      {(client.phone || client.email) && (
+                        <p className="text-sm text-muted-foreground truncate" aria-label={`Contacto: ${client.phone || ''} ${client.email || ''}`}>
+                          {client.phone && client.email 
+                            ? `${client.phone} • ${client.email}`
+                            : client.phone || client.email}
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {client.phone && (
+                    <div className="hidden lg:flex items-center gap-2 min-w-0 max-w-[180px] flex-shrink-0" aria-label={`Teléfono: ${client.phone}`}>
+                      <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                      <span className="text-muted-foreground truncate text-sm">{client.phone}</span>
+                    </div>
+                  )}
+
+                  {client.email && (
+                    <div className="hidden xl:flex items-center gap-2 min-w-0 max-w-[220px] flex-shrink-0" aria-label={`Email: ${client.email}`}>
+                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                      <span className="text-muted-foreground truncate text-sm">{client.email}</span>
+                    </div>
+                  )}
                 </div>
 
-                {client.phone && (
-                  <div className="flex items-center gap-2" aria-label={`Teléfono: ${client.phone}`}>
-                    <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-                    <span className="text-muted-foreground truncate">{client.phone}</span>
-                  </div>
-                )}
-
-                {client.email && (
-                  <div className="flex items-center gap-2" aria-label={`Email: ${client.email}`}>
-                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-                    <span className="text-muted-foreground truncate">{client.email}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 ml-auto" role="group" aria-label={`Acciones para ${client.full_name}`}>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-auto" role="group" aria-label={`Acciones para ${client.full_name}`}>
                   <Button
                     size="sm"
                     variant="outline"

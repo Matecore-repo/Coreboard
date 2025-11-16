@@ -28,15 +28,17 @@ function normaliseDate(value?: string | null) {
 }
 
 function mapRowToPayment(row: any): Payment {
-  const processedAt = row.processed_at || row.received_at || row.date || row.created_at;
-  const dateValue = processedAt ? new Date(processedAt) : new Date();
+  // La tabla app.payments usa 'received_at' (timestamptz) o 'date' (date)
+  const receivedAt = row.received_at || row.date || row.created_at;
+  const dateValue = receivedAt ? new Date(receivedAt) : new Date();
   const yyyy = dateValue.getFullYear();
   const mm = String(dateValue.getMonth() + 1).padStart(2, '0');
   const dd = String(dateValue.getDate()).padStart(2, '0');
   const date = `${yyyy}-${mm}-${dd}`;
 
-  // Mapear payment_method a paymentMethod
-  // La tabla payments usa 'payment_method' (text) que puede ser: 'cash', 'card', 'transfer', 'mercadopago', 'other'
+  // Mapear method (enum app.payment_method) a paymentMethod
+  // La tabla app.payments usa 'method' (enum) que puede ser: 'cash', 'card', 'transfer', 'mp', 'other'
+  // También puede venir como 'payment_method' (text) en algunas vistas
   const methodMap: Record<string, 'cash' | 'card' | 'transfer' | 'mercadopago' | 'other'> = {
     'cash': 'cash',
     'card': 'card',
@@ -44,7 +46,7 @@ function mapRowToPayment(row: any): Payment {
     'mercadopago': 'mercadopago',
     'mp': 'mercadopago', // Alias para mercadopago (enum antiguo)
   };
-  const paymentMethod = methodMap[row.payment_method || row.method] || 'cash';
+  const paymentMethod = methodMap[row.method || row.payment_method] || 'cash';
 
   return {
     id: String(row.id),
@@ -75,23 +77,25 @@ function mapPaymentToRow(payload: Partial<Payment>) {
     row.amount = payload.amount;
   }
   if (payload.paymentMethod !== undefined) {
-    // Mapear paymentMethod a payment_method (text)
+    // Mapear paymentMethod a method (enum app.payment_method)
+    // La tabla app.payments usa 'method' (enum), no 'payment_method'
     const methodMap: Record<string, string> = {
       'cash': 'cash',
       'card': 'card',
       'transfer': 'transfer',
-      'mercadopago': 'mercadopago',
+      'mercadopago': 'mp', // El enum usa 'mp' para mercadopago
       'other': 'other',
     };
-    row.payment_method = methodMap[payload.paymentMethod] || 'cash';
+    row.method = methodMap[payload.paymentMethod] || 'cash';
   }
   if (payload.date !== undefined) {
     try {
+      // La tabla app.payments usa 'received_at' (timestamptz), no 'processed_at'
       const isoDate = new Date(`${payload.date}T00:00:00`);
-      row.processed_at = Number.isNaN(isoDate.getTime()) ? new Date(payload.date).toISOString() : isoDate.toISOString();
+      row.received_at = Number.isNaN(isoDate.getTime()) ? new Date(payload.date).toISOString() : isoDate.toISOString();
     } catch (error) {
-      console.warn('No se pudo formatear processed_at, usando fecha cruda', error);
-      row.processed_at = payload.date as any;
+      console.warn('No se pudo formatear received_at, usando fecha cruda', error);
+      row.received_at = payload.date as any;
     }
   }
   // Nota: La columna 'notes' no existe en la tabla payments según el schema actual
@@ -158,22 +162,22 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
     
     setLoading(true);
     try {
-      // Solo solicitar columnas que existen en el schema actual (payment_method, processed_at)
-      // La vista pública puede tener columnas diferentes a app.payments
+      // Solo solicitar columnas que existen en el schema actual (method, received_at)
+      // La tabla app.payments usa 'method' (enum) y 'received_at' (timestamptz)
       let query = supabase
         .from('payments')
-        .select('id, appointment_id, amount, org_id, created_at, processed_at, payment_method')
+        .select('id, appointment_id, amount, org_id, created_at, received_at, method')
         .eq('org_id', currentOrgId);
       
       if (options?.appointmentId) {
         query = query.eq('appointment_id', options.appointmentId);
       }
       
-      // Intentar ordenar por processed_at, si falla usar created_at
-      let { data, error } = await query.order('processed_at', { ascending: false });
+      // Intentar ordenar por received_at, si falla usar created_at
+      let { data, error } = await query.order('received_at', { ascending: false });
 
-      // Si processed_at no existe, intentar con created_at
-      if (error && error.message?.includes('processed_at')) {
+      // Si received_at no existe, intentar con created_at
+      if (error && error.message?.includes('received_at')) {
         const retryQuery = supabase
           .from('payments')
           .select('id, appointment_id, amount, org_id, created_at')

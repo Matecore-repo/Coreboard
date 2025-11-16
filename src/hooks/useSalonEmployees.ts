@@ -94,15 +94,46 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
       throw new Error('Salon ID is required and cannot be "all"');
     }
 
-    const { data, error } = await supabase
+    const user = (await supabase.auth.getUser()).data.user;
+    
+    // Verificar si ya existe una asignación
+    const { data: existing } = await supabase
       .from('salon_employees')
-      .insert([{
-        salon_id: salonId,
-        employee_id: employeeId,
-        assigned_by: (await supabase.auth.getUser()).data.user?.id
-      }])
-      .select()
-      .single();
+      .select('id, is_active')
+      .eq('salon_id', salonId)
+      .eq('employee_id', employeeId)
+      .maybeSingle();
+
+    let data, error;
+
+    if (existing) {
+      // Si existe, actualizar is_active a true
+      const result = await supabase
+        .from('salon_employees')
+        .update({
+          is_active: true,
+          assigned_by: user?.id,
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+      data = result.data;
+      error = result.error;
+    } else {
+      // Si no existe, insertar nueva fila
+      const result = await supabase
+        .from('salon_employees')
+        .insert({
+          salon_id: salonId,
+          employee_id: employeeId,
+          assigned_by: user?.id,
+          is_active: true,
+        })
+        .select()
+        .single();
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) throw error;
     await fetchAssignments();

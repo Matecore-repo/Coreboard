@@ -706,8 +706,9 @@ useEffect(() => {
       name: salonData.name,
       address: salonData.address ?? '',
       phone: salonData.phone ?? '',
+      rent_price: salonData.rentPrice ?? undefined,
       active: true,
-    });
+    } as any);
   }, [isDemo, salons.length, currentOrgId, createRemoteSalon]);
 
   const handleEditSalon = useCallback(async (id: string, salonData: Partial<Salon>) => {
@@ -721,7 +722,8 @@ useEffect(() => {
       name: salonData.name,
       address: salonData.address,
       phone: salonData.phone,
-    });
+      rent_price: salonData.rentPrice ?? undefined,
+    } as any);
   }, [isDemo, updateRemoteSalon]);
 
   const handleDeleteSalon = useCallback(async (id: string) => {

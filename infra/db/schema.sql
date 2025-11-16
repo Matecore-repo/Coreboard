@@ -365,7 +365,9 @@ create policy "salon_employees_insert" on public.salon_employees
       select 1 
       from app.salons s
       join app.memberships m on s.org_id = m.org_id
+      join app.employees e on e.org_id = s.org_id
       where s.id = salon_employees.salon_id 
+      and e.id = salon_employees.employee_id
       and m.user_id = auth.uid()
     )
   );
