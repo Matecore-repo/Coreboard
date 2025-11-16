@@ -67,7 +67,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const enabled = options?.enabled ?? true;
-  const { isDemo } = useAuth();
+  const { isDemo, currentRole, user } = useAuth();
 
   const fetchSalons = useCallback(async () => {
     if (!enabled || !orgId) {
@@ -96,29 +96,98 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
       }
 
       // Usar caché para evitar consultas duplicadas
-      const mappedSalons = await queryWithCache<UISalon[]>(cacheKey, async () => {
-        const { data: salonsData, error: salonsError } = await supabase
-          .from('salons')
-          .select('id, org_id, name, address, phone, timezone, active, rent_price')
-          .eq('org_id', orgId)
-          .is('deleted_at', null)
-          .order('name');
+      // La clave del caché incluye el rol para que empleados y dueños tengan cachés separados
+      const roleCacheKey = `${cacheKey}:${currentRole || 'none'}`;
+      
+      const mappedSalons = await queryWithCache<UISalon[]>(roleCacheKey, async () => {
+        // Si el usuario es empleado, solo obtener salones donde está asignado
+        if (currentRole === 'employee' && user?.id) {
+          // Primero obtener el employee_id del usuario actual
+          const { data: currentEmployee, error: employeeError } = await supabase
+            .from('employees')
+            .select('id')
+            .eq('org_id', orgId)
+            .eq('user_id', user.id)
+            .eq('active', true)
+            .is('deleted_at', null)
+            .maybeSingle();
 
-        if (salonsError) {
-          throw salonsError as any;
+          if (employeeError) {
+            throw employeeError as any;
+          }
+
+          if (!currentEmployee) {
+            // Si no es empleado, no puede ver ningún salón
+            return [];
+          }
+
+          // Obtener salones donde el empleado está asignado
+          const { data: salonEmployeesData, error: salonEmployeesError } = await supabase
+            .from('salon_employees')
+            .select('salon_id')
+            .eq('employee_id', currentEmployee.id)
+            .eq('is_active', true);
+
+          if (salonEmployeesError) {
+            throw salonEmployeesError as any;
+          }
+
+          if (!salonEmployeesData || salonEmployeesData.length === 0) {
+            // Si no está asignado a ningún salón, no puede ver ningún salón
+            return [];
+          }
+
+          const assignedSalonIds = salonEmployeesData.map(se => se.salon_id);
+
+          // Obtener los salones asignados
+          const { data: salonsData, error: salonsError } = await supabase
+            .from('salons')
+            .select('id, org_id, name, address, phone, timezone, active, rent_price')
+            .eq('org_id', orgId)
+            .in('id', assignedSalonIds)
+            .is('deleted_at', null)
+            .order('name');
+
+          if (salonsError) {
+            throw salonsError as any;
+          }
+
+          const { data: servicesData, error: servicesError } = await supabase
+            .from('services')
+            .select('id, org_id, name, base_price, duration_minutes, active')
+            .eq('org_id', orgId)
+            .is('deleted_at', null);
+
+          if (servicesError) {
+            throw servicesError as any;
+          }
+
+          return (salonsData || []).map(s => mapDBToUI(s, (servicesData || []) as DBService[]));
+        } else {
+          // Si es owner/admin o no tiene rol, obtener todos los salones
+          const { data: salonsData, error: salonsError } = await supabase
+            .from('salons')
+            .select('id, org_id, name, address, phone, timezone, active, rent_price')
+            .eq('org_id', orgId)
+            .is('deleted_at', null)
+            .order('name');
+
+          if (salonsError) {
+            throw salonsError as any;
+          }
+
+          const { data: servicesData, error: servicesError } = await supabase
+            .from('services')
+            .select('id, org_id, name, base_price, duration_minutes, active')
+            .eq('org_id', orgId)
+            .is('deleted_at', null);
+
+          if (servicesError) {
+            throw servicesError as any;
+          }
+
+          return (salonsData || []).map(s => mapDBToUI(s, (servicesData || []) as DBService[]));
         }
-
-        const { data: servicesData, error: servicesError } = await supabase
-          .from('services')
-          .select('id, org_id, name, base_price, duration_minutes, active')
-          .eq('org_id', orgId)
-          .is('deleted_at', null);
-
-        if (servicesError) {
-          throw servicesError as any;
-        }
-
-        return (salonsData || []).map(s => mapDBToUI(s, (servicesData || []) as DBService[]));
       });
 
       setSalons(mappedSalons);
@@ -129,7 +198,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
     } finally {
       setLoading(false);
     }
-  }, [orgId, enabled, isDemo]);
+  }, [orgId, enabled, isDemo, currentRole, user?.id]);
 
   useEffect(() => {
     if (enabled && orgId) {

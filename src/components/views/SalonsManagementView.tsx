@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, lazy, useRef, useEffect } from "react";
+﻿import React, { useState, useCallback, lazy, useRef, useEffect, useMemo } from "react";
 import { Plus, Users, MapPin, Upload, X, Phone, Mail, Clock, DollarSign, Edit3, FileText, Trash2, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -56,8 +56,14 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
   const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
   const { services: allServices, createService: createOrgService, isLoading: servicesLoading } = useServices(currentOrgId ?? undefined);
   
-  // Empleados de la organización
-  const { employees, isLoading: loadingEmployees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
+  // Empleados de la organización (excluir dueños, ya que tienen acceso total)
+  const { employees: allEmployees, isLoading: loadingEmployees } = useEmployees(currentOrgId ?? undefined, { enabled: true });
+  
+  // Filtrar empleados: excluir dueños (owner) de la lista de asignación a salones
+  // Los dueños tienen acceso total a todos los salones, no necesitan ser asignados
+  const employees = useMemo(() => {
+    return allEmployees.filter(emp => emp.role !== 'owner');
+  }, [allEmployees]);
   
   // Asignaciones de empleados al salón seleccionado (para mostrar en vista de detalle)
   const { assignments: selectedSalonEmployeeAssignments } = useSalonEmployees(

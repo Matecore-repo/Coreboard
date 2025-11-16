@@ -361,14 +361,27 @@ create policy "salon_employees_select" on public.salon_employees
 
 create policy "salon_employees_insert" on public.salon_employees
   for insert with check (
+    -- User must have membership and salon must belong to user's organization
     exists (
       select 1 
       from app.salons s
       join app.memberships m on s.org_id = m.org_id
-      join app.employees e on e.org_id = s.org_id
       where s.id = salon_employees.salon_id 
-      and e.id = salon_employees.employee_id
       and m.user_id = auth.uid()
+    )
+    -- Employee must belong to the same organization as the salon
+    and exists (
+      select 1 
+      from app.employees e
+      join app.salons s on s.org_id = e.org_id
+      where e.id = salon_employees.employee_id
+      and s.id = salon_employees.salon_id
+      and exists (
+        select 1 
+        from app.memberships m 
+        where m.org_id = e.org_id 
+        and m.user_id = auth.uid()
+      )
     )
   );
 

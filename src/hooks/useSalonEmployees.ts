@@ -34,7 +34,7 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
               id,
               salon_id,
               employee_id,
-              is_active,
+              active,
               assigned_at,
               assigned_by,
               employees!inner (
@@ -43,7 +43,7 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
               )
             `)
             .eq('salon_id', salonId)
-            .eq('is_active', true);
+            .eq('active', true);
 
       if (error) throw error;
 
@@ -51,7 +51,7 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
         id: item.id,
         salon_id: item.salon_id,
         employee_id: item.employee_id,
-        active: item.is_active,
+        active: item.active,
         assigned_at: item.assigned_at,
         assigned_by: item.assigned_by,
         employees: Array.isArray(item.employees) ? item.employees[0] : item.employees,
@@ -99,7 +99,7 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
     // Verificar si ya existe una asignación
     const { data: existing } = await supabase
       .from('salon_employees')
-      .select('id, is_active')
+      .select('id, active')
       .eq('salon_id', salonId)
       .eq('employee_id', employeeId)
       .maybeSingle();
@@ -107,11 +107,11 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
     let data, error;
 
     if (existing) {
-      // Si existe, actualizar is_active a true
+      // Si existe, actualizar active a true
       const result = await supabase
         .from('salon_employees')
         .update({
-          is_active: true,
+          active: true,
           assigned_by: user?.id,
         })
         .eq('id', existing.id)
@@ -127,7 +127,7 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
           salon_id: salonId,
           employee_id: employeeId,
           assigned_by: user?.id,
-          is_active: true,
+          active: true,
         })
         .select()
         .single();
@@ -143,7 +143,7 @@ export function useSalonEmployees(salonId?: string, options?: { enabled?: boolea
   const unassignEmployee = async (assignmentId: string) => {
     const { error } = await supabase
       .from('salon_employees')
-      .update({ is_active: false })
+      .update({ active: false })
       .eq('id', assignmentId);
 
     if (error) throw error;

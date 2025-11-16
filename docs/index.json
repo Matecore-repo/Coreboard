@@ -2,7 +2,7 @@
   "metadata": {
     "title": "Índice de Documentación - Coreboard",
     "generatedAt": "2025-01-27T00:00:00.000Z",
-    "totalDocuments": 30
+    "totalDocuments": 32
   },
   "documents": [
     {
@@ -154,6 +154,16 @@
       "path": "docs/MCP_SERVER.json",
       "originalPath": ".cursor/README.md",
       "category": "mcp"
+    },
+    {
+      "path": "docs/Chrome_MCP.json",
+      "originalPath": "docs/Chrome_MCP.json",
+      "category": "mcp"
+    },
+    {
+      "path": "docs/README.json",
+      "originalPath": "docs/README.json",
+      "category": "documentation"
     }
   ]
 }
