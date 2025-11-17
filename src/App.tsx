@@ -29,6 +29,7 @@ import { sampleSalons } from "./constants/salons";
 import { CommandPaletteProvider, CommandAction } from "./contexts/CommandPaletteContext";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "./components/ui/command";
 import { applyTheme } from "./lib/theme";
+import { ConfirmDialog } from "./components/ui/ConfirmDialog";
 
 // Lazy-loaded views
 const HomeView = lazy(() => {
@@ -144,6 +145,7 @@ export default function App() {
   ]);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [viewActions, setViewActions] = useState<CommandAction[]>([]);
+  const [deleteAppointmentDialogOpen, setDeleteAppointmentDialogOpen] = useState(false);
 
   const isMobile = useIsMobile();
 
@@ -624,15 +626,16 @@ useEffect(() => {
     }
   }, [isDemo, updateTurno, selectedAppointment]);
 
-  const handleDeleteAppointment = useCallback(async () => {
+  const handleDeleteAppointmentClick = useCallback(() => {
     if (!selectedAppointment) {
       toastError("No hay turno seleccionado para eliminar");
       return;
     }
-    
-    // Confirmar antes de eliminar
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar el turno de ${selectedAppointment.clientName}?`);
-    if (!confirmed) return;
+    setDeleteAppointmentDialogOpen(true);
+  }, [selectedAppointment]);
+
+  const handleDeleteAppointmentConfirm = useCallback(async () => {
+    if (!selectedAppointment) return;
     
     if (isDemo) {
       setAppointments((prev) => prev.filter(apt => apt.id !== selectedAppointment.id));
@@ -1285,7 +1288,7 @@ useEffect(() => {
             handleCancelAppointment(selectedAppointment.id);
           }
         }}
-        onDelete={handleDeleteAppointment}
+        onDelete={handleDeleteAppointmentClick}
         onRestore={async (id: string) => {
           if (isDemo) {
             setAppointments((prev) => {
@@ -1424,6 +1427,19 @@ useEffect(() => {
           ))}
         </CommandList>
       </CommandDialog>
+
+      {selectedAppointment && (
+        <ConfirmDialog
+          open={deleteAppointmentDialogOpen}
+          onOpenChange={setDeleteAppointmentDialogOpen}
+          onConfirm={handleDeleteAppointmentConfirm}
+          title="¿Estás seguro?"
+          description={`¿Estás seguro de que deseas eliminar el turno de ${selectedAppointment.clientName}? Esta acción no se puede deshacer.`}
+          confirmLabel="Continuar"
+          cancelLabel="Cancelar"
+          variant="destructive"
+        />
+      )}
     </CommandPaletteProvider>
   );
 }

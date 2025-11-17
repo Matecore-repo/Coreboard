@@ -15,6 +15,7 @@ import { Building2 } from 'lucide-react';
 import { PageContainer } from '../layout/PageContainer';
 import { Section } from '../layout/Section';
 import { ShortcutBanner } from '../ShortcutBanner';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 interface ClientsViewProps {}
 
 const ClientsView: React.FC<ClientsViewProps> = () => {
@@ -32,6 +33,8 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
   const [displayLoading, setDisplayLoading] = useState(false);
   const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -110,12 +113,18 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return;
+  const handleDeleteClick = (id: string) => {
+    setClientToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!clientToDelete) return;
 
     try {
-      await deleteClient(id);
+      await deleteClient(clientToDelete);
       toastSuccess('Cliente eliminado correctamente');
+      setClientToDelete(null);
     } catch (error) {
       console.error('Error deleting client:', error);
       toastError('Error al eliminar el cliente');
@@ -337,7 +346,7 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
                     variant="destructive"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete(client.id);
+                      handleDeleteClick(client.id);
                     }}
                     aria-label={`Eliminar cliente ${client.full_name}`}
                     data-action="delete-client"
@@ -353,6 +362,17 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
       )}
       </Section>
       </section>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        title="¿Estás seguro?"
+        description="¿Estás seguro de que quieres eliminar este cliente? Esta acción no se puede deshacer."
+        confirmLabel="Continuar"
+        cancelLabel="Cancelar"
+        variant="destructive"
+      />
     </PageContainer>
   );
 };

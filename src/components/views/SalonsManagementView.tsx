@@ -20,6 +20,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useEmployees } from "../../hooks/useEmployees";
 import { useSalonEmployees } from "../../hooks/useSalonEmployees";
 import { ShortcutBanner } from "../ShortcutBanner";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 interface Salon {
   id: string;
@@ -74,6 +75,10 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
   // Estado de edición
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalon, setEditingSalon] = useState<Salon | null>(null);
+  const [deleteSalonDialogOpen, setDeleteSalonDialogOpen] = useState(false);
+  const [salonToDelete, setSalonToDelete] = useState<Salon | null>(null);
+  const [removeServiceDialogOpen, setRemoveServiceDialogOpen] = useState(false);
+  const [serviceToRemove, setServiceToRemove] = useState<{ id: string; name: string } | null>(null);
   
   // Asignaciones de empleados al salón (cuando se edita un salón)
   const { assignments: salonEmployeeAssignments, assignEmployee, unassignEmployee, isLoading: loadingSalonEmployees } = useSalonEmployees(
@@ -305,16 +310,35 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     }
   };
 
-  const handleDelete = async (salon: Salon) => {
-      if (confirm('¿Estás seguro de eliminar "' + salon.name + '"?')) {
-      try {
-        await onDeleteSalon(salon.id);
-        toastSuccess("Local eliminado");
-        setSelectedSalon(null);
-      } catch (error) {
-        console.error('❌ Error eliminando salón:', error);
-        toastError(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
-      }
+  const handleDeleteClick = (salon: Salon) => {
+    setSalonToDelete(salon);
+    setDeleteSalonDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!salonToDelete) return;
+    
+    try {
+      await onDeleteSalon(salonToDelete.id);
+      toastSuccess("Local eliminado");
+      setSelectedSalon(null);
+      setSalonToDelete(null);
+    } catch (error) {
+      console.error('❌ Error eliminando salón:', error);
+      toastError(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
+    }
+  };
+
+  const handleRemoveServiceConfirm = async () => {
+    if (!serviceToRemove) return;
+    
+    try {
+      await unassignService(serviceToRemove.id);
+      toastSuccess('Servicio removido del salón');
+      setServiceToRemove(null);
+    } catch (error) {
+      console.error('Error removing service:', error);
+      toastError('Error al remover el servicio');
     }
   };
 
@@ -459,7 +483,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2 text-red-600"
-                onClick={() => handleDelete(selectedSalon)}
+                onClick={() => handleDeleteClick(selectedSalon)}
               >
                 <Trash2 className="h-4 w-4" />
                 Eliminar
@@ -748,16 +772,9 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={async () => {
-                          if (confirm(`¿Remover "${service.service_name}" de este salón?`)) {
-                            try {
-                              await unassignService(service.id);
-                              toastSuccess('Servicio removido del salón');
-                            } catch (error) {
-                              console.error('Error removing service:', error);
-                              toastError('Error al remover el servicio');
-                            }
-                          }
+                        onClick={() => {
+                          setServiceToRemove({ id: service.id, name: service.service_name });
+                          setRemoveServiceDialogOpen(true);
                         }}
                       >
                         Remover
@@ -940,6 +957,28 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteSalonDialogOpen}
+        onOpenChange={setDeleteSalonDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        title="¿Estás seguro?"
+        description={salonToDelete ? `¿Estás seguro de eliminar "${salonToDelete.name}"? Esta acción no se puede deshacer.` : ""}
+        confirmLabel="Continuar"
+        cancelLabel="Cancelar"
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={removeServiceDialogOpen}
+        onOpenChange={setRemoveServiceDialogOpen}
+        onConfirm={handleRemoveServiceConfirm}
+        title="¿Remover servicio?"
+        description={serviceToRemove ? `¿Remover "${serviceToRemove.name}" de este salón?` : ""}
+        confirmLabel="Continuar"
+        cancelLabel="Cancelar"
+        variant="default"
+      />
       </Section>
     </PageContainer>
   );
