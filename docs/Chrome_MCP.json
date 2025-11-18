@@ -3,7 +3,7 @@
   "application": "CRM de turnos",
   "setup": {
     "start_command": "npm run dev",
-    "url": "http://192.168.0.17:3000/"
+    "url": "http://192.168.100.50:3000/"
   },
   "test_accounts": [
     {
