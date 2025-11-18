@@ -9,11 +9,16 @@ import {
   CarouselPrevious,
   type CarouselApi,
 } from "./ui/carousel";
+import { ViewAllSalonCard } from "./ViewAllSalonCard";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { Skeleton } from "./ui/skeleton";
+import { cn } from "./ui/utils";
 
 interface Salon {
   id: string;
   name: string;
   address?: string;
+  image?: string;
 }
 
 type CarouselEntry =
@@ -145,16 +150,6 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
             ? selectedSalon === "all"
             : selectedSalon === item.id;
 
-          const cardClasses = [
-            "group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-            isSelected ? "border-primary shadow-md" : "",
-            isAllOption
-              ? "!border-none !bg-neutral-950 !text-white !shadow-[0_18px_42px_-24px_rgba(15,23,42,0.75)] dark:!bg-slate-100 dark:!text-slate-900"
-              : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-
           const handleSelect = () => {
             const targetId = isAllOption ? "all" : item.id;
             const targetName = isAllOption ? "Todos los locales" : item.name;
@@ -179,37 +174,48 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
               key={`${item.id}-${index}`}
               className="basis-full sm:basis-1/2 lg:basis-1/3 pl-2 sm:pl-4"
             >
-              <Card
-                className={cardClasses}
-                role="button"
-                tabIndex={0}
-                aria-pressed={isSelected}
-                aria-label={isAllOption ? "Seleccionar todos los locales" : `Seleccionar ${item.name}`}
-                onClick={handleSelect}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    handleSelect();
-                  }
-                }}
-              >
-                {isAllOption ? (
-                  <>
-                    <div
-                      className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black via-black/80 to-black/70 transition-colors duration-300 dark:from-white dark:via-slate-100 dark:to-slate-200"
-                      aria-hidden
-                    />
-                    <CardContent className="relative z-10 flex aspect-square flex-col items-center justify-center gap-3 text-center !px-0 !py-0">
-                      <span className="inline-flex size-14 items-center justify-center rounded-full bg-white/18 text-white transition-transform duration-300 group-hover:scale-[1.04] dark:bg-slate-900/15 dark:text-slate-900">
-                        <Compass className="h-6 w-6" aria-hidden />
-                      </span>
-                      <span className="text-sm font-semibold uppercase tracking-[0.32em]">
-                        Ver todos los locales
-                      </span>
-                    </CardContent>
-                  </>
-                ) : (
-                  <CardContent className="flex aspect-square flex-col items-center justify-center gap-2 text-center p-6">
+              {isAllOption ? (
+                <ViewAllSalonCard
+                  onClick={handleSelect}
+                  isSelected={isSelected}
+                />
+              ) : (
+                <Card
+                  className={cn(
+                    "group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                    isSelected && "border-primary shadow-md"
+                  )}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  aria-label={`Seleccionar ${item.name}`}
+                  onClick={handleSelect}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleSelect();
+                    }
+                  }}
+                >
+                  {/* Imagen de fondo o skeleton */}
+                  <div className="absolute inset-0">
+                    {item.image && item.image.trim() ? (
+                      <ImageWithFallback
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full"
+                        sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
+                      />
+                    ) : (
+                      <Skeleton className="w-full h-full absolute inset-0" />
+                    )}
+                  </div>
+
+                  {/* Overlay sutil */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/10 to-background/60 dark:from-background/0 dark:via-background/20 dark:to-background/70" />
+
+                  {/* Contenido centrado */}
+                  <CardContent className="relative z-10 flex aspect-square flex-col items-center justify-center gap-2 text-center p-6">
                     <span className="text-2xl font-semibold text-foreground">
                       {"order" in item ? item.order : index + 1}
                     </span>
@@ -217,8 +223,8 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                       {item.name}
                     </span>
                   </CardContent>
-                )}
-              </Card>
+                </Card>
+              )}
             </CarouselItem>
           );
         })}
