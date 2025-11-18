@@ -13,6 +13,8 @@ import { SalonCarousel } from "../SalonCarousel";
 import { FilterBar } from "../FilterBar";
 import { TurnosTable } from "../features/appointments/TurnosTable";
 import { PageContainer } from "../layout/PageContainer";
+import { Section } from "../layout/Section";
+import { Button } from "../ui/button";
 import type { Appointment } from "../features/appointments/AppointmentCard";
 import type { Salon } from "../../types/salon";
 import type { Turno, TurnosFilters } from "../../stores/turnosStore";
@@ -439,7 +441,22 @@ export function TurnosView({
             </>
           }
         />
-        <div className="p-4 sm:p-6">
+        <Section
+          title="Gestión de Turnos"
+          description="Administra y visualiza todos tus turnos programados"
+          action={
+            onAddAppointment && (
+              <Button
+                onClick={onAddAppointment}
+                aria-label="Crear nuevo turno"
+                data-action="new-appointment"
+              >
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                Nuevo Turno
+              </Button>
+            )
+          }
+        >
           <div className="mb-4">
             <SalonCarousel
               salons={salons}
@@ -472,53 +489,37 @@ export function TurnosView({
               </div>
             ) : (
               <>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 py-4">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl md:text-2xl">Lista de Turnos</h2>
-                    {onAddAppointment && (
-                      <button
-                        onClick={onAddAppointment}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                        aria-label="Crear nuevo turno"
-                        data-action="new-appointment"
-                      >
-                        <Plus className="w-4 h-4" aria-hidden="true" />
-                        Nuevo Turno
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                      Total:{" "}
-                      <span className="font-medium text-foreground">
-                        {appointmentSummary.total}
-                      </span>
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                    Total:{" "}
+                    <span className="font-medium text-foreground">
+                      {appointmentSummary.total}
                     </span>
-                    <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                      Hoy:{" "}
-                      <span className="font-medium text-foreground">
-                        {appointmentSummary.today}
-                      </span>
+                  </span>
+                  <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                    Hoy:{" "}
+                    <span className="font-medium text-foreground">
+                      {appointmentSummary.today}
                     </span>
-                    <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                      Confirmados:{" "}
-                      <span className="font-medium text-foreground">
-                        {appointmentSummary.confirmed}
-                      </span>
+                  </span>
+                  <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                    Confirmados:{" "}
+                    <span className="font-medium text-foreground">
+                      {appointmentSummary.confirmed}
                     </span>
-                    <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                      Pendientes:{" "}
-                      <span className="font-medium text-foreground">
-                        {appointmentSummary.pending}
-                      </span>
+                  </span>
+                  <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                    Pendientes:{" "}
+                    <span className="font-medium text-foreground">
+                      {appointmentSummary.pending}
                     </span>
-                    <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
-                      Finalizados:{" "}
-                      <span className="font-medium text-foreground">
-                        {appointmentSummary.completed}
-                      </span>
+                  </span>
+                  <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted-foreground">
+                    Finalizados:{" "}
+                    <span className="font-medium text-foreground">
+                      {appointmentSummary.completed}
                     </span>
-                  </div>
+                  </span>
                 </div>
                 <div className="space-y-6">
                   <TurnosTable
@@ -532,7 +533,7 @@ export function TurnosView({
               </>
             )}
           </div>
-        </div>
+        </Section>
       </div>
     </PageContainer>
   );

@@ -301,26 +301,6 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
           )}
         />
 
-        {salons.length > 0 && (
-          <motion.section
-            className="p-4 sm:p-6"
-            role="region"
-            aria-label="Selector de salón para finanzas"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-          >
-            <h2 className="mb-4 text-xl md:text-2xl font-semibold">Ver tus finanzas</h2>
-            <div>
-              <SalonCarousel 
-                salons={salons}
-                selectedSalon={selectedSalon}
-                onSelectSalon={onSelectSalon || (() => {})}
-              />
-            </div>
-          </motion.section>
-        )}
-
         <motion.section
           className="mt-2"
           role="region"
@@ -330,31 +310,30 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
           transition={{ duration: 0.2, ease: "easeOut", delay: 0.08 }}
         >
         <Section 
-            title="Finanzas"
-            description={effectiveSalonName}
-            action={(
-              <div className="flex flex-wrap items-center gap-2">
-                <DateRangeFilter
-                  ref={filterButtonRef}
-                  value={dateRange}
-                  onChange={(next) => {
-                    setDateRange(next);
-                  }}
+            title="Gestión de Finanzas"
+            description="Visualiza ingresos, gastos, comisiones y métricas financieras de tu negocio"
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExport}
+                disabled={!currentExporter}
+              >
+                <Download className="h-4 w-4 mr-2" aria-hidden="true" />
+                Exportar
+              </Button>
+            }
+          >
+            {salons.length > 0 && (
+              <div className="mb-4">
+                <SalonCarousel 
+                  salons={salons}
+                  selectedSalon={selectedSalon}
+                  onSelectSalon={onSelectSalon || (() => {})}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={handleExport}
-                  disabled={!currentExporter}
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  Exportar a Excel
-                </Button>
               </div>
             )}
-          >
-            <Tabs value={activeTab} className="mt-6 mb-8 space-y-6" aria-label="Paneles de finanzas">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
               <Pagination aria-label="Seleccionar panel de finanzas" className="justify-start">
                 <PaginationContent className="flex-wrap gap-2">
                   <PaginationItem>
@@ -406,7 +385,15 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>
-
+              <DateRangeFilter
+                ref={filterButtonRef}
+                value={dateRange}
+                onChange={(next) => {
+                  setDateRange(next);
+                }}
+              />
+            </div>
+            <Tabs value={activeTab} className="mt-6 mb-8 space-y-6" aria-label="Paneles de finanzas">
               <AnimatePresence mode="wait">
                 {activeTab === "owner" && (
                   <TabsContent value="owner" role="tabpanel" aria-label="Dashboard de propietario" forceMount>

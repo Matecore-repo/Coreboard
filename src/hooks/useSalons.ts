@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { demoStore } from '../demo/store';
 import { isValidUUID } from '../lib/uuid';
 import { queryWithCache, invalidateCache } from '../lib/queryCache';
+import { uploadSalonImage, deleteSalonImage } from '../../lib/salonImageUpload';
+import { Skeleton } from '../ui/skeleton';
 
 export type UISalon = {
   id: string;
@@ -28,6 +30,7 @@ type DBSalon = {
   timezone?: string | null;
   active?: boolean | null;
   rent_price?: number | null;
+  image?: string | null; // Agregar campo image
 };
 
 type DBService = {
@@ -54,7 +57,7 @@ function mapDBToUI(s: DBSalon, services: DBService[]): UISalon {
     id: String(s.id),
     name: s.name,
     address: s.address || '',
-    image: '/imagenlogin.jpg',
+    image: s.image || '', // Usar imagen guardada o vacío (no por defecto)
     rentPrice: s.rent_price ?? undefined,
     phone: s.phone ?? undefined,
     services: salonServices,
@@ -142,7 +145,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
           // Obtener los salones asignados
           const { data: salonsData, error: salonsError } = await supabase
             .from('salons')
-            .select('id, org_id, name, address, phone, timezone, active, rent_price')
+            .select('id, org_id, name, address, phone, timezone, active, rent_price, image')
             .eq('org_id', orgId)
             .in('id', assignedSalonIds)
             .is('deleted_at', null)
@@ -167,7 +170,7 @@ export function useSalons(orgId?: string, options?: { enabled?: boolean }) {
           // Si es owner/admin o no tiene rol, obtener todos los salones
           const { data: salonsData, error: salonsError } = await supabase
             .from('salons')
-            .select('id, org_id, name, address, phone, timezone, active, rent_price')
+            .select('id, org_id, name, address, phone, timezone, active, rent_price, image')
             .eq('org_id', orgId)
             .is('deleted_at', null)
             .order('name');

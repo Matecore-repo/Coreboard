@@ -30,6 +30,8 @@ import { CommandPaletteProvider, CommandAction } from "./contexts/CommandPalette
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "./components/ui/command";
 import { applyTheme } from "./lib/theme";
 import { ConfirmDialog } from "./components/ui/ConfirmDialog";
+import { uploadSalonImage, deleteSalonImage } from '../../lib/salonImageUpload';
+import { Skeleton } from '../ui/skeleton';
 
 // Lazy-loaded views
 const HomeView = lazy(() => {
@@ -688,30 +690,41 @@ useEffect(() => {
     setShowQuickActions(false);
   }, [appointments, selectedSalon, isDemo]);
 
-  const handleAddSalon = useCallback(async (salonData: Omit<Salon, 'id'>) => {
+  const handleAddSalon = useCallback(async (salonData: Omit<Salon, 'id'>): Promise<Salon> => {
     if (isDemo) {
       if (salons.length >= 1) {
         toastError('En modo demo solo se permite 1 peluquería');
-        return;
+        throw new Error('Solo se permite 1 peluquería en modo demo');
       }
       const newSalon: Salon = {
         ...salonData,
         id: Date.now().toString(),
       };
       setSalons(prev => [...prev, newSalon]);
-      return;
+      return newSalon;
     }
     if (!currentOrgId) {
       throw new Error('Organización no seleccionada');
     }
-    await createRemoteSalon({
+    const created = await createRemoteSalon({
       org_id: currentOrgId,
       name: salonData.name,
       address: salonData.address ?? '',
       phone: salonData.phone ?? '',
       rent_price: salonData.rentPrice ?? undefined,
+      image: salonData.image || undefined,
       active: true,
     } as any);
+    
+    // Mapear el salón creado al formato UI
+    return {
+      id: String(created.id),
+      name: created.name,
+      address: created.address || '',
+      image: salonData.image || '',
+      rentPrice: created.rent_price ?? undefined,
+      phone: created.phone ?? undefined,
+    } as Salon;
   }, [isDemo, salons.length, currentOrgId, createRemoteSalon]);
 
   const handleEditSalon = useCallback(async (id: string, salonData: Partial<Salon>) => {
@@ -726,6 +739,7 @@ useEffect(() => {
       address: salonData.address,
       phone: salonData.phone,
       rent_price: salonData.rentPrice ?? undefined,
+      image: salonData.image || undefined,
     } as any);
   }, [isDemo, updateRemoteSalon]);
 
@@ -1041,6 +1055,10 @@ useEffect(() => {
               isLoading={isDemo ? false : loadingTurnos}
               onSyncRemoteFilters={setTurnosFilters}
               onSyncSelectedSalon={setTurnosSelectedSalon}
+              onAddAppointment={() => {
+                setEditingAppointment(null);
+                setDialogOpen(true);
+              }}
             />
           </Suspense>
         );

@@ -133,7 +133,8 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
         )}
       />
       <Section 
-        title="Mis Locales"
+        title="Vista General"
+        description="Resumen de tus locales, turnos y métricas del día"
         action={onAddAppointment && (
           <Button 
             onClick={onAddAppointment}
@@ -145,16 +146,13 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
           </Button>
         )}
       >
-        <div className="mt-4 mb-4" role="region" aria-label="Selector de locales">
+        <div className="mb-4" role="region" aria-label="Selector de locales">
           <SalonCarousel 
             salons={salons}
             selectedSalon={selectedSalon}
             onSelectSalon={onSelectSalon}
           />
         </div>
-      </Section>
-
-      <section className="mt-4 gap-4 p-4 sm:p-6" aria-label="Panel principal">
         {/* Header con métricas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4" role="group" aria-label="Métricas principales">
         {/* Peluquería Asignada */}
@@ -198,7 +196,7 @@ export default function HomeView({ selectedSalon, salons, onSelectSalon, onAppoi
             onAppointmentClick={onAppointmentClick}
           />
         </section>
-      </section>
+      </Section>
 
       {/* Invite Employee Modal */}
       <InviteEmployeeModal 

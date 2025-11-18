@@ -4,6 +4,7 @@ import { LineChart, Sparkles, UserPlus, Users } from 'lucide-react';
 
 import { PageContainer } from '../layout/PageContainer';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
+import { Section } from '../layout/Section';
 import { Button } from '../ui/button';
 import {
   AlertDialog,
@@ -174,86 +175,41 @@ const OrganizationView: React.FC<OrganizationViewProps> = ({ isDemo = false }) =
         onShortcutClick={palette?.openPalette}
       />
 
-      <Card className="border-0 shadow-none">
-        <CardHeader className="gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-3">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Organización
-            </span>
-            <CardTitle className="text-3xl font-semibold text-foreground md:text-4xl">
-              {organization.name}
-            </CardTitle>
-            <CardDescription className="max-w-2xl text-sm md:text-base">
-              Coordiná la comunicación interna, asigná responsabilidades y mantené a tu equipo
-              sincronizado desde una sola vista.
-            </CardDescription>
-          </div>
-          <div className="flex flex-col items-start gap-3 text-sm text-muted-foreground sm:items-end sm:text-right">
-            <div className="flex flex-col gap-1 sm:items-end">
+      <Section
+        title="Gestión de Organización"
+        description="Coordiná la comunicación interna, asigná responsabilidades y mantené a tu equipo sincronizado"
+        action={
+          canManageMembers && (
+            <Button onClick={openInviteDialog}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invitar
+            </Button>
+          )
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+          {heroStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/20 p-4"
+            >
               <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Propietario
+                {stat.label}
               </span>
-              <span className="font-medium text-foreground">{ownerLabel}</span>
+              <span className="text-2xl font-semibold text-foreground">{stat.value}</span>
             </div>
-            <div className="flex flex-col gap-1 sm:items-end">
-              <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Creada
-              </span>
-              <span>{formattedCreatedAt}</span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {heroStats.map((stat) => (
-              <div
-                key={stat.label}
-                className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/20 p-4"
-              >
-                <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  {stat.label}
-                </span>
-                <span className="text-2xl font-semibold text-foreground">{stat.value}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 font-medium text-foreground">
-              Activa
-            </span>
-            <span className="hidden md:inline">•</span>
-            <span>{organization.tax_id ? `CUIT ${organization.tax_id}` : 'Sin identificación fiscal'}</span>
-            <span className="hidden md:inline">•</span>
-            <span>{totalMembers} miembros registrados</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {canManageMembers && (
-              <Button onClick={openInviteDialog} className="gap-2">
-                <UserPlus className="h-4 w-4" />
-                Invitar miembro
-              </Button>
-            )}
-            {canManageTeam && (
-              <Button variant="secondary" onClick={handleCreateEmployeeClick} className="gap-2">
-                <Users className="h-4 w-4" />
-                Nuevo empleado
-              </Button>
-            )}
-            {(canManageTeam || canEditCommissions) && (
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => toastInfo('Reportes de organización disponibles próximamente.')}
-              >
-                <LineChart className="h-4 w-4" />
-                Ver reportes
-              </Button>
-            )}
-          </div>
-        </CardFooter>
-      </Card>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 font-medium text-foreground">
+            Activa
+          </span>
+          <span className="hidden md:inline">•</span>
+          <span>{organization.tax_id ? `CUIT ${organization.tax_id}` : 'Sin identificación fiscal'}</span>
+          <span className="hidden md:inline">•</span>
+          <span>{totalMembers} miembros registrados</span>
+        </div>
+      </Section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <OrganizationSummarySidebar

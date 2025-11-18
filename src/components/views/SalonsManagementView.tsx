@@ -23,6 +23,8 @@ import { useSalonEmployees } from "../../hooks/useSalonEmployees";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { supabase } from "../../lib/supabase";
+import { uploadSalonImage, deleteSalonImage } from '../../lib/salonImageUpload';
+import { Skeleton } from '../ui/skeleton';
 
 interface Salon {
   id: string;
@@ -40,7 +42,7 @@ interface Salon {
 
 interface SalonsManagementViewProps {
   salons: Salon[];
-  onAddSalon: (salon: Omit<Salon, "id">) => Promise<void>;
+  onAddSalon: (salon: Omit<Salon, "id">) => Promise<Salon>;
   onEditSalon: (id: string, salon: Partial<Salon>) => Promise<void>;
   onDeleteSalon: (id: string) => Promise<void>;
 }
@@ -291,15 +293,52 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       return;
     }
 
+    if (!currentOrgId) {
+      toastError("Organización no disponible");
+      return;
+    }
+
     try {
-      const dataToSave: Omit<Salon, "id"> = {
-        ...formData,
-        image:
-          imagePreview ||
-          "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-      };
+      let imageUrl: string | undefined = undefined;
 
       if (editingSalon) {
+        // EDITAR SALÓN EXISTENTE
+        // Si hay un archivo nuevo, subirlo a Supabase Storage
+        if (imageFile) {
+          // Si hay una imagen previa, eliminarla
+          if (editingSalon.image && editingSalon.image.startsWith('http')) {
+            try {
+              await deleteSalonImage(editingSalon.image);
+            } catch (error) {
+              console.error('Error al eliminar imagen anterior:', error);
+            }
+          }
+
+          // Subir nueva imagen con el ID del salón
+          imageUrl = await uploadSalonImage(imageFile, editingSalon.id, currentOrgId);
+        } else if (!imagePreview && editingSalon.image) {
+          // Si se removió la imagen durante edición, eliminar la anterior
+          if (editingSalon.image.startsWith('http')) {
+            try {
+              await deleteSalonImage(editingSalon.image);
+            } catch (error) {
+              console.error('Error al eliminar imagen:', error);
+            }
+          }
+          imageUrl = undefined; // No hay imagen
+        } else if (imagePreview && imagePreview.startsWith('http')) {
+          // Si es una URL existente, mantenerla
+          imageUrl = imagePreview;
+        } else if (imagePreview && imagePreview.startsWith('data:')) {
+          // Si es base64 (preview), no guardar nada (solo se guarda cuando se sube el archivo)
+          imageUrl = undefined;
+        }
+
+        const dataToSave: Omit<Salon, "id"> = {
+          ...formData,
+          image: imageUrl || '',
+        };
+
         await onEditSalon(editingSalon.id, dataToSave);
         toastSuccess("Local actualizado correctamente");
         
@@ -335,11 +374,30 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
           }
         }
       } else {
-        // Crear nuevo salón
-        await onAddSalon(dataToSave);
-        toastSuccess("Local creado correctamente");
-        // Nota: Las asignaciones de empleados al crear un salón nuevo
-        // se pueden hacer después editando el salón recién creado
+        // CREAR NUEVO SALÓN
+        // Primero crear el salón sin imagen
+        const dataToSave: Omit<Salon, "id"> = {
+          ...formData,
+          image: '',
+        };
+
+        const createdSalon = await onAddSalon(dataToSave);
+        
+        // Si hay una imagen, subirla ahora que tenemos el ID del salón
+        if (imageFile && createdSalon.id) {
+          try {
+            imageUrl = await uploadSalonImage(imageFile, createdSalon.id, currentOrgId);
+            
+            // Actualizar el salón con la URL de la imagen
+            await onEditSalon(createdSalon.id, { image: imageUrl });
+            toastSuccess("Local creado correctamente");
+          } catch (error) {
+            console.error('Error al subir imagen:', error);
+            toastError("Local creado pero hubo un error al subir la imagen. Puedes editarlo después.");
+          }
+        } else {
+          toastSuccess("Local creado correctamente");
+        }
       }
 
       // Resetear formulario y cerrar dialog
@@ -577,8 +635,23 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
               }
             }}
           >
-            <div className="h-32 overflow-hidden relative">
-              <img src={salon.image} alt={salon.name} className="w-full h-full object-cover" />
+            <div className="h-32 overflow-hidden relative bg-muted">
+              {salon.image ? (
+                <>
+                  <img 
+                    src={salon.image} 
+                    alt={salon.name} 
+                    className="w-full h-full object-cover" 
+                    onError={(e) => {
+                      // Si falla la carga, ocultar imagen y mostrar skeleton
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                  <Skeleton className="w-full h-full absolute inset-0 hidden skeleton-fallback" />
+                </>
+              ) : (
+                <Skeleton className="w-full h-full absolute inset-0" />
+              )}
             </div>
             <div className="p-4 space-y-3">
               <div className="space-y-1">
