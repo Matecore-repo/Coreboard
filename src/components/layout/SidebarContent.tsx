@@ -9,7 +9,7 @@ import {
   Home,
   Users,
   Settings,
-  Zap,
+  Plus,  // Cambiar Zap por Plus
   DollarSign,
   Building2,
   LogOut,
@@ -43,6 +43,8 @@ interface SidebarContentProps {
   onLogout: () => void;
   onQuickActionsToggle: () => void;
   onProfileClick?: () => void;
+  onCreateAppointment?: () => void;
+  hasSalons?: boolean; // Indica si hay salones disponibles
 }
 
 interface OrganizationOption {
@@ -132,6 +134,8 @@ export const SidebarContent = memo(({
   onLogout,
   onQuickActionsToggle,
   onProfileClick,
+  onCreateAppointment,
+  hasSalons = true, // Por defecto asumimos que hay salones
 }: SidebarContentProps) => {
   const { user, currentOrgId, switchOrganization, memberships } = useAuth() as any;
   const [organizations, setOrganizations] = useState<OrganizationOption[]>([]);
@@ -313,13 +317,16 @@ export const SidebarContent = memo(({
           =================================================================== */}
       <div className="p-3 border-t border-sidebar-border flex-shrink-0">
         <Button
-          onClick={handleQuickActionsToggle}
+          onClick={onCreateAppointment || handleQuickActionsToggle}
           className="w-full rounded-full h-9"
-          variant={showQuickActions ? "secondary" : "default"}
-          aria-label={showQuickActions ? "Ocultar generar link de pago" : "Mostrar generar link de pago"}
+          variant="default"
+          disabled={!hasSalons}
+          aria-label={hasSalons ? "Crear nuevo turno" : "Crear nuevo turno (no hay locales disponibles)"}
+          data-action="new-appointment"
+          title={!hasSalons ? "Primero necesitas crear un local para poder crear turnos" : undefined}
         >
-          <Zap className="h-4 w-4 mr-2 flex-shrink-0" />
-          Generar link de pago
+          <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
+          Nuevo Turno
         </Button>
       </div>
     </div>
@@ -336,7 +343,8 @@ export const SidebarContent = memo(({
     prevProps.navItems === nextProps.navItems &&
     prevProps.onNavItemClick === nextProps.onNavItemClick &&
     prevProps.onLogout === nextProps.onLogout &&
-    prevProps.onQuickActionsToggle === nextProps.onQuickActionsToggle
+    prevProps.onQuickActionsToggle === nextProps.onQuickActionsToggle &&
+    prevProps.hasSalons === nextProps.hasSalons
   );
 });
 

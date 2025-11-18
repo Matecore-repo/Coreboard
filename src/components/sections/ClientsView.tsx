@@ -71,10 +71,42 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
     }
   }, [clientsError]);
 
+  const validateEmail = (email: string): boolean => {
+    if (!email.trim()) return true; // Email es opcional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone: string): boolean => {
+    if (!phone.trim()) return true; // Teléfono es opcional
+    // Permitir números, espacios, guiones, paréntesis y el símbolo +
+    const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+    return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 7;
+  };
+
   const handleSave = async () => {
     try {
+      // Validar nombre requerido
       if (!formData.full_name.trim()) {
         toastError('El nombre del cliente es requerido');
+        return;
+      }
+
+      // Validar formato de nombre (debe tener al menos una letra)
+      if (!/\p{L}/u.test(formData.full_name.trim())) {
+        toastError('El nombre del cliente debe incluir al menos una letra');
+        return;
+      }
+
+      // Validar formato de email si se proporciona
+      if (formData.email && !validateEmail(formData.email)) {
+        toastError('El email no tiene un formato válido');
+        return;
+      }
+
+      // Validar formato de teléfono si se proporciona
+      if (formData.phone && !validatePhone(formData.phone)) {
+        toastError('El teléfono no tiene un formato válido (mínimo 7 dígitos)');
         return;
       }
 
@@ -83,12 +115,19 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
         return;
       }
 
+      // Limpiar espacios en blanco
+      const cleanedData = {
+        full_name: formData.full_name.trim(),
+        phone: formData.phone?.trim() || undefined,
+        email: formData.email?.trim() || undefined,
+      };
+
       if (editingClient) {
-        await updateClient(editingClient.id, formData);
+        await updateClient(editingClient.id, cleanedData);
         toastSuccess('Cliente actualizado correctamente');
       } else {
         await createClient({
-          ...formData,
+          ...cleanedData,
           org_id: currentOrgId,
         } as any);
         toastSuccess('Cliente creado correctamente');
@@ -97,9 +136,10 @@ const ClientsView: React.FC<ClientsViewProps> = () => {
       setDialogOpen(false);
       setEditingClient(null);
       setFormData({ full_name: '', phone: '', email: '' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving client:', error);
-      toastError('Error al guardar el cliente');
+      const errorMessage = error?.message || 'Error al guardar el cliente';
+      toastError(errorMessage);
     }
   };
 

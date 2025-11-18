@@ -21,6 +21,7 @@ import { useEmployees } from "../../hooks/useEmployees";
 import { useSalonEmployees } from "../../hooks/useSalonEmployees";
 import { ShortcutBanner } from "../ShortcutBanner";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { supabase } from "../../lib/supabase";
 
 interface Salon {
   id: string;
@@ -42,15 +43,6 @@ interface SalonsManagementViewProps {
   onEditSalon: (id: string, salon: Partial<Salon>) => Promise<void>;
   onDeleteSalon: (id: string) => Promise<void>;
 }
-
-const RECOMMENDED_SERVICES: Array<{ key: string; name: string; base_price: number; duration_minutes: number; description: string }> = [
-  { key: "corte-clasico", name: "Corte Clásico", base_price: 3500, duration_minutes: 30, description: "El servicio esencial para nuevos clientes o mantenimiento." },
-  { key: "coloracion-premium", name: "Coloración Premium", base_price: 8500, duration_minutes: 90, description: "Incluye diagnóstico, color y terminación profesional." },
-  { key: "tratamiento-nutritivo", name: "Tratamiento Nutritivo", base_price: 6200, duration_minutes: 45, description: "Reparación profunda con masaje de relajación." },
-  { key: "peinado-eventos", name: "Peinado para Eventos", base_price: 7800, duration_minutes: 50, description: "Peinados editoriales y de fiesta listos para fotos." },
-  { key: "barberia-premium", name: "Barbería Premium", base_price: 4200, duration_minutes: 35, description: "Corte + perfilado de barba + tratamiento hot towel." },
-  { key: "alisado-keratina", name: "Alisado con Keratina", base_price: 19500, duration_minutes: 120, description: "Cabello liso, suave y sin frizz por hasta 3 meses." },
-];
 
 function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }: SalonsManagementViewProps) {
   const { currentOrgId } = useAuth();
@@ -92,6 +84,9 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
   const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
   const [serviceActionId, setServiceActionId] = useState<string | null>(null);
   const [customService, setCustomService] = useState({ name: "", price: "", duration: "45" });
+  const [editServiceDialogOpen, setEditServiceDialogOpen] = useState(false);
+  const [editingService, setEditingService] = useState<{ id: string; name: string; price?: number; duration?: number; base_price: number; duration_minutes: number } | null>(null);
+  const [editServiceForm, setEditServiceForm] = useState({ price: "", duration: "" });
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -106,6 +101,49 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const servicesSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Mapa de salon_id -> número de empleados asignados
+  const [employeeCountsBySalon, setEmployeeCountsBySalon] = useState<Map<string, number>>(new Map());
+
+  // Obtener conteo de empleados para todos los salones
+  useEffect(() => {
+    if (!salons.length || !currentOrgId) {
+      setEmployeeCountsBySalon(new Map());
+      return;
+    }
+
+    const fetchEmployeeCounts = async () => {
+      try {
+        const salonIds = salons.map(s => s.id);
+        const { data, error } = await supabase
+          .from('salon_employees')
+          .select('salon_id')
+          .in('salon_id', salonIds)
+          .eq('active', true);
+
+        if (error) throw error;
+
+        // Contar empleados por salón
+        const counts = new Map<string, number>();
+        salonIds.forEach(id => counts.set(id, 0));
+        
+        (data || []).forEach((assignment: { salon_id: string }) => {
+          const current = counts.get(assignment.salon_id) || 0;
+          counts.set(assignment.salon_id, current + 1);
+        });
+
+        setEmployeeCountsBySalon(counts);
+      } catch (error) {
+        console.error('Error fetching employee counts:', error);
+        // En caso de error, inicializar con 0 para todos
+        const counts = new Map<string, number>();
+        salons.forEach(s => counts.set(s.id, 0));
+        setEmployeeCountsBySalon(counts);
+      }
+    };
+
+    fetchEmployeeCounts();
+  }, [salons, currentOrgId]);
 
   const resetCustomService = useCallback(() => {
     setCustomService({ name: "", price: "", duration: "45" });
@@ -303,10 +341,27 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         // se pueden hacer después editando el salón recién creado
       }
 
+      // Resetear formulario y cerrar dialog
+      setEditingSalon(null);
+      setFormData({
+        name: "",
+        address: "",
+        image: "",
+        rentPrice: 0,
+        phone: "",
+        email: "",
+        notes: "",
+        openingHours: "",
+        services: [],
+      });
+      setImagePreview("");
+      setImageFile(null);
+      setSelectedEmployeeIds(new Set());
       setDialogOpen(false);
     } catch (error) {
       console.error('❌ Error en handleSave:', error);
       toastError(`Error: ${error instanceof Error ? error.message : 'Ocurrió un error'}`);
+      // No cerrar el dialog si hay un error para que el usuario pueda corregir
     }
   };
 
@@ -342,6 +397,59 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
     }
   };
 
+  const handleEditServiceClick = (service: typeof salonServices[0]) => {
+    setEditingService({
+      id: service.id,
+      name: service.service_name,
+      price: service.price_override,
+      duration: service.duration_override,
+      base_price: service.base_price,
+      duration_minutes: service.duration_minutes,
+    });
+    setEditServiceForm({
+      price: service.price_override?.toString() || "",
+      duration: service.duration_override?.toString() || "",
+    });
+    setEditServiceDialogOpen(true);
+  };
+
+  const handleUpdateService = async () => {
+    if (!editingService) return;
+    
+    try {
+      const updates: any = {};
+      const price = editServiceForm.price.trim() ? Number(editServiceForm.price) : null;
+      const duration = editServiceForm.duration.trim() ? Number(editServiceForm.duration) : null;
+      
+      if (price !== null && !isNaN(price) && price > 0) {
+        updates.price_override = price;
+      } else if (editServiceForm.price.trim() === "") {
+        // Si está vacío, remover el override para usar el precio base
+        updates.price_override = null;
+      }
+      
+      if (duration !== null && !isNaN(duration) && duration > 0) {
+        updates.duration_override = duration;
+      } else if (editServiceForm.duration.trim() === "") {
+        // Si está vacío, remover el override para usar la duración base
+        updates.duration_override = null;
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        await updateServiceAssignment(editingService.id, updates);
+        toastSuccess('Servicio actualizado');
+        setEditServiceDialogOpen(false);
+        setEditingService(null);
+        setEditServiceForm({ price: "", duration: "" });
+      } else {
+        toastError('Ingresa al menos un valor válido');
+      }
+    } catch (error) {
+      console.error('Error updating service:', error);
+      toastError('Error al actualizar el servicio');
+    }
+  };
+
   // Cargar empleados asignados al salón cuando se abre el diálogo de edición
   useEffect(() => {
     if (editingSalon?.id) {
@@ -353,6 +461,27 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
       setSelectedEmployeeIds(new Set());
     }
   }, [editingSalon?.id, salonEmployeeAssignments]);
+
+  // Resetear formulario cuando se cierra el dialog
+  useEffect(() => {
+    if (!dialogOpen && !editingSalon) {
+      // Resetear formulario solo si no hay un salón en edición
+      setFormData({
+        name: "",
+        address: "",
+        image: "",
+        rentPrice: 0,
+        phone: "",
+        email: "",
+        notes: "",
+        openingHours: "",
+        services: [],
+      });
+      setImagePreview("");
+      setImageFile(null);
+      setSelectedEmployeeIds(new Set());
+    }
+  }, [dialogOpen, editingSalon]);
 
   // Toggle de empleado seleccionado (para checkboxes)
   const handleToggleEmployee = useCallback((employeeId: string) => {
@@ -439,12 +568,12 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
               </div>
 
               <div className="space-y-2 text-sm">
-                {typeof salon.rentPrice === "number" && (
-                  <div className="text-muted-foreground">Alquiler: ${salon.rentPrice.toLocaleString()}/mes</div>
-                )}
+                <div className="text-muted-foreground">
+                  Alquiler: ${(typeof salon.rentPrice === "number" ? salon.rentPrice : 0).toLocaleString()}/mes
+                </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Users className="h-4 w-4" />
-                  <span>Personal: -</span>
+                  <span>Personal: {employeeCountsBySalon.get(salon.id) ?? 0} empleado{(employeeCountsBySalon.get(salon.id) ?? 0) !== 1 ? 's' : ''}</span>
                 </div>
               </div>
             </div>
@@ -560,7 +689,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                   Asignar Servicio
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Gestionar servicios de {selectedSalon.name}</DialogTitle>
                   <DialogDescription>
@@ -572,49 +701,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                   {servicesLoading && (
                     <div className="text-sm text-muted-foreground">Cargando servicios disponibles…</div>
                   )}
-                  <div>
-                    <h4 className="text-sm font-semibold mb-2">Servicios recomendados</h4>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {RECOMMENDED_SERVICES.map((service) => {
-                        const existing = allServices.find((s) => s.name.toLowerCase() === service.name.toLowerCase());
-                        const alreadyAssigned = existing ? salonServices.some((ss) => ss.service_id === existing.id) : false;
-                        const isProcessing = serviceActionId === service.key;
-                        const disabled = !selectedSalon || alreadyAssigned || isProcessing;
-                        const label = !selectedSalon
-                          ? "Selecciona un salón"
-                          : alreadyAssigned
-                          ? "Asignado"
-                          : existing
-                          ? "Asignar"
-                          : "Crear y asignar";
-
-                        return (
-                          <div key={service.key} className="border rounded-lg p-3 bg-muted/30">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="font-medium text-sm">{service.name}</p>
-                                <p className="text-xs text-muted-foreground">${service.base_price} · {service.duration_minutes} min</p>
-                                <p className="text-xs text-muted-foreground mt-1">{service.description}</p>
-                              </div>
-                              <Button
-                                size="sm"
-                                disabled={disabled}
-                                onClick={() => handleCreateAndAssignService({
-                                  key: service.key,
-                                  name: service.name,
-                                  base_price: service.base_price,
-                                  duration_minutes: service.duration_minutes,
-                                })}
-                              >
-                                {isProcessing ? "Procesando..." : label}
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   <div className="border rounded-lg p-3 bg-muted/20">
                     <h4 className="text-sm font-semibold mb-2">Crear servicio personalizado</h4>
                     <form className="grid gap-3" onSubmit={handleCustomServiceSubmit}>
@@ -666,57 +752,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                       </div>
                     </form>
                   </div>
-
-                  <div className="pt-2 border-t">
-                    <h4 className="text-sm font-semibold mb-2">Servicios disponibles</h4>
-                    {servicesLoading ? (
-                      <p className="text-sm text-muted-foreground">Cargando servicios...</p>
-                    ) : (
-                      <div className="space-y-2 max-h-72 overflow-y-auto">
-                        {allServices.map((service) => {
-                          const isAssigned = salonServices.some(ss => ss.service_id === service.id);
-                          return (
-                            <div key={service.id} className="flex items-center justify-between p-2 border rounded">
-                              <div>
-                                <p className="font-medium text-sm">{service.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  ${service.base_price} · {service.duration_minutes} min
-                                </p>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant={isAssigned ? "destructive" : "default"}
-                                onClick={async () => {
-                                  try {
-                                    if (isAssigned) {
-                                      const assignment = salonServices.find(ss => ss.service_id === service.id);
-                                      if (assignment) {
-                                        await unassignService(assignment.id);
-                                        toastSuccess(`Servicio "${service.name}" removido`);
-                                      }
-                                    } else {
-                                      await assignService(service.id);
-                                      toastSuccess(`Servicio "${service.name}" asignado`);
-                                    }
-                                  } catch (error) {
-                                    console.error('Error managing service assignment:', error);
-                                    toastError('Error al gestionar el servicio');
-                                  }
-                                }}
-                              >
-                                {isAssigned ? 'Remover' : 'Asignar'}
-                              </Button>
-                            </div>
-                          );
-                        })}
-                        {allServices.length === 0 && (
-                          <p className="text-center text-sm text-muted-foreground py-4">
-                            Aún no hay servicios creados para tu organización.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </DialogContent>
             </Dialog>
@@ -744,28 +779,7 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={async () => {
-                          try {
-                            const newPrice = prompt('Nuevo precio (deja vacío para precio base):', service.price_override?.toString() || '');
-                            const newDuration = prompt('Nueva duración en minutos (deja vacío para duración base):', service.duration_override?.toString() || '');
-
-                            const updates: any = {};
-                            if (newPrice && newPrice.trim()) {
-                              updates.price_override = Number(newPrice);
-                            }
-                            if (newDuration && newDuration.trim()) {
-                              updates.duration_override = Number(newDuration);
-                            }
-
-                            if (Object.keys(updates).length > 0) {
-                              await updateServiceAssignment(service.id, updates);
-                              toastSuccess('Servicio actualizado');
-                            }
-                          } catch (error) {
-                            console.error('Error updating service:', error);
-                            toastError('Error al actualizar el servicio');
-                          }
-                        }}
+                        onClick={() => handleEditServiceClick(service)}
                       >
                         Editar
                       </Button>
@@ -979,6 +993,68 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         cancelLabel="Cancelar"
         variant="default"
       />
+
+      <Dialog open={editServiceDialogOpen} onOpenChange={setEditServiceDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Servicio</DialogTitle>
+            <DialogDescription>
+              {editingService && `Actualiza el precio y/o duración para "${editingService.name}" en este local. Deja vacío para usar el valor base.`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingService && (
+            <>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-price">Precio</Label>
+                  <Input
+                    id="edit-price"
+                    type="number"
+                    min="0"
+                    step="100"
+                    placeholder={`Precio base: $${editingService.base_price}`}
+                    value={editServiceForm.price}
+                    onChange={(e) => setEditServiceForm(prev => ({ ...prev, price: e.target.value }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Deja vacío para usar el precio base del servicio (${editingService.base_price})
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-duration">Duración (minutos)</Label>
+                  <Input
+                    id="edit-duration"
+                    type="number"
+                    min="15"
+                    step="5"
+                    placeholder={`Duración base: ${editingService.duration_minutes} min`}
+                    value={editServiceForm.duration}
+                    onChange={(e) => setEditServiceForm(prev => ({ ...prev, duration: e.target.value }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Deja vacío para usar la duración base del servicio ({editingService.duration_minutes} min)
+                  </p>
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setEditServiceDialogOpen(false);
+                  setEditingService(null);
+                  setEditServiceForm({ price: "", duration: "" });
+                }}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleUpdateService}>
+                  Guardar cambios
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
       </Section>
     </PageContainer>
   );

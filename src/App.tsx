@@ -1161,6 +1161,11 @@ useEffect(() => {
             onNavItemClick={(itemId) => navigateToView(itemId)}
             onLogout={handleLogout}
             onQuickActionsToggle={() => setShowQuickActions(!showQuickActions)}
+            onCreateAppointment={() => {
+              setEditingAppointment(null);
+              setDialogOpen(true);
+            }}
+            hasSalons={effectiveSalons.length > 0}
           />
         </div>
 
@@ -1184,15 +1189,17 @@ useEffect(() => {
                 setMobileMenuOpen(false);
               }}
               onNavItemClick={(itemId) => {
-                if (itemId === activeNavItem) {
-                  setMobileMenuOpen(false);
-                  return;
-                }
                 navigateToView(itemId);
                 setMobileMenuOpen(false);
               }}
               onLogout={handleLogout}
               onQuickActionsToggle={() => setShowQuickActions(!showQuickActions)}
+              onCreateAppointment={() => {
+                setEditingAppointment(null);
+                setDialogOpen(true);
+                setMobileMenuOpen(false);
+              }}
+              hasSalons={effectiveSalons.length > 0}
             />
           </SheetContent>
         </Sheet>

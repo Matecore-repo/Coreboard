@@ -27,11 +27,6 @@ export function EmptyState({
   return (
     <Card className={`text-center ${className}`}>
       <CardHeader>
-        {Icon && (
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Icon className="h-6 w-6 text-muted-foreground" />
-          </div>
-        )}
         <CardTitle className="text-xl">{title}</CardTitle>
         <CardDescription className="max-w-sm mx-auto">
           {description}
