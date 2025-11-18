@@ -19,7 +19,7 @@ export function Section({
   return (
     <section
       className={cn(
-        "flex flex-col gap-6 md:gap-8 rounded-3xl border border-border/50 bg-card/70 p-4 sm:p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60",
+        "flex flex-col gap-6 md:gap-8 rounded-3xl bg-card/70 p-4 sm:p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60",
         className,
       )}
       {...props}

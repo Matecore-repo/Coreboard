@@ -1,5 +1,5 @@
 ﻿import React, { useState, useCallback, lazy, useRef, useEffect, useMemo } from "react";
-import { Plus, Users, MapPin, Upload, X, Phone, Mail, Clock, DollarSign, Edit3, FileText, Trash2, Sparkles } from "lucide-react";
+import { Plus, Users, MapPin, X, Edit3, Trash2, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
@@ -7,6 +7,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 const ServicesPanel = lazy(() => import("../ServicesPanel"));
 import type { Service as SalonServiceUI } from "../ServicesPanel";
 import type { Service as OrgService } from "../../hooks/useServices";
@@ -519,14 +520,37 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         title="Gestión de Locales"
         description="Administra tus sucursales y personal"
         action={
-          <Button 
-            onClick={() => handleOpenDialog()}
-            aria-label="Crear nuevo local"
-            data-action="new-salon"
-          >
-            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-            Nuevo local
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedSalon && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOpenDialog(selectedSalon)}
+                  aria-label="Editar local"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-red-600"
+                  onClick={() => handleDeleteClick(selectedSalon)}
+                  aria-label="Eliminar local"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            <Button 
+              onClick={() => handleOpenDialog()}
+              aria-label="Crear nuevo local"
+              data-action="new-salon"
+            >
+              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+              Nuevo local
+            </Button>
+          </div>
         }
       >
       <section className="space-y-4" role="region" aria-label="Gestión de locales">
@@ -581,91 +605,6 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
         ))}
       </div>
       </section>
-
-      {selectedSalon && (
-        <div className="mt-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h3 className="text-lg font-semibold">Detalle de {selectedSalon.name}</h3>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenDialog(selectedSalon)}
-                className="flex items-center gap-2"
-              >
-                <Edit3 className="h-4 w-4" />
-                Editar local
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => servicesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                className="flex items-center gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                Gestionar servicios
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2 text-red-600"
-                onClick={() => handleDeleteClick(selectedSalon)}
-              >
-                <Trash2 className="h-4 w-4" />
-                Eliminar
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-border/60 bg-card p-4">
-            <div className="flex items-center gap-3 text-sm">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span><span className="font-medium text-foreground">Dirección:</span> {selectedSalon.address || "No especificada"}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span><span className="font-medium text-foreground">Teléfono:</span> {selectedSalon.phone || "No especificado"}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span><span className="font-medium text-foreground">Email:</span> {selectedSalon.email || "No especificado"}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span><span className="font-medium text-foreground">Alquiler:</span> {typeof selectedSalon.rentPrice === "number" ? "$" + selectedSalon.rentPrice.toLocaleString() + "/mes" : "No especificado"}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span><span className="font-medium text-foreground">Horarios:</span> {selectedSalon.openingHours || "No especificado"}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span><span className="font-medium text-foreground">Personal:</span> {selectedSalonEmployeeAssignments.length} empleado{selectedSalonEmployeeAssignments.length !== 1 ? 's' : ''}</span>
-            </div>
-            {selectedSalon.notes && (
-              <div className="flex items-center gap-3 text-sm">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <span><span className="font-medium text-foreground">Notas:</span> {selectedSalon.notes}</span>
-              </div>
-            )}
-            {selectedSalonEmployeeAssignments.length > 0 && (
-              <div className="flex flex-wrap gap-1 pt-1">
-                {selectedSalonEmployeeAssignments.map((assignment) => {
-                  const employee = employees.find(emp => emp.id === assignment.employee_id);
-                  return (
-                    <Badge key={assignment.id} variant="secondary">
-                      {employee?.full_name || assignment.employees?.full_name || 'Empleado'}
-                    </Badge>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {selectedSalon && (
         <div className="mt-6" ref={servicesSectionRef}>
@@ -764,40 +703,46 @@ function SalonsManagementView({ salons, onAddSalon, onEditSalon, onDeleteSalon }
               className="max-w-md mx-auto"
             />
           ) : (
-            <div className="space-y-2">
-              {salonServices.map((service) => (
-                <div key={service.id} className="p-3 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">{service.service_name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Precio: ${service.price_override ?? service.base_price} |
-                        Duración: {service.duration_override ?? service.duration_minutes} min
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditServiceClick(service)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          setServiceToRemove({ id: service.id, name: service.service_name });
-                          setRemoveServiceDialogOpen(true);
-                        }}
-                      >
-                        Remover
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Servicio</TableHead>
+                  <TableHead>Precio</TableHead>
+                  <TableHead>Duración</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {salonServices.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="font-medium">{service.service_name}</TableCell>
+                    <TableCell>${service.price_override ?? service.base_price}</TableCell>
+                    <TableCell>{service.duration_override ?? service.duration_minutes} min</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEditServiceClick(service)}
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setServiceToRemove({ id: service.id, name: service.service_name });
+                            setRemoveServiceDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </div>
       )}
