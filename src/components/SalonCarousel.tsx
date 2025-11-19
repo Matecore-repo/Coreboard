@@ -153,9 +153,6 @@ export function SalonCarousel({
           const isSelected = isAllOption
             ? selectedSalon === "all"
             : selectedSalon === item.id;
-          const todayCount = !isAllOption
-            ? todayAppointmentsBySalon.get(item.id) ?? 0
-            : 0;
 
           const handleSelect = () => {
             const targetId = isAllOption ? "all" : item.id;
@@ -218,34 +215,21 @@ export function SalonCarousel({
                           <div className="w-full h-full bg-muted" />
                         )}
                       </div>
-
-                      <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-black/85 via-black/40 to-transparent dark:from-neutral-950/90 dark:via-neutral-950/50 dark:to-transparent" />
-
-                      <div className="absolute inset-0 flex flex-col justify-end px-5 pb-6 pt-8">
-                        <div className="w-full rounded-2xl bg-white/95 dark:bg-neutral-950/95 px-4 py-3 backdrop-blur-sm shadow-[0_20px_40px_rgba(0,0,0,0.35)]">
-                          <div className="flex flex-col gap-2">
-                            <div>
-                              <h3 className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
-                                {item.name}
-                              </h3>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-300">
-                                  Turnos de hoy
-                                </span>
-                                <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                                  {todayCount}
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                className="px-4 py-2 rounded-full bg-neutral-900 text-white text-[11px] font-medium whitespace-nowrap shadow-sm dark:bg-white dark:text-neutral-950"
-                              >
-                                Nuevo turno
-                              </button>
-                            </div>
-                          </div>
+                      {/* Capa inferior con degradado fuerte y contenido */}
+                      <div
+                        className="absolute inset-x-0 bottom-0"
+                        style={{ height: "25%" }}
+                      >
+                        <div
+                          className="h-full w-full flex items-center px-6 pb-5 rounded-b-[1.8rem]"
+                          style={{
+                            background:
+                              "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.45), rgba(0,0,0,0))",
+                          }}
+                        >
+                          <h3 className="text-base font-semibold text-white truncate">
+                            {item.name}
+                          </h3>
                         </div>
                       </div>
                     </div>
