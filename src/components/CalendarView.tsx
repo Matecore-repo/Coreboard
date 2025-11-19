@@ -89,9 +89,9 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Calendar Grid */}
-      <div className="lg:col-span-1 bg-card border border-border rounded-2xl p-3">
+      <div className="lg:col-span-1 bg-card border border-border rounded-2xl p-4">
         {/* Calendar Header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-5">
           <h3 className="text-sm font-semibold">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h3>
@@ -116,11 +116,11 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
         </div>
 
         {/* Day names */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
+        <div className="grid grid-cols-7 gap-2 mb-3">
           {dayNames.map((day) => (
             <div
               key={day}
-              className="text-center text-muted-foreground text-xs p-1"
+              className="text-center text-muted-foreground text-xs p-2"
             >
               {day}
             </div>
@@ -128,7 +128,7 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
         </div>
 
         {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-2">
           {/* Empty cells for days before month starts */}
           {Array.from({ length: firstDayOfMonth }).map((_, index) => (
             <div key={`empty-${index}`} className="aspect-square" />
@@ -144,7 +144,7 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
               <button
                 key={day}
                 onClick={() => setSelectedDay(day)}
-                className={`aspect-square rounded-lg p-1 transition-all relative text-xs ${
+                className={`aspect-square rounded-lg p-2 transition-all relative text-xs ${
                   isToday(day)
                     ? "bg-primary text-primary-foreground"
                     : selectedDay === day
@@ -180,8 +180,8 @@ export const CalendarView = memo(function CalendarView({ data, selectedSalon, fo
       </div>
 
       {/* Day Details */}
-      <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-3 flex flex-col max-h-[500px]">
-        <h3 className="mb-3 text-sm font-semibold">
+      <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-4 flex flex-col max-h-[500px]">
+        <h3 className="mb-4 text-sm font-semibold">
           {selectedDay
             ? `${selectedDay} de ${monthNames[currentDate.getMonth()]}`
             : "Selecciona un día"}

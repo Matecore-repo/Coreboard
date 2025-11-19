@@ -97,15 +97,15 @@ const NavItemButton = memo(({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full mb-1.5 transition-[background-color] duration-75 will-change-[background-color] ${
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl mb-1.5 transition-[background-color] duration-75 will-change-[background-color] ${
         isActive
-          ? "bg-primary text-primary-foreground shadow-sm"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
           : "hover:bg-muted text-sidebar-foreground"
       }`}
       aria-label={item.label}
       aria-current={isActive ? 'page' : undefined}
     >
-      <Icon className="h-4 w-4 flex-shrink-0" />
+      <Icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-sidebar-accent-foreground" : "text-sidebar-foreground"}`} />
       <span className="truncate">{item.label}</span>
     </button>
   );
