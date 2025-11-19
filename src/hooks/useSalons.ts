@@ -4,8 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { demoStore } from '../demo/store';
 import { isValidUUID } from '../lib/uuid';
 import { queryWithCache, invalidateCache } from '../lib/queryCache';
-import { uploadSalonImage, deleteSalonImage } from '../../lib/salonImageUpload';
-import { Skeleton } from '../ui/skeleton';
+import { uploadSalonImage, deleteSalonImage } from '../lib/salonImageUpload';
+import { Skeleton } from '../components/ui/skeleton';
 
 export type UISalon = {
   id: string;

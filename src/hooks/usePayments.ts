@@ -180,13 +180,18 @@ export function usePayments(options?: { enabled?: boolean; appointmentId?: strin
       if (error && error.message?.includes('received_at')) {
         const retryQuery = supabase
           .from('payments')
-          .select('id, appointment_id, amount, org_id, created_at')
+          .select('id, appointment_id, amount, org_id, created_at, received_at, method')
           .eq('org_id', currentOrgId);
         if (options?.appointmentId) {
           retryQuery.eq('appointment_id', options.appointmentId);
         }
         const retry = await retryQuery.order('created_at', { ascending: false });
-        data = retry.data;
+        // Mapear los datos para agregar valores por defecto si faltan campos
+        data = (retry.data as any[])?.map((row: any) => ({
+          ...row,
+          received_at: row.received_at || row.created_at || null,
+          method: row.method || 'cash',
+        })) || null;
         error = retry.error;
       }
       
