@@ -603,6 +603,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);  // Sin dependencias: el efecto se ejecuta solo una vez
 
   // =========================================================================
+  // HELPER: getFriendlyErrorMessage
+  // =========================================================================
+  // Convierte errores de Supabase a mensajes amigables en español
+  const getFriendlyErrorMessage = (error: any): string => {
+    // Si es un error de timeout
+    if (error?.message?.includes('timeout') || error?.message?.includes('Request timeout')) {
+      return 'La conexión está tardando demasiado. Verifica tu conexión a internet e intenta de nuevo.';
+    }
+
+    // Si es un error de red
+    if (error?.message?.includes('network') || error?.message?.includes('fetch') || error?.message?.includes('Failed to fetch')) {
+      return 'Error de conexión. Verifica tu conexión a internet e intenta de nuevo.';
+    }
+
+    // Errores específicos de Supabase
+    const errorCode = error?.code || error?.status;
+    const errorMessage = error?.message || '';
+
+    switch (errorCode) {
+      case 'invalid_credentials':
+      case 'invalid_grant':
+        return 'Email o contraseña incorrectos. Verifica tus credenciales e intenta de nuevo.';
+      
+      case 'email_not_confirmed':
+      case 'signup_disabled':
+        return 'Tu email no ha sido confirmado. Revisa tu bandeja de entrada y haz clic en el enlace de confirmación.';
+      
+      case 'too_many_requests':
+        return 'Demasiados intentos de inicio de sesión. Por favor espera unos minutos antes de intentar de nuevo.';
+      
+      case 'user_not_found':
+        return 'No existe una cuenta con este email. Verifica el email o crea una cuenta nueva.';
+      
+      default:
+        // Si el mensaje ya es descriptivo, usarlo
+        if (errorMessage.includes('Invalid login credentials') || errorMessage.includes('invalid_credentials')) {
+          return 'Email o contraseña incorrectos. Verifica tus credenciales e intenta de nuevo.';
+        }
+        if (errorMessage.includes('Email not confirmed')) {
+          return 'Tu email no ha sido confirmado. Revisa tu bandeja de entrada y haz clic en el enlace de confirmación.';
+        }
+        if (errorMessage.includes('Too many requests')) {
+          return 'Demasiados intentos de inicio de sesión. Por favor espera unos minutos antes de intentar de nuevo.';
+        }
+        // Mensaje genérico si no se reconoce el error
+        return errorMessage || 'Error al iniciar sesión. Por favor intenta de nuevo.';
+    }
+  };
+
+  // =========================================================================
   // FUNCIÓN: signIn
   // =========================================================================
   // Inicia sesión con email y contraseña
@@ -612,21 +662,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
-    // Llamar a Supabase para iniciar sesión
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      // Envolver con timeout de 15 segundos para evitar bloqueo infinito
+      const loginPromise = supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await withTimeout(loginPromise, 15000);
 
-    // Si hay error, lanzarlo
-    if (error) {
-      throw error;
+      // Si hay error, convertirlo a mensaje amigable
+      if (error) {
+        const friendlyMessage = getFriendlyErrorMessage(error);
+        const enhancedError = new Error(friendlyMessage);
+        // Preservar el código original del error para debugging
+        (enhancedError as any).originalError = error;
+        (enhancedError as any).code = error.code || error.status;
+        throw enhancedError;
+      }
+
+      // Si no hay sesión en la respuesta, error
+      if (!data.session) {
+        throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
+      }
+
+      // El evento 'SIGNED_IN' de onAuthStateChange se encargará del resto
+      // No modificamos loading aquí porque handleSignedIn lo maneja
+    } catch (error: any) {
+      // Si es un error de timeout de nuestra función withTimeout
+      if (error?.message?.includes('Request timeout')) {
+        throw new Error('La conexión está tardando demasiado. Verifica tu conexión a internet e intenta de nuevo.');
+      }
+      // Si ya es un Error con mensaje amigable, relanzarlo
+      if (error instanceof Error && error.message) {
+        throw error;
+      }
+      // Para cualquier otro error, convertirlo a mensaje amigable
+      const friendlyMessage = getFriendlyErrorMessage(error);
+      throw new Error(friendlyMessage);
     }
-
-    // Si no hay sesión en la respuesta, error
-    if (!data.session) {
-      throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
-    }
-
-    // El evento 'SIGNED_IN' de onAuthStateChange se encargará del resto
-    // No modificamos loading aquí porque handleSignedIn lo maneja
   };
 
   // =========================================================================
@@ -639,24 +709,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Modo demo: usa "Iniciar Demo" para probar la aplicación');
     }
 
-    // Determinar la URL de redirección
-    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+    try {
+      // Determinar la URL de redirección
+      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
 
-    // Llamar a Supabase para iniciar sesión con Google
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-      },
-    });
+      // Envolver con timeout de 10 segundos (OAuth debería ser rápido)
+      const oauthPromise = supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+        },
+      });
 
-    // Si hay error, lanzarlo
-    if (error) {
-      throw error;
+      const { error } = await withTimeout(oauthPromise, 10000);
+
+      // Si hay error, convertirlo a mensaje amigable
+      if (error) {
+        const friendlyMessage = getFriendlyErrorMessage(error);
+        throw new Error(friendlyMessage);
+      }
+
+      // El navegador será redirigido a Google y luego volverá al callback
+      // El callback manejará la sesión automáticamente
+    } catch (error: any) {
+      // Si es un error de timeout
+      if (error?.message?.includes('Request timeout')) {
+        throw new Error('La conexión está tardando demasiado. Verifica tu conexión a internet e intenta de nuevo.');
+      }
+      // Si ya es un Error con mensaje, relanzarlo
+      if (error instanceof Error) {
+        throw error;
+      }
+      // Para cualquier otro error, convertirlo a mensaje amigable
+      const friendlyMessage = getFriendlyErrorMessage(error);
+      throw new Error(friendlyMessage);
     }
-
-    // El navegador será redirigido a Google y luego volverá al callback
-    // El callback manejará la sesión automáticamente
   };
 
   // =========================================================================
@@ -876,16 +963,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Determinar la URL de redirección (donde aterrizará el usuario al resetear)
       const redirect = typeof window !== 'undefined' ? `${window.location.origin}/auth/reset-password` : undefined;
       
-      // Llamar a Supabase para enviar email de reset
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirect });
+      // Envolver con timeout de 15 segundos
+      const resetPromise = supabase.auth.resetPasswordForEmail(email, { redirectTo: redirect });
+      const { error } = await withTimeout(resetPromise, 15000);
 
-      // Si hay error, lanzarlo
+      // Si hay error, convertirlo a mensaje amigable
       if (error) {
-        throw error;
+        let friendlyMessage = getFriendlyErrorMessage(error);
+        // Mensajes específicos para reset password
+        if (error.message?.includes('rate limit') || error.message?.includes('too many')) {
+          friendlyMessage = 'Demasiados intentos. Por favor espera unos minutos antes de solicitar otro email de recuperación.';
+        } else if (error.message?.includes('user not found') || error.message?.includes('User not found')) {
+          friendlyMessage = 'No existe una cuenta con este email. Verifica el email e intenta de nuevo.';
+        }
+        throw new Error(friendlyMessage);
       }
     } catch (e: any) {
-      // Lanzar el error para que se maneje en el componente
-      throw e;
+      // Si es un error de timeout
+      if (e?.message?.includes('Request timeout')) {
+        throw new Error('La conexión está tardando demasiado. Verifica tu conexión a internet e intenta de nuevo.');
+      }
+      // Si ya es un Error con mensaje, relanzarlo
+      if (e instanceof Error) {
+        throw e;
+      }
+      // Para cualquier otro error, convertirlo a mensaje amigable
+      const friendlyMessage = getFriendlyErrorMessage(e);
+      throw new Error(friendlyMessage);
     }
   };
 

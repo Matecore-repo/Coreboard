@@ -135,7 +135,9 @@ function LoginView() {
         setIsLoggingIn(false);
       } catch (error: any) {
         setIsLoggingIn(false);
-        toastError(error.message || "Error al iniciar sesión");
+        // El error ya viene con un mensaje amigable desde AuthContext
+        const errorMessage = error?.message || "Error al iniciar sesión";
+        toastError(errorMessage);
       }
       return;
     }
@@ -184,11 +186,19 @@ function LoginView() {
   const handleGoogleLogin = async () => {
     try {
       setIsLoggingIn(true);
-      await signInWithGoogle();
+      // Envolver con timeout para evitar bloqueo infinito
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('La conexión está tardando demasiado. Verifica tu conexión a internet e intenta de nuevo.')), 10000);
+      });
+      await Promise.race([
+        signInWithGoogle(),
+        timeoutPromise
+      ]);
       // No redirigir aquí porque el OAuth redirige automáticamente a Google y luego al callback
     } catch (error: any) {
       setIsLoggingIn(false);
-      toastError(error.message || "Error al iniciar sesión con Google");
+      const errorMessage = error?.message || "Error al iniciar sesión con Google";
+      toastError(errorMessage);
     }
   };
 

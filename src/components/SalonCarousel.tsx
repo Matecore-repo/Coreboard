@@ -8,6 +8,7 @@ import {
   type CarouselApi,
 } from "./ui/carousel";
 import { ViewAllSalonCard } from "./ViewAllSalonCard";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { cn } from "./ui/utils";
 
 interface Salon {
@@ -147,7 +148,7 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
               className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3 min-w-0"
             >
               <div className="p-1 h-full">
-                <div className="w-full h-full aspect-square flex">
+                <div className="w-full aspect-square flex">
                   {isAllOption ? (
                     <ViewAllSalonCard
                       onClick={handleSelect}
@@ -156,7 +157,7 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                   ) : (
                     <div
                       className={cn(
-                        "relative flex-1 flex items-center justify-center select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-500 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg",
+                        "relative flex-1 select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-500 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg h-56 md:h-64",
                         isSelected && "border-primary shadow-lg scale-[1.02]"
                       )}
                       role="button"
@@ -171,10 +172,27 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                         }
                       }}
                     >
-                      <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-black/40 dark:from-white/5 dark:via-transparent dark:to-black/80 pointer-events-none" />
-                      <span className="relative z-[1] text-4xl font-semibold">
-                        {"order" in item ? item.order : index + 1}
-                      </span>
+                      {/* Background image + gradient overlays (diseño original) */}
+                      <div className="absolute inset-0 z-0">
+                        <ImageWithFallback
+                          src={item.image || ""}
+                          alt={item.name}
+                          className="w-full h-full"
+                          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
+                        />
+                      </div>
+                      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/10 via-black/60 to-black/95" />
+                      <div className="absolute inset-x-0 bottom-0 h-2/3 z-[2] bg-gradient-to-t from-black/95 via-black/80 to-black/40 backdrop-blur-[2px]" />
+
+                      {/* Contenido minimalista: número de orden + nombre */}
+                      <div className="absolute inset-0 z-[3] flex flex-col items-center justify-end pb-6 px-4 text-center">
+                        <span className="text-3xl font-semibold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                          {"order" in item ? item.order : index + 1}
+                        </span>
+                        <span className="mt-2 text-sm font-medium text-neutral-100 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)] line-clamp-2">
+                          {item.name}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
