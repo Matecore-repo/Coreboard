@@ -94,44 +94,20 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
       return;
     }
 
-    const handleEmblaSelect = () => {
-      const activeIndex = carouselApi.selectedScrollSnap();
-
-      if (ignoreNextSelectRef.current) {
-        ignoreNextSelectRef.current = false;
-        return;
-      }
-
-      const activeItem = carouselItems[activeIndex];
-      if (!activeItem) {
-        return;
-      }
-
-      const isAllOption = "isAllOption" in activeItem;
-      const targetId = isAllOption ? "all" : activeItem.id;
-      const targetName = isAllOption ? "Todos los locales" : activeItem.name;
-
-      if (targetId !== selectedSalonRef.current) {
-        onSelectSalon?.(targetId, targetName);
-      }
-    };
-
     const handleEmblaReInit = () => {
       const targetIndex = findIndexById(selectedSalonRef.current);
       ignoreNextSelectRef.current = true;
       carouselApi.scrollTo(targetIndex, true);
     };
 
-    carouselApi.on("select", handleEmblaSelect);
     carouselApi.on("reInit", handleEmblaReInit);
 
     handleEmblaReInit();
 
     return () => {
-      carouselApi.off("select", handleEmblaSelect);
       carouselApi.off("reInit", handleEmblaReInit);
     };
-  }, [carouselApi, carouselItems, onSelectSalon, findIndexById]);
+  }, [carouselApi, findIndexById]);
 
   return (
     <Carousel
@@ -180,8 +156,8 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                   ) : (
                     <div
                       className={cn(
-                        "relative flex-1 flex items-center justify-center select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg",
-                        isSelected && "shadow-[inset_0_0_0_0.2rem_hsl(var(--primary))]"
+                        "relative flex-1 flex items-center justify-center select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-500 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg",
+                        isSelected && "border-primary shadow-lg scale-[1.02]"
                       )}
                       role="button"
                       tabIndex={0}

@@ -15,8 +15,8 @@ export function ViewAllSalonCard({
   return (
     <div
       className={cn(
-        "relative flex-1 flex items-center justify-center select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg",
-        isSelected && "shadow-[inset_0_0_0_0.2rem_hsl(var(--primary))]"
+        "relative flex-1 flex items-center justify-center select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-500 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg",
+        isSelected && "border-primary shadow-lg scale-[1.02]"
       )}
       role="button"
       tabIndex={0}
@@ -37,4 +37,3 @@ export function ViewAllSalonCard({
     </div>
   );
 }
-
