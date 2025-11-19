@@ -21,6 +21,9 @@ import { useRouter } from 'next/router';
 import { DEMO_ORG_ID, DEMO_USER_EMAIL, DEMO_USER_ID, DEMO_FEATURE_FLAG } from '../demo/constants';
 // ^ Constantes de demostración para usar la app sin autenticación real
 
+import { toastError } from '../lib/toast';
+// ^ Función para mostrar notificaciones de error con sonner
+
 // ============================================================================
 // FLAG DE MODO DEMO
 // ============================================================================
@@ -522,6 +525,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (e) {
         // Error al obtener la sesión (puede ser timeout, CORS, red lenta, etc.)
         console.error('Error al restaurar sesión:', e);
+        
+        // Solo mostrar toast si había una sesión guardada que intentaba restaurarse
+        // (no mostrar si simplemente no hay sesión)
+        const hadStoredSession = safeLocalStorage.getItem(STORAGE_KEYS.session);
+        if (hadStoredSession && isMounted) {
+          // Determinar el mensaje de error apropiado
+          const errorMessage = (e as any)?.message || '';
+          let friendlyMessage = 'Error al restaurar sesión. Verifica tu conexión a internet.';
+          
+          if (errorMessage.includes('timeout') || errorMessage.includes('Request timeout')) {
+            friendlyMessage = 'La conexión está tardando demasiado. Verifica tu conexión a internet e intenta de nuevo.';
+          } else if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+            friendlyMessage = 'Error de conexión. Verifica tu conexión a internet e intenta de nuevo.';
+          }
+          
+          // Mostrar notificación al usuario
+          toastError(friendlyMessage);
+        }
+        
         // Asegurar que siempre limpiamos el estado si falla
         if (isMounted) {
           setUser(null);

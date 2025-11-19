@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Carousel,
   CarouselContent,
@@ -10,6 +16,7 @@ import {
 import { ViewAllSalonCard } from "./ViewAllSalonCard";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { cn } from "./ui/utils";
+import { turnosStore } from "../stores/turnosStore";
 
 interface Salon {
   id: string;
@@ -33,9 +40,33 @@ interface SalonCarouselProps {
 }
 
 const MAX_VISIBLE_ITEMS = 6;
-export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCarouselProps) {
-  const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
+
+export function SalonCarousel({
+  salons,
+  selectedSalon,
+  onSelectSalon,
+}: SalonCarouselProps) {
+  const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(
+    undefined,
+  );
   const ignoreNextSelectRef = useRef(false);
+
+  const todayStr = useMemo(
+    () => new Date().toISOString().split("T")[0],
+    [],
+  );
+
+  const todayAppointmentsBySalon = useMemo(() => {
+    const todayTurnos = turnosStore.getByDate(todayStr);
+    const map = new Map<string, number>();
+
+    for (const turno of todayTurnos) {
+      if (!turno.salonId) continue;
+      map.set(turno.salonId, (map.get(turno.salonId) ?? 0) + 1);
+    }
+
+    return map;
+  }, [todayStr]);
 
   const trimmedSalons = useMemo(
     () => (salons ?? []).slice(0, MAX_VISIBLE_ITEMS - 1),
@@ -122,6 +153,9 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
           const isSelected = isAllOption
             ? selectedSalon === "all"
             : selectedSalon === item.id;
+          const todayCount = !isAllOption
+            ? todayAppointmentsBySalon.get(item.id) ?? 0
+            : 0;
 
           const handleSelect = () => {
             const targetId = isAllOption ? "all" : item.id;
@@ -157,8 +191,8 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                   ) : (
                     <div
                       className={cn(
-                        "relative flex-1 select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-500 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg h-56 md:h-64",
-                        isSelected && "border-primary shadow-lg scale-[1.02]"
+                        "relative flex-1 select-none cursor-pointer rounded-[1.8rem] border border-border/60 dark:border-border/40 bg-card text-card-foreground overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-500 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg",
+                        isSelected && "border-primary shadow-lg scale-[1.02]",
                       )}
                       role="button"
                       tabIndex={0}
@@ -172,26 +206,47 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                         }
                       }}
                     >
-                      {/* Background image + gradient overlays (diseño original) */}
-                      <div className="absolute inset-0 z-0">
-                        <ImageWithFallback
-                          src={item.image || ""}
-                          alt={item.name}
-                          className="w-full h-full"
-                          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
-                        />
+                      <div className="absolute inset-0">
+                        {item.image ? (
+                          <ImageWithFallback
+                            src={item.image}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                            sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-muted" />
+                        )}
                       </div>
-                      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/10 via-black/60 to-black/95" />
-                      <div className="absolute inset-x-0 bottom-0 h-2/3 z-[2] bg-gradient-to-t from-black/95 via-black/80 to-black/40 backdrop-blur-[2px]" />
 
-                      {/* Contenido minimalista: número de orden + nombre */}
-                      <div className="absolute inset-0 z-[3] flex flex-col items-center justify-end pb-6 px-4 text-center">
-                        <span className="text-3xl font-semibold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
-                          {"order" in item ? item.order : index + 1}
-                        </span>
-                        <span className="mt-2 text-sm font-medium text-neutral-100 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)] line-clamp-2">
-                          {item.name}
-                        </span>
+                      <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-black/85 via-black/40 to-transparent dark:from-neutral-950/90 dark:via-neutral-950/50 dark:to-transparent" />
+
+                      <div className="absolute inset-0 flex flex-col justify-end px-5 pb-6 pt-8">
+                        <div className="w-full rounded-2xl bg-white/95 dark:bg-neutral-950/95 px-4 py-3 backdrop-blur-sm shadow-[0_20px_40px_rgba(0,0,0,0.35)]">
+                          <div className="flex flex-col gap-2">
+                            <div>
+                              <h3 className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+                                {item.name}
+                              </h3>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-300">
+                                  Turnos de hoy
+                                </span>
+                                <span className="text-base font-semibold text-neutral-900 dark:text-white">
+                                  {todayCount}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                className="px-4 py-2 rounded-full bg-neutral-900 text-white text-[11px] font-medium whitespace-nowrap shadow-sm dark:bg-white dark:text-neutral-950"
+                              >
+                                Nuevo turno
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
