@@ -14,7 +14,6 @@ function mapRowToExpense(row: any): Expense {
     amount: Number(row.amount ?? 0),
     description: row.description || '',
     category: row.category || undefined,
-    type: undefined, // La columna type no existe en el schema actual
     supplier_id: row.supplier_id ? String(row.supplier_id) : undefined,
     invoice_number: row.invoice_number || undefined,
     invoice_date: row.invoice_date || undefined,

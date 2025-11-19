@@ -22,7 +22,6 @@ import { useEmployees } from '../../hooks/useEmployees';
 import { useSalons } from '../../hooks/useSalons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useFinancialExports } from '../../hooks/useFinancialExports';
-import { OwnerInsightGrid } from '../features/finances/OwnerInsightGrid';
 import { toastSuccess, toastError } from '../../lib/toast';
 import type { Appointment } from '../../types';
 import {
@@ -257,31 +256,6 @@ export default function OwnerDashboard({
     [paymentsByMethod],
   );
 
-  // Datos para gráficos - usar payments y expenses ya filtrados por dateRange
-  const incomeExpenseData = useMemo(() => {
-    const map: Record<string, { income: number; expense: number }> = {};
-    
-    payments.forEach(payment => {
-      const paymentDate = payment.date;
-      if (!map[paymentDate]) {
-        map[paymentDate] = { income: 0, expense: 0 };
-      }
-      map[paymentDate].income += payment.amount;
-    });
-    
-    expenses.forEach(expense => {
-      const expenseDate = expense.incurred_at;
-      if (!map[expenseDate]) {
-        map[expenseDate] = { income: 0, expense: 0 };
-      }
-      map[expenseDate].expense += expense.amount;
-    });
-    
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, data]) => ({ date, income: data.income, expense: data.expense }));
-  }, [payments, expenses]);
-
   // Resultado financiero (Ingresos - Gastos - Comisiones)
   const netResult = useMemo(() => {
     const totalIncome = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -289,32 +263,6 @@ export default function OwnerDashboard({
     // Las comisiones son un gasto que hay que pagar, así que se restan
     return totalIncome - totalExpenses - totalCommissionsAmount;
   }, [payments, expenses, totalCommissionsAmount]);
-
-  const recentMovements = useMemo(() => {
-    const incomeMovements = payments.map(payment => ({
-      id: `payment-${payment.id}`,
-      type: "Ingreso",
-      concept: payment.paymentMethodDetail || payment.paymentMethod || "Cobro",
-      amount: payment.amount,
-      date: payment.date,
-      category: "Venta",
-    }));
-
-    const expenseMovements = expenses.map(expense => ({
-      id: `expense-${expense.id}`,
-      type: "Gasto",
-      concept: expense.description || "Gasto registrado",
-      amount: expense.amount,
-      date: expense.incurred_at,
-      category: expense.category || "General",
-    }));
-
-    const combined = [...incomeMovements, ...expenseMovements].sort((a, b) => {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
-
-    return combined.slice(0, 8);
-  }, [payments, expenses]);
 
   const handleExportAll = useCallback(async () => {
     try {
@@ -865,81 +813,7 @@ const financialSummaryRows = useMemo<FinancialSectionItem[]>(
         </CardContent>
       </Card>
 
-      {/* Gastos por Categoría y Pagos por Método */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-7 lg:gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Gastos por Categoría</CardTitle>
-            <CardDescription>Distribución de gastos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {expensesByCategory.length > 0 ? (
-              <>
-                <Table>
-                  <TableHeader>
-                  <TableRow>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
-                      Monto
-                    </TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">Participación</TableHead>
-                  </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {expensesByCategory.slice(0, 5).map((exp, idx) => {
-                      const share =
-                        totalExpensesByCategory > 0 ? (exp.amount / totalExpensesByCategory) * 100 : 0;
-                      return (
-                        <TableRow key={`${exp.category}-${idx}`}>
-                          <TableCell className="font-medium">{exp.category}</TableCell>
-                          <TableCell
-                            className={cn(
-                              "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
-                              getValueToneClass(exp.amount),
-                            )}
-                          >
-                            {formatCurrency(exp.amount)}
-                          </TableCell>
-                          <TableCell className="hidden text-right sm:table-cell">
-                            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                              {share.toFixed(1)}%
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell className="font-semibold">Total gastos</TableCell>
-                      <TableCell
-                        className={cn(
-                          "text-right font-bold text-lg tabular-nums w-[140px] sm:w-[160px]",
-                          getValueToneClass(totalExpensesByCategory),
-                        )}
-                      >
-                        {formatCurrency(totalExpensesByCategory)}
-                      </TableCell>
-                      <TableCell className="hidden text-right sm:table-cell">
-                        <span className="text-xs font-semibold text-muted-foreground">100%</span>
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                  {expensesByCategory.length > 5 && (
-                    <TableCaption>
-                      + {expensesByCategory.length - 5} categoría
-                      {expensesByCategory.length - 5 !== 1 ? "s" : ""} adicionales fuera del top.
-                    </TableCaption>
-                  )}
-                </Table>
-              </>
-            ) : (
-              <p className="py-6 text-center text-sm text-muted-foreground">No hay gastos registrados</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
+      <Card>
           <CardHeader>
             <CardTitle>Pagos por Método</CardTitle>
             <CardDescription>Distribución de ingresos</CardDescription>
@@ -1009,96 +883,6 @@ const financialSummaryRows = useMemo<FinancialSectionItem[]>(
             </div>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Gráficos Principales */}
-      <OwnerInsightGrid
-        incomeExpenseData={incomeExpenseData}
-        paymentMethodData={paymentsByMethod.map((item) => ({
-          method: item.method,
-          amount: item.amount,
-        }))}
-        currencyFormatter={formatCurrency}
-      />
-
-      <Card>
-        <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Movimientos recientes</CardTitle>
-            <CardDescription>Últimos ingresos y egresos consolidados</CardDescription>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {recentMovements.length > 0
-              ? `Actualizado al ${new Date(recentMovements[0].date).toLocaleDateString("es-AR")}`
-              : "Sin registros"}
-          </span>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {recentMovements.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No hay movimientos registrados en el período seleccionado.
-            </p>
-          ) : (
-            <div className="px-5 pb-5">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[160px]">Fecha</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Concepto</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead className="text-right tabular-nums w-[140px] sm:w-[160px]">
-                        Monto
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentMovements.map((movement) => (
-                      <TableRow key={movement.id}>
-                        <TableCell className="text-sm font-medium">
-                          {new Date(movement.date).toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-xs font-semibold",
-                              movement.type === "Ingreso"
-                                ? "bg-emerald-500/10 text-emerald-600"
-                                : "bg-rose-500/10 text-rose-500",
-                            )}
-                          >
-                            {movement.type}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {movement.concept}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {movement.category}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            "text-right font-semibold tabular-nums w-[140px] sm:w-[160px]",
-                            movement.type === "Ingreso" ? "text-emerald-600" : "text-rose-500",
-                          )}
-                        >
-                          {movement.type === "Gasto" ? "-" : ""}
-                          {formatCurrency(movement.amount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   </div>
   );

@@ -462,16 +462,26 @@ export default function AppContainer() {
 
   // Memoize salon handlers
   const salonHandlers = useMemo(() => ({
-    onAddSalon: async (salon: any) => {
+    onAddSalon: async (salon: any): Promise<any> => {
       try {
         if (currentOrgId) {
-          await createSalon({
+          const created = await createSalon({
             org_id: currentOrgId,
             name: salon.name,
             address: salon.address,
             phone: salon.phone || '',
             active: true
           });
+          // Mapear DBSalon a Salon (UISalon)
+          return {
+            id: String(created.id),
+            name: created.name,
+            address: created.address || '',
+            image: created.image || '/imagenlogin.jpg',
+            phone: created.phone || undefined,
+            services: [],
+            staff: [],
+          };
         } else {
           throw new Error('currentOrgId no disponible');
         }

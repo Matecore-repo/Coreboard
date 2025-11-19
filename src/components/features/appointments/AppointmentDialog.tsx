@@ -30,6 +30,7 @@ import {
   CommandItem,
 } from "../../ui/command";
 import { CustomDatePicker } from "../../ui/DatePicker";
+import { TimePicker } from "../../ui/TimePicker";
 import { useSalonEmployees } from "../../../hooks/useSalonEmployees";
 import { useSalonServices } from "../../../hooks/useSalonServices";
 import { useTurnos } from "../../../hooks/useTurnos";
@@ -670,11 +671,10 @@ export function AppointmentDialog({
               <Label htmlFor="time">
                 Hora <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <TimePicker
                 id="time"
-                type="time"
                 value={formData.time || ""}
-                onChange={(e) => handleFieldChange('time', e.target.value)}
+                onChange={(value) => handleFieldChange('time', value)}
                 onBlur={() => handleFieldBlur('time')}
                 placeholder="HH:MM"
                 aria-invalid={touched.time && !!errors.time}

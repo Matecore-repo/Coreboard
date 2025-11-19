@@ -1,5 +1,4 @@
 import React from "react";
-import { Card, CardContent } from "./ui/card";
 import { cn } from "./ui/utils";
 
 interface ViewAllSalonCardProps {
@@ -9,14 +8,12 @@ interface ViewAllSalonCardProps {
 }
 
 export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: ViewAllSalonCardProps) {
-  const cardClasses = cn(
-    "group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-    isSelected && "border-primary shadow-md"
-  );
-
   return (
-    <Card
-      className={cardClasses}
+    <div
+      className={cn(
+        "shadow-[inset_0_0_0_0.2rem_hsl(var(--border))] rounded-[1.8rem] text-4xl font-semibold flex-1 flex items-center justify-center select-none cursor-pointer transition-all duration-300 hover:shadow-[inset_0_0_0_0.2rem_hsl(var(--primary))]",
+        isSelected && "shadow-[inset_0_0_0_0.2rem_hsl(var(--primary))]"
+      )}
       role="button"
       tabIndex={0}
       aria-pressed={isSelected}
@@ -29,15 +26,7 @@ export function ViewAllSalonCard({ onClick, isSelected, isDimmed = false }: View
         }
       }}
     >
-      <CardContent className="flex aspect-square flex-col items-center justify-center gap-2 text-center p-6">
-        <span className="text-2xl font-semibold text-foreground">
-          ∞
-        </span>
-        <span className="text-sm text-muted-foreground">
-          Ver todos los locales
-        </span>
-      </CardContent>
-    </Card>
+      ∞
+    </div>
   );
 }
-

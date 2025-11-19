@@ -30,8 +30,8 @@ import { CommandPaletteProvider, CommandAction } from "./contexts/CommandPalette
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "./components/ui/command";
 import { applyTheme } from "./lib/theme";
 import { ConfirmDialog } from "./components/ui/ConfirmDialog";
-import { uploadSalonImage, deleteSalonImage } from '../../lib/salonImageUpload';
-import { Skeleton } from '../ui/skeleton';
+import { uploadSalonImage, deleteSalonImage } from './lib/salonImageUpload';
+import { Skeleton } from './components/ui/skeleton';
 
 // Lazy-loaded views
 const HomeView = lazy(() => {

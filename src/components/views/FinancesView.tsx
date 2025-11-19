@@ -315,9 +315,9 @@ export default function FinancesView({ selectedSalon, salonName, salons = [], on
             action={
               <Button
                 type="button"
-                variant="outline"
                 onClick={handleExport}
                 disabled={!currentExporter}
+                className="!bg-black !text-white !border !border-black hover:!bg-black/90 hover:!text-white dark:!bg-black dark:!text-white dark:!border-black dark:hover:!bg-black/90 [&_svg]:!text-white"
               >
                 <Download className="h-4 w-4 mr-2" aria-hidden="true" />
                 Exportar

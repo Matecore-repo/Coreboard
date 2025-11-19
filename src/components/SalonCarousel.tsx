@@ -1,6 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Compass } from "lucide-react";
-import { Card, CardContent } from "./ui/card";
 import {
   Carousel,
   CarouselContent,
@@ -10,8 +8,6 @@ import {
   type CarouselApi,
 } from "./ui/carousel";
 import { ViewAllSalonCard } from "./ViewAllSalonCard";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { Skeleton } from "./ui/skeleton";
 import { cn } from "./ui/utils";
 
 interface Salon {
@@ -139,7 +135,7 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
 
   return (
     <Carousel
-      className="w-full max-w-sm mx-auto"
+      className="w-full max-w-4xl mx-auto"
       opts={{ align: "start", loop: true }}
       setApi={setCarouselApi}
     >
@@ -172,66 +168,38 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
           return (
             <CarouselItem
               key={`${item.id}-${index}`}
-              className="pl-2 md:pl-4 basis-1/3 min-w-0"
+              className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3 min-w-0"
             >
-              {isAllOption ? (
-                <ViewAllSalonCard
-                  onClick={handleSelect}
-                  isSelected={isSelected}
-                />
-              ) : (
-                <div
-                  className={cn(
-                    "group relative w-full aspect-square overflow-hidden bg-card text-card-foreground rounded-2xl border border-border/60 dark:border-border/40 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-                    isSelected && "border-primary shadow-md"
-                  )}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSelected}
-                  aria-label={`Seleccionar ${item.name}`}
-                  onClick={handleSelect}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      handleSelect();
-                    }
-                  }}
-                >
-                    {/* Imagen de fondo o skeleton */}
-                    <div className="absolute inset-0 z-0">
-                      {item.image && item.image.trim() ? (
-                        <ImageWithFallback
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
-                        />
-                      ) : (
-                        <Skeleton className="w-full h-full absolute inset-0" />
+              <div className="p-1 h-full">
+                <div className="w-full h-full aspect-square flex">
+                  {isAllOption ? (
+                    <ViewAllSalonCard
+                      onClick={handleSelect}
+                      isSelected={isSelected}
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        "shadow-[inset_0_0_0_0.2rem_hsl(var(--border))] rounded-[1.8rem] text-4xl font-semibold flex-1 flex items-center justify-center select-none cursor-pointer transition-all duration-300 hover:shadow-[inset_0_0_0_0.2rem_hsl(var(--primary))]",
+                        isSelected && "shadow-[inset_0_0_0_0.2rem_hsl(var(--primary))]"
                       )}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`Seleccionar ${item.name}`}
+                      onClick={handleSelect}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleSelect();
+                        }
+                      }}
+                    >
+                      {"order" in item ? item.order : index + 1}
                     </div>
-
-                    {/* Overlay con gradiente vertical más fuerte en la parte inferior */}
-                    <div className="absolute inset-0 z-[1] bg-gradient-to-b from-transparent via-transparent to-black/85 dark:to-black/95" />
-
-                    {/* Capa adicional con blur más fuerte en la parte inferior */}
-                    <div className="absolute inset-x-0 bottom-0 h-2/3 z-[2] bg-gradient-to-t from-black/95 via-black/80 to-black/40 backdrop-blur-sm" />
-
-                    {/* Contenido centrado - usando divs adicionales para asegurar capas */}
-                    <div className="absolute inset-0 z-[3] flex flex-col items-end justify-end w-full h-full pointer-events-none">
-                      <div className="w-full px-6 pb-8 pointer-events-auto">
-                        <div className="flex flex-col items-center justify-end gap-2 text-center">
-                          <span className="text-2xl font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
-                            {"order" in item ? item.order : index + 1}
-                          </span>
-                          <span className="text-sm font-semibold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-                            {item.name}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-              )}
+                  )}
+                </div>
+              </div>
             </CarouselItem>
           );
         })}
