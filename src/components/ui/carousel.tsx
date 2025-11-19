@@ -185,9 +185,9 @@ function CarouselPrevious({
     <Button
       data-slot="carousel-previous"
       className={cn(
-        "absolute size-9 rounded-full border border-border/60 !bg-black !text-white dark:!bg-white dark:!text-black shadow-sm",
+        "absolute size-9 rounded-full border border-border/60 !bg-black/60 !text-white dark:!bg-white/60 dark:!text-black shadow-sm",
         "transition-all duration-200",
-        "hover:!bg-black dark:hover:!bg-white hover:shadow-md",
+        "hover:!bg-black/60 dark:hover:!bg-white/60 hover:shadow-md",
         "focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none",
         "disabled:pointer-events-none disabled:opacity-35",
         orientation === "horizontal"
@@ -219,9 +219,9 @@ function CarouselNext({
     <Button
       data-slot="carousel-next"
       className={cn(
-        "absolute size-9 rounded-full border border-border/60 !bg-black !text-white dark:!bg-white dark:!text-black shadow-sm",
+        "absolute size-9 rounded-full border border-border/60 !bg-black/60 !text-white dark:!bg-white/60 dark:!text-black shadow-sm",
         "transition-all duration-200",
-        "hover:!bg-black dark:hover:!bg-white hover:shadow-md",
+        "hover:!bg-black/60 dark:hover:!bg-white/60 hover:shadow-md",
         "focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none",
         "disabled:pointer-events-none disabled:opacity-35",
         orientation === "horizontal"

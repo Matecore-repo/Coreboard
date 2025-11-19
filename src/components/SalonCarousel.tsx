@@ -223,9 +223,9 @@ export function SalonCarousel({
                         <div
                           className="h-full w-full flex items-center px-6 py-4 rounded-b-[1.8rem]"
                           style={{
-                            // De 95% opaco en la base a ~25% en la parte alta de la banda
+                            // De 95% opaco en la base a 0% en la parte alta, con transición más suave
                             background:
-                              "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.5) 100%)",
+                              "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0) 100%)",
                           }}
                         >
                           <h3 className="text-base font-semibold text-white truncate">
