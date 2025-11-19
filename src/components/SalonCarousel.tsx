@@ -139,11 +139,11 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
 
   return (
     <Carousel
-      className="w-full max-w-4xl mx-auto"
+      className="w-full max-w-sm mx-auto"
       opts={{ align: "start", loop: true }}
       setApi={setCarouselApi}
     >
-      <CarouselContent className="-ml-2 sm:-ml-4">
+      <CarouselContent className="-ml-2 md:-ml-4">
         {carouselItems.map((item, index) => {
           const isAllOption = "isAllOption" in item;
           const isSelected = isAllOption
@@ -172,7 +172,7 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
           return (
             <CarouselItem
               key={`${item.id}-${index}`}
-              className="basis-full sm:basis-1/2 lg:basis-1/3 pl-2 sm:pl-4"
+              className="pl-2 md:pl-4 basis-1/3 min-w-0"
             >
               {isAllOption ? (
                 <ViewAllSalonCard
@@ -180,9 +180,9 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                   isSelected={isSelected}
                 />
               ) : (
-                <Card
+                <div
                   className={cn(
-                    "group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                    "group relative w-full aspect-square overflow-hidden bg-card text-card-foreground rounded-2xl border border-border/60 dark:border-border/40 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] dark:shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
                     isSelected && "border-primary shadow-md"
                   )}
                   role="button"
@@ -197,33 +197,40 @@ export function SalonCarousel({ salons, selectedSalon, onSelectSalon }: SalonCar
                     }
                   }}
                 >
-                  {/* Imagen de fondo o skeleton */}
-                  <div className="absolute inset-0">
-                    {item.image && item.image.trim() ? (
-                      <ImageWithFallback
-                        src={item.image}
-                        alt={item.name}
-                        className="w-full h-full"
-                        sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
-                      />
-                    ) : (
-                      <Skeleton className="w-full h-full absolute inset-0" />
-                    )}
+                    {/* Imagen de fondo o skeleton */}
+                    <div className="absolute inset-0 z-0">
+                      {item.image && item.image.trim() ? (
+                        <ImageWithFallback
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
+                        />
+                      ) : (
+                        <Skeleton className="w-full h-full absolute inset-0" />
+                      )}
+                    </div>
+
+                    {/* Overlay con gradiente vertical más fuerte en la parte inferior */}
+                    <div className="absolute inset-0 z-[1] bg-gradient-to-b from-transparent via-transparent to-black/85 dark:to-black/95" />
+
+                    {/* Capa adicional con blur más fuerte en la parte inferior */}
+                    <div className="absolute inset-x-0 bottom-0 h-2/3 z-[2] bg-gradient-to-t from-black/95 via-black/80 to-black/40 backdrop-blur-sm" />
+
+                    {/* Contenido centrado - usando divs adicionales para asegurar capas */}
+                    <div className="absolute inset-0 z-[3] flex flex-col items-end justify-end w-full h-full pointer-events-none">
+                      <div className="w-full px-6 pb-8 pointer-events-auto">
+                        <div className="flex flex-col items-center justify-end gap-2 text-center">
+                          <span className="text-2xl font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                            {"order" in item ? item.order : index + 1}
+                          </span>
+                          <span className="text-sm font-semibold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
+                            {item.name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-
-                  {/* Overlay sutil */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/10 to-background/60 dark:from-background/0 dark:via-background/20 dark:to-background/70" />
-
-                  {/* Contenido centrado */}
-                  <CardContent className="relative z-10 flex aspect-square flex-col items-center justify-center gap-2 text-center p-6">
-                    <span className="text-2xl font-semibold text-foreground">
-                      {"order" in item ? item.order : index + 1}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {item.name}
-                    </span>
-                  </CardContent>
-                </Card>
               )}
             </CarouselItem>
           );
