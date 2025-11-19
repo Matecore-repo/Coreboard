@@ -221,10 +221,11 @@ export function SalonCarousel({
                         style={{ height: "25%" }}
                       >
                         <div
-                          className="h-full w-full flex items-center px-6 pb-5 rounded-b-[1.8rem]"
+                          className="h-full w-full flex items-center px-6 py-4 rounded-b-[1.8rem]"
                           style={{
+                            // De 95% opaco en la base a ~25% en la parte alta de la banda
                             background:
-                              "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.45), rgba(0,0,0,0))",
+                              "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.5) 100%)",
                           }}
                         >
                           <h3 className="text-base font-semibold text-white truncate">

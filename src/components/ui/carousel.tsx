@@ -175,7 +175,7 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
 
 function CarouselPrevious({
   className,
-  variant = "ghost",
+  variant = "default",
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
@@ -184,24 +184,24 @@ function CarouselPrevious({
   return (
     <Button
       data-slot="carousel-previous"
-      variant={variant}
-      size={size}
       className={cn(
-        "absolute size-9 rounded-full border border-border/60 bg-background/90 text-foreground shadow-sm backdrop-blur",
+        "absolute size-9 rounded-full border border-border/60 !bg-black !text-white dark:!bg-white dark:!text-black shadow-sm",
         "transition-all duration-200",
-        "hover:bg-primary hover:text-primary-foreground hover:shadow-md",
-        "focus-visible:ring-2 focus-visible:ring-primary/50",
+        "hover:!bg-black dark:hover:!bg-white hover:shadow-md",
+        "focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none",
         "disabled:pointer-events-none disabled:opacity-35",
         orientation === "horizontal"
           ? "top-1/2 left-2 -translate-y-1/2 md:left-3"
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
         className,
       )}
-      disabled={!canScrollPrev}
+      variant={variant}
+      size={size}
       onClick={scrollPrev}
+      disabled={!canScrollPrev}
       {...props}
     >
-      <ArrowLeft className="size-4 text-foreground/90 dark:text-foreground/80 transition-colors" />
+      <ArrowLeft className="size-4 transition-colors" />
       <span className="sr-only">Previous slide</span>
     </Button>
   );
@@ -209,7 +209,7 @@ function CarouselPrevious({
 
 function CarouselNext({
   className,
-  variant = "ghost",
+  variant = "default",
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
@@ -218,24 +218,24 @@ function CarouselNext({
   return (
     <Button
       data-slot="carousel-next"
-      variant={variant}
-      size={size}
       className={cn(
-        "absolute size-9 rounded-full border border-border/60 bg-background/90 text-foreground shadow-sm backdrop-blur",
+        "absolute size-9 rounded-full border border-border/60 !bg-black !text-white dark:!bg-white dark:!text-black shadow-sm",
         "transition-all duration-200",
-        "hover:bg-primary hover:text-primary-foreground hover:shadow-md",
-        "focus-visible:ring-2 focus-visible:ring-primary/50",
+        "hover:!bg-black dark:hover:!bg-white hover:shadow-md",
+        "focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none",
         "disabled:pointer-events-none disabled:opacity-35",
         orientation === "horizontal"
           ? "top-1/2 right-2 -translate-y-1/2 md:right-3"
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
         className,
       )}
-      disabled={!canScrollNext}
+      variant={variant}
+      size={size}
       onClick={scrollNext}
+      disabled={!canScrollNext}
       {...props}
     >
-      <ArrowRight className="size-4 text-foreground/90 dark:text-foreground/80 transition-colors" />
+      <ArrowRight className="size-4 transition-colors" />
       <span className="sr-only">Next slide</span>
     </Button>
   );
